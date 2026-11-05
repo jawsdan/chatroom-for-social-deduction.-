@@ -693,3 +693,11 @@ body[class*="fx-role-"] .empty-state b { color: #111; }
 /* Trial picture */
 .modal-card .art:has(img[src*="trial"]) { width: 170px; height: 170px; filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.35)); }
 .trial-banner .scales { width: 36px; height: 36px; }
+
+/* Small role pictures next to text */
+.ri { width: 1.3em; height: 1.3em; border-radius: 50%; object-fit: cover; vertical-align: -0.3em; flex-shrink: 0; }
+.btn .ri { width: 22px; height: 22px; vertical-align: middle; }
+.nav-icon .ri { width: 100%; height: 100%; }
+.role-tag .ri, .me-card .status .ri { width: 15px; height: 15px; vertical-align: -3px; }
+.stepper-label .ri { width: 22px; height: 22px; vertical-align: -6px; }
+.check-hint .ri { width: 16px; height: 16px; vertical-align: -3px; }

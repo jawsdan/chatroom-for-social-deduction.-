@@ -53,6 +53,19 @@ function knownRole(name) {
   if (state.me.wolfmates?.some((n) => key(n) === k)) return 'werewolf';
   return null;
 }
+// Small round role picture to use next to text.
+function roleIcon(role) {
+  const img = el('img', 'ri');
+  img.src = `img/roles/sm/${role}.webp`;
+  img.alt = '';
+  return img;
+}
+// A label with the role picture in front, e.g. [pic] Doctor.
+function roleLabel(cls, role, text) {
+  const s = el('span', cls);
+  s.append(roleIcon(role), document.createTextNode(' ' + text));
+  return s;
+}
 function avatar(name, extra = '') {
   const role = knownRole(name);
   if (role && ROLE_IMG[role]) {
@@ -452,9 +465,12 @@ function renderNav() {
   const who = el('div', 'who');
   who.append(el('div', 'name', me));
   const myRole = state.me.role && ROLE[state.me.role];
-  let status = amMod() ? '🛡️ Moderator' : myRole ? `${myRole.icon} ${myRole.label}` : 'Player · no role yet';
-  if (amMuted()) status += ' · 🔇 muted';
-  who.append(el('div', 'status', status));
+  const status = el('div', 'status');
+  if (amMod()) status.textContent = '🛡️ Moderator';
+  else if (myRole) status.append(roleIcon(state.me.role), document.createTextNode(' ' + myRole.label));
+  else status.textContent = 'Player · no role yet';
+  if (amMuted()) status.append(document.createTextNode(' · 🔇 muted'));
+  who.append(status);
   mc.append(a, who);
 
   document.querySelectorAll('.nav-item[data-channel]').forEach((b) => b.classList.toggle('selected', b.dataset.channel === channel));
@@ -544,7 +560,7 @@ function renderThreadTabs() {
       const b = el('button', 'thread-tab' + (k === selectedThread ? ' on' : '') + (online ? '' : ' offline'));
       b.type = 'button';
       const tr = state.modView?.roles[k];
-      b.append(avatar(displayName(k), 'sm'), el('span', '', displayName(k) + (online ? '' : ' (left)') + (tr ? ' ' + ROLE[tr].icon : '')));
+      b.append(avatar(displayName(k), 'sm'), el('span', '', displayName(k) + (online ? '' : ' (left)')));
       if (unreadThreads.has(k)) b.append(el('span', 'new'));
       b.onclick = () => {
         selectedThread = k;
@@ -588,7 +604,9 @@ function updateCheckHint() {
   const real = target && state.modView?.roles[key(target)];
   const hint = $('checkHint');
   const isWolf = real === 'werewolf' || real === 'serialkiller';
-  hint.textContent = real ? `(really ${ROLE[real].icon} ${ROLE[real].label})` : target ? '(no role yet)' : '';
+  hint.textContent = '';
+  if (real) hint.append(document.createTextNode('(really '), roleIcon(real), document.createTextNode(` ${ROLE[real].label})`));
+  else if (target) hint.textContent = '(no role yet)';
   document.querySelectorAll('#checkBar [data-check]').forEach((b) => {
     b.disabled = !target;
     b.classList.toggle('current', !!real && (b.dataset.check === 'wolf') === isWolf);
@@ -648,8 +666,7 @@ function renderRolesCard() {
   box.innerHTML = '';
   const row = (r, label) => {
     const d = el('div', 'stepper-row');
-    const icon = r === 'werewolf' && cfg.werewolf === 1 ? ROLE.serialkiller.icon : ROLE[r].icon;
-    const lab = el('span', 'stepper-label', `${icon} ${label}`);
+    const lab = roleLabel('stepper-label', r === 'werewolf' && cfg.werewolf === 1 ? 'serialkiller' : r, label);
     const step = el('div', 'stepper');
     const set = (n) => socket.emit('roles:config', { ...cfg, [r]: Math.max(0, Math.min(20, n)) });
     const minus = el('button', '', '−');
@@ -668,7 +685,7 @@ function renderRolesCard() {
   row('doctor', 'Doctors');
   row('officer', 'Officers');
   const civ = el('div', 'stepper-row');
-  civ.append(el('span', 'stepper-label', `${ROLE.civilian.icon} Civilians`), el('b', 'civ-count', String(civilians)));
+  civ.append(roleLabel('stepper-label', 'civilian', 'Civilians'), el('b', 'civ-count', String(civilians)));
   box.append(civ);
 
   const sum = $('roleSummary');
@@ -789,7 +806,7 @@ function renderPanel() {
     else if (isMe) role = state.me.role;
     else if (state.me.wolfmates?.some((n) => key(n) === key(u.name))) role = 'werewolf';
     if (role && ROLE[role]) {
-      const rt = el('span', 'role-tag', `${ROLE[role].icon} ${ROLE[role].label}`);
+      const rt = roleLabel('role-tag', role, ROLE[role].label);
       rt.style.setProperty('--rc', ROLE[role].color);
       nameBox.append(rt);
     } else if (mv && !u.moderator) nameBox.append(el('span', 'role-tag none', 'no role'));
@@ -896,7 +913,7 @@ function appendMessage(m, live = true) {
       const art = el('div', 'art');
       art.innerHTML = ART[m.role];
       const info = ROLE[m.role] || { icon: '', label: m.role };
-      r.append(art, el('div', '', `Secret role: ${info.icon} ${info.label}`));
+      r.append(art, el('div', '', `Secret role: ${info.label}`));
       bubble.append(r);
     } else if (m.check) {
       const wolf = m.check.result === 'wolf';
@@ -906,7 +923,7 @@ function appendMessage(m, live = true) {
       const txt = el('div');
       txt.append(el('div', 'check-kicker', '🔍 Investigation result'));
       const line = el('div', 'check-line');
-      line.append(el('b', '', m.check.target), document.createTextNode(' is '), el('b', 'check-verdict ' + (wolf ? 'wolf' : 'civ'), wolf ? '🐺 a Wolf' : '🧑‍🌾 a Civilian'));
+      line.append(el('b', '', m.check.target), document.createTextNode(' is '), el('b', 'check-verdict ' + (wolf ? 'wolf' : 'civ'), wolf ? 'a Wolf' : 'a Civilian'));
       txt.append(line);
       r.append(art, txt);
       bubble.append(r);
