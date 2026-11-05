@@ -85,6 +85,7 @@
       <div id="cluesBar" class="clues-bar hidden"></div>
 
       <div id="threadTabs" class="thread-tabs hidden"></div>
+      <div id="modOverview" class="mod-overview hidden"></div>
       <div id="roleBar" class="role-bar hidden">
         <span>Give <b id="roleTarget"></b> a secret role</span>
         <div class="role-actions">
@@ -95,18 +96,18 @@
           <button class="btn btn-ghost" data-role="">Clear</button>
         </div>
       </div>
-      <div id="checkBar" class="role-bar check-bar hidden">
+      <div id="scene" class="scene" aria-hidden="true"></div>
+      <div id="messages" class="messages"></div>
+
+      <div id="checkBar" class="role-bar check-bar bottom hidden">
         <span>🔍 Tell <b id="checkAsker"></b> what someone is:</span>
         <div class="role-actions">
           <select id="checkTarget" aria-label="Player to reveal"></select>
           <span id="checkHint" class="check-hint"></span>
-          <button class="btn btn-danger-soft" data-check="wolf"><img class="ri" src="img/roles/sm/werewolf.webp" alt=""> Wolf</button>
+          <button class="btn btn-danger-soft" data-check="wolf"><img class="ri" id="checkWolfImg" src="img/roles/sm/werewolf.webp" alt=""> <span id="checkWolfLabel">Wolf</span></button>
           <button class="btn btn-success-soft" data-check="civilian"><img class="ri" src="img/roles/sm/civilian.webp" alt=""> Civilian</button>
         </div>
       </div>
-
-      <div id="scene" class="scene" aria-hidden="true"></div>
-      <div id="messages" class="messages"></div>
 
       <form id="composer" class="composer">
         <div class="composer-box">

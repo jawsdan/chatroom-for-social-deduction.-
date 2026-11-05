@@ -40,6 +40,7 @@ let callingCards = new Map(); // killer key -> text
 let manifestos = new Map(); // player key -> text
 let killedNames = new Set(); // lowercase names the moderator marked dead
 let clues = []; // revealed notes everyone can inspect
+let privateClues = new Map(); // officer key -> [check results only they can see]
 let pendingReveals = []; // deaths at night, revealed when day starts
 let nextClueId = 1;
 const BOT_NAMES = ['Astrid', 'Bjorn', 'Cora', 'Dag', 'Edda', 'Finn', 'Greta', 'Hugo', 'Ingrid', 'Jonas', 'Kari', 'Leif', 'Mia', 'Nils', 'Oda', 'Per', 'Runa', 'Sven', 'Tora', 'Ulf'];
@@ -154,6 +155,7 @@ function broadcastState() {
       canCard: myRole === 'serialkiller',
       callingCard: myRole === 'serialkiller' ? callingCards.get(key(u.name)) || '' : null,
       manifesto: id === moderatorId ? null : manifestos.get(key(u.name)) || '',
+      privateClues: privateClues.get(key(u.name)) || [],
       role: id === moderatorId ? null : myRole,
       wolfAccess: hasWolfAccess(id),
       wolfmates: myRole === 'werewolf' ? wolfNames() : [],
@@ -258,6 +260,7 @@ function wipeEverything(reason) {
   manifestos = new Map();
   killedNames = new Set();
   clues = [];
+  privateClues = new Map();
   pendingReveals = [];
   trial = null;
   phase = 'day';
@@ -601,10 +604,19 @@ io.on('connection', (socket) => {
     const t = userByName(String(target || ''));
     const targetName = t ? t.name : String(target || '').slice(0, 20);
     if (!targetName) return socket.emit('notice', 'Pick who they asked about.');
-    pushModThread(asker, msg(me().name, `${targetName} is ${result === 'wolf' ? 'a wolf' : 'a civilian'}`, {
+    // With a single wolf the answer reads "Killer" instead of "Wolf".
+    const label = result === 'wolf' ? (wolfCount() === 1 ? 'Killer' : 'Wolf') : 'Civilian';
+    pushModThread(asker, msg(me().name, `${targetName} is ${label === 'Civilian' ? 'a civilian' : 'the ' + label.toLowerCase()}`, {
       moderator: true,
-      check: { target: targetName, result },
+      check: { target: targetName, result, label },
     }));
+    // The result also goes into that officer's own, private clues.
+    const clue = { id: nextClueId++, kind: 'check', about: targetName, result, label, text: `${targetName} is ${label === 'Killer' ? 'the Killer' : 'a ' + label}.`, ts: now(), private: true };
+    if (!privateClues.has(asker)) privateClues.set(asker, []);
+    privateClues.get(asker).push(clue);
+    const officer = userByName(asker);
+    if (officer) io.to(officer.id).emit('clue:reveal', clue);
+    broadcastState();
   });
 
   socket.on('bots:add', (n) => {

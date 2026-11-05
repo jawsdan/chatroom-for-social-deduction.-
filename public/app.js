@@ -239,7 +239,6 @@ socket.on('mod:message', ({ thread, message }) => {
   } else {
     myThread.push(message);
     if (channel === 'mod') appendMessage(message);
-    if (message.check) toast(`🔍 The moderator answered: ${message.check.target} is ${message.check.result === 'wolf' ? 'a Wolf' : 'a Civilian'}.`);
   }
   if (amMod() && message.action?.target) toast(`🌙 ${message.from} chose to ${ACTION_TEXT[message.action.kind].verb} ${message.action.target}.`);
   if (channel !== 'mod' && message.from !== me) modUnread++;
@@ -496,6 +495,7 @@ function renderAll(redrawMessages = true) {
   renderHeader();
   renderTrialBanner();
   renderCluesBar();
+  renderModOverview();
   renderThreadTabs();
   renderComposer();
   renderPanel();
@@ -1016,7 +1016,8 @@ function appendMessage(m, live = true) {
       const txt = el('div');
       txt.append(el('div', 'check-kicker', '🔍 Investigation result'));
       const line = el('div', 'check-line');
-      line.append(el('b', '', m.check.target), document.createTextNode(' is '), el('b', 'check-verdict ' + (wolf ? 'wolf' : 'civ'), wolf ? 'a Wolf' : 'a Civilian'));
+      const lbl = m.check.label || (wolf ? 'Wolf' : 'Civilian');
+      line.append(el('b', '', m.check.target), document.createTextNode(' is '), el('b', 'check-verdict ' + (wolf ? 'wolf' : 'civ'), lbl === 'Killer' ? 'the Killer' : 'a ' + lbl));
       txt.append(line);
       r.append(art, txt);
       bubble.append(r);
@@ -1308,6 +1309,12 @@ function openNoteEditor(kind) {
 
 // A clue as a card: used in the chat, the clues bar pop-up and the reveal pop-up.
 function clueCard(clue, inChat) {
+  if (clue.kind === 'check') {
+    const d = el('div', 'clue-card check ' + clue.result);
+    d.append(el('div', 'clue-kicker', `🔒 Private investigation · only you can see this`));
+    d.append(el('div', 'clue-text', clue.text));
+    return d;
+  }
   const isCard = clue.kind === 'card';
   const d = el('div', 'clue-card ' + clue.kind + (inChat ? ' in-chat' : ''));
   d.append(el('div', 'clue-kicker', isCard ? `🃏 Calling card · found with ${clue.about}` : `📜 Manifesto of ${clue.about}`));
@@ -1328,6 +1335,19 @@ function showNextClue() {
   else showClue(next, true);
 }
 function showClue(clue, fresh) {
+  if (clue.kind === 'check') {
+    return openModal((card) => {
+      const art = el('div', 'art role');
+      art.innerHTML = ART[clue.result === 'wolf' ? (clue.label === 'Killer' ? 'serialkiller' : 'werewolf') : 'civilian'];
+      card.append(art);
+      card.append(el('h2', '', fresh ? 'Investigation result' : 'Your investigation'));
+      card.append(clueCard(clue, false));
+      card.append(el('p', 'hint', 'Saved in your clues bar. Nobody else can see it.'));
+      const actions = el('div', 'actions');
+      actions.append(btn('btn-primary', 'Close', closeModal));
+      card.append(actions);
+    });
+  }
   openModal((card) => {
     card.classList.add('note-modal');
     card.append(el('div', 'note-icon', clue.kind === 'card' ? '🃏' : '📜'));
@@ -1342,8 +1362,9 @@ function showClue(clue, fresh) {
 
 function renderCluesBar() {
   const bar = $('cluesBar');
-  const list = state.clues || [];
-  const show = channel === 'lobby' && list.length > 0;
+  // Public clues plus this player's private investigation results.
+  const list = [...(state.clues || []), ...(state.me.privateClues || [])].sort((a, b) => a.ts - b.ts);
+  const show = (channel === 'lobby' || (channel === 'mod' && !amMod())) && list.length > 0;
   bar.classList.toggle('hidden', !show);
   if (!show) return;
   const sig = list.map((c) => c.id).join(',');
@@ -1353,7 +1374,8 @@ function renderCluesBar() {
   bar.append(el('span', 'clues-label', `🔎 Clues (${list.length})`));
   const chips = el('div', 'clue-chips');
   for (const c of [...list].reverse()) {
-    const b = el('button', 'clue-chip ' + c.kind, `${c.kind === 'card' ? '🃏' : '📜'} ${c.about}`);
+    const icon = c.kind === 'card' ? '🃏' : c.kind === 'check' ? '🔒🔍' : '📜';
+    const b = el('button', 'clue-chip ' + c.kind + (c.kind === 'check' ? ' ' + c.result : ''), `${icon} ${c.about}${c.kind === 'check' ? ': ' + c.label : ''}`);
     b.type = 'button';
     b.title = c.text;
     b.onclick = () => showClue(c, false);
@@ -1409,3 +1431,50 @@ socket.on('night:result', ({ victims }) => {
   if ($('modal').classList.contains('hidden')) show();
   else clueQueue.unshift({ __result: show });
 });
+
+// ---------- Moderator overview: alive, dead, living roles ----------
+function isDeadName(n) {
+  return state.dead?.includes(key(n)) || state.users.some((u) => key(u.name) === key(n) && u.muted);
+}
+function renderModOverview() {
+  const box = $('modOverview');
+  const show = amMod() && channel === 'mod';
+  box.classList.toggle('hidden', !show);
+  // Killer vs Wolf label on the answer button.
+  const single = state.modView?.wolfCount === 1;
+  $('checkWolfLabel').textContent = single ? 'Killer' : 'Wolf';
+  $('checkWolfImg').src = `img/roles/sm/${single ? 'serialkiller' : 'werewolf'}.webp`;
+  if (!show) return;
+  const roles = state.modView?.roles || {};
+  const players = state.users.filter((u) => !u.moderator);
+  const alive = players.filter((u) => !isDeadName(u.name));
+  const dead = players.filter((u) => isDeadName(u.name));
+  const sig = JSON.stringify([alive.map((u) => u.name), dead.map((u) => u.name), roles]);
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  box.innerHTML = '';
+  const panel = (title, cls, items) => {
+    const p = el('div', 'ov-box ' + cls);
+    p.append(el('div', 'ov-title', `${title} (${items.length})`));
+    const list = el('div', 'ov-list');
+    if (!items.length) list.append(el('span', 'ov-empty', 'Nobody'));
+    for (const it of items) list.append(it);
+    p.append(list);
+    return p;
+  };
+  const chip = (name) => {
+    const c = el('span', 'ov-chip');
+    const r = roles[key(name)];
+    if (r) c.append(roleIcon(r));
+    c.append(document.createTextNode(' ' + name));
+    return c;
+  };
+  const counts = {};
+  for (const u of alive) {
+    const r = roles[key(u.name)];
+    if (r) counts[r] = (counts[r] || 0) + 1;
+  }
+  const order = ['werewolf', 'serialkiller', 'doctor', 'officer', 'civilian'];
+  const roleItems = order.filter((r) => counts[r]).map((r) => roleLabel('ov-chip role', r, `${counts[r]} × ${ROLE[r].label}`));
+  box.append(panel('🟢 Alive', 'alive', alive.map((u) => chip(u.name))), panel('💀 Dead', 'dead', dead.map((u) => chip(u.name))), panel('🎭 Roles still alive', 'roles', roleItems));
+}

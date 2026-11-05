@@ -25,7 +25,8 @@ Then open http://localhost:3000 (set `PORT` to change it). Everyone who wants to
 - **Calling card** (Serial Killer only, 100 characters) — if the moderator kills the player the Serial Killer picked that night, the card pops up for everyone when day starts.
 - **Manifesto** (every player, 200 characters) — last words revealed when that player dies: at sunrise for a night death, right away otherwise.
 - **Clues bar** — revealed calling cards and manifestos are posted in the main chat and collected in the *Clues* bar at the top, where anyone can click to read them again.
-- **Officer checks** — when an Officer asks the moderator about someone, the moderator opens the Officer's tab, picks the player they asked about and clicks *Wolf* or *Civilian*. The answer stays in the Officer's chat as a card.
+- **Moderator overview** — in the moderator inbox, three boxes show who is alive, who is dead, and which roles are still alive.
+- **Officer checks** — when an Officer asks the moderator about someone, the moderator opens the Officer's tab, picks the player they asked about and clicks *Wolf* (or *Killer* when there is only one) or *Civilian*. The answer stays in the Officer's chat and is also saved, privately, in the Officer's clues bar.
 - **Role themes** — each player's screen matches their own secret role: red with fangs and dripping blood for Werewolves, blood splatter for the Serial Killer, teal with a heartbeat line for the Doctor, police lights and caution tape for the Officer, and a village with clouds (fireflies at night) for Civilians. The moderator sees the plain look.
 - **Test bots** — the moderator can add 1–10 bots. Bots count as players, get roles and vote at random in trials. They don't count for wipe votes. *Remove bots* takes them out again.
 - **Wolf den** — a secret chat for the werewolves (when there are two or more). Wolves can only write in it at night. The moderator can always read it.
