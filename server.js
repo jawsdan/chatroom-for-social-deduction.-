@@ -33,6 +33,15 @@ let nextBotId = 1;
 // Cleared when a new night starts.
 let nightActions = new Map();
 const autoProtected = new Map(); // doctor key -> target key they protected
+// Notes revealed on death: the Serial Killer's calling card and every other player's manifesto.
+const CARD_MAX = 100;
+const MANIFESTO_MAX = 200;
+let callingCards = new Map(); // killer key -> text
+let manifestos = new Map(); // player key -> text
+let killedNames = new Set(); // lowercase names the moderator marked dead
+let clues = []; // revealed notes everyone can inspect
+let pendingReveals = []; // deaths at night, revealed when day starts
+let nextClueId = 1;
 const BOT_NAMES = ['Astrid', 'Bjorn', 'Cora', 'Dag', 'Edda', 'Finn', 'Greta', 'Hugo', 'Ingrid', 'Jonas', 'Kari', 'Leif', 'Mia', 'Nils', 'Oda', 'Per', 'Runa', 'Sven', 'Tora', 'Ulf'];
 const humans = () => [...users.values()].filter((u) => !u.bot);
 const bots = () => [...users.values()].filter((u) => u.bot);
@@ -128,6 +137,8 @@ function broadcastState() {
     serverNow: Date.now(),
     trial: trialPublic,
     wipe: { votes: wipeVotes.size, needed: wipeVoters().length },
+    clues,
+    dead: [...killedNames],
   };
   for (const [id, sock] of io.sockets.sockets) {
     const u = users.get(id);
@@ -139,6 +150,10 @@ function broadcastState() {
       moderator: id === moderatorId,
       muted: mutedNames.has(key(u.name)),
       wiped: wipeVotes.has(id),
+      dead: killedNames.has(key(u.name)) || mutedNames.has(key(u.name)),
+      canCard: myRole === 'serialkiller',
+      callingCard: myRole === 'serialkiller' ? callingCards.get(key(u.name)) || '' : null,
+      manifesto: id === moderatorId ? null : manifestos.get(key(u.name)) || '',
       role: id === moderatorId ? null : myRole,
       wolfAccess: hasWolfAccess(id),
       wolfmates: myRole === 'werewolf' ? wolfNames() : [],
@@ -158,6 +173,7 @@ function broadcastState() {
         roleConfig,
         wolfCount: wolfCount(),
         nightActions: nightActionList(),
+        notes: Object.fromEntries([...roles.keys()].map((k) => [k, { manifesto: manifestos.get(k) || '', card: callingCards.get(k) || '' }])),
       };
     }
     sock.emit('state', s);
@@ -217,6 +233,11 @@ function wipeEverything(reason) {
   mutedNames = new Set();
   nightActions = new Map();
   autoProtected.clear();
+  callingCards = new Map();
+  manifestos = new Map();
+  killedNames = new Set();
+  clues = [];
+  pendingReveals = [];
   trial = null;
   phase = 'day';
   phaseStartedAt = Date.now();
@@ -250,6 +271,7 @@ function finishTrial() {
     innocent,
     votes: [...trial.votes.entries()].map(([name, vote]) => ({ name, vote })),
   });
+  if (trial.result === 'guilty') revealDeath({ victim: trial.accusedName, card: null, announce: false });
 }
 function eligibleVoters() {
   if (!trial) return [];
@@ -343,6 +365,32 @@ function scheduleBotActions() {
       broadcastState();
     }, 2000 + Math.random() * 4000);
   }
+}
+
+// ---- Deaths, calling cards and manifestos ----
+function addClue(kind, about, text) {
+  const clue = { id: nextClueId++, kind, about, text, ts: now() };
+  clues.push(clue);
+  const m = msg(null, text, { clue });
+  push(lobby, m);
+  io.emit('lobby:message', m);
+  io.emit('clue:reveal', clue);
+}
+// Announce a death and reveal any notes. card = the killer's calling card text, if any.
+function revealDeath({ victim, card, announce = true }) {
+  if (announce) systemLobby(`☠️ ${victim} was found dead.`);
+  if (card) addClue('card', victim, card);
+  const manifesto = manifestos.get(key(victim));
+  if (manifesto) addClue('manifesto', victim, manifesto);
+}
+// The Serial Killer's calling card is left if the victim is the one they picked tonight.
+function callingCardFor(victimName) {
+  for (const [k, a] of nightActions) {
+    if (a.kind === 'kill' && key(a.target) === key(victimName) && displayRole(k) === 'serialkiller') {
+      return callingCards.get(k) || null;
+    }
+  }
+  return null;
 }
 
 // ---- Test bots ----
@@ -553,6 +601,8 @@ io.on('connection', (socket) => {
     if (trial && trial.open) trial.votes.delete(target.name);
     nightActions.delete(key(target.name));
     autoProtected.delete(key(target.name));
+    manifestos.delete(key(target.name));
+    callingCards.delete(key(target.name));
     if (target.bot) {
       users.delete(target.id);
     } else {
@@ -566,6 +616,53 @@ io.on('connection', (socket) => {
     systemLobby(`${target.name} was kicked by the moderator.`);
     checkWipe();
     maybeAutoFinishTrial();
+    broadcastState();
+  });
+
+  socket.on('card:set', (text) => {
+    const u = me();
+    if (!u || displayRole(u.name) !== 'serialkiller') return;
+    const t = typeof text === 'string' ? text.trim().slice(0, CARD_MAX) : '';
+    if (t) callingCards.set(key(u.name), t);
+    else callingCards.delete(key(u.name));
+    socket.emit('notice', t ? '🃏 Calling card saved.' : 'Calling card removed.');
+    broadcastState();
+  });
+
+  socket.on('manifesto:set', (text) => {
+    const u = me();
+    if (!u || isMod(socket)) return;
+    if (killedNames.has(key(u.name)) || mutedNames.has(key(u.name))) return socket.emit('notice', 'You can no longer change your manifesto.');
+    const t = typeof text === 'string' ? text.trim().slice(0, MANIFESTO_MAX) : '';
+    if (t) manifestos.set(key(u.name), t);
+    else manifestos.delete(key(u.name));
+    socket.emit('notice', t ? '📜 Manifesto saved.' : 'Manifesto removed.');
+    broadcastState();
+  });
+
+  // The moderator marks a player dead (or brings them back). Dead players can only talk to the moderator.
+  socket.on('mod:kill', (name) => {
+    if (!isMod(socket)) return;
+    const target = userByName(String(name || ''));
+    if (!target || target.id === moderatorId) return;
+    const k = key(target.name);
+    if (killedNames.has(k)) {
+      killedNames.delete(k);
+      mutedNames.delete(k);
+      pendingReveals = pendingReveals.filter((r) => key(r.victim) !== k);
+      systemLobby(`✨ ${target.name} is back among the living.`);
+      return broadcastState();
+    }
+    killedNames.add(k);
+    mutedNames.add(k);
+    nightActions.delete(k);
+    const reveal = { victim: target.name, card: callingCardFor(target.name) };
+    if (phase === 'night') {
+      pendingReveals.push(reveal); // discovered at sunrise
+      socket.emit('notice', `${target.name} is dead. It will be revealed when day starts.`);
+    } else {
+      revealDeath(reveal);
+    }
     broadcastState();
   });
 
@@ -613,6 +710,15 @@ io.on('connection', (socket) => {
     }
     io.emit('phase:changed', { phase });
     systemLobby(p === 'night' ? 'Night falls over the village.' : 'The sun rises. It is day.');
+    if (p === 'day' && pendingReveals.length) {
+      const list = pendingReveals;
+      pendingReveals = [];
+      // Give the sunrise animation a moment before the bad news.
+      setTimeout(() => {
+        for (const r of list) revealDeath(r);
+        broadcastState();
+      }, 1800);
+    }
     broadcastState();
   });
 

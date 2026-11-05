@@ -108,6 +108,7 @@ let modalLocked = false;
 function openModal(build, locked = false) {
   modalLocked = locked;
   const card = $('modalCard');
+  card.className = 'modal-card';
   card.innerHTML = '';
   build(card);
   $('modal').classList.remove('hidden');
@@ -119,6 +120,8 @@ function openModal(build, locked = false) {
 function closeModal() {
   modalLocked = false;
   $('modal').classList.add('hidden');
+  // Show the next revealed clue, if any are waiting.
+  setTimeout(showNextClue, 250);
 }
 $('modal').addEventListener('click', (e) => e.target === $('modal') && !modalLocked && closeModal());
 document.addEventListener('keydown', (e) => {
@@ -469,6 +472,7 @@ function renderAll(redrawMessages = true) {
   renderNav();
   renderHeader();
   renderTrialBanner();
+  renderCluesBar();
   renderThreadTabs();
   renderComposer();
   renderPanel();
@@ -507,6 +511,10 @@ function renderNav() {
   $('wolfNav').classList.toggle('hidden', !state.me.wolfAccess);
   $('wolfMeta').textContent = state.phase === 'night' ? '' : '🔒';
   $('wolfNav').title = state.phase === 'night' ? 'Open now' : 'Opens at night';
+  $('cardNav').classList.toggle('hidden', !state.me.canCard);
+  $('cardMeta').textContent = state.me.callingCard ? '✓' : '';
+  $('manifestoNav').classList.toggle('hidden', amMod());
+  $('manifestoMeta').textContent = state.me.dead ? '🔒' : state.me.manifesto ? '✓' : '';
 
 }
 
@@ -661,7 +669,7 @@ function renderComposer() {
   if (channel === 'lobby') {
     if (amMuted()) {
       disabled = true;
-      ph = '🔇 You are muted. You can only talk to the moderator.';
+      ph = state.me.dead && state.dead?.includes(key(me)) ? '💀 You are dead. You can only talk to the moderator.' : '🔇 You are muted. You can only talk to the moderator.';
     } else ph = 'Message everyone…';
   } else if (channel === 'mod') {
     if (amMod()) {
@@ -675,7 +683,7 @@ function renderComposer() {
       ph = '🌙 The wolf den opens at night.';
     } else if (amMuted()) {
       disabled = true;
-      ph = '🔇 You are muted. You can only talk to the moderator.';
+      ph = state.me.dead && state.dead?.includes(key(me)) ? '💀 You are dead. You can only talk to the moderator.' : '🔇 You are muted. You can only talk to the moderator.';
     } else ph = 'Plan your target with the pack…';
   }
   input.disabled = disabled;
@@ -846,7 +854,9 @@ function renderPanel() {
     if (isMe) li.append(el('span', 'tag you', 'you'));
     if (u.bot) li.append(el('span', 'tag bot', '🤖 bot'));
     if (u.moderator) li.append(el('span', 'tag mod', 'mod'));
-    if (u.muted) li.append(el('span', 'tag muted', 'muted'));
+    const isDead = state.dead?.includes(key(u.name));
+    if (isDead) li.append(el('span', 'tag dead', '💀 dead'));
+    else if (u.muted) li.append(el('span', 'tag muted', 'muted'));
     if (mv && !u.moderator) {
       const isProt = mv.protected.includes(key(u.name));
       if (isProt) li.append(el('span', 'tag prot', '🛡️ protected'));
@@ -859,7 +869,11 @@ function renderPanel() {
       kb.title = `Kick ${u.name}`;
       kb.setAttribute('aria-label', `Kick ${u.name}`);
       kb.onclick = () => confirmKick(u.name);
-      li.append(pb, kb);
+      const db = el('button', 'kill-btn' + (isDead ? ' on' : ''), isDead ? '✨' : '💀');
+      db.type = 'button';
+      db.title = isDead ? `Bring ${u.name} back to life` : `Mark ${u.name} as dead`;
+      db.onclick = () => confirmDeath(u.name, isDead);
+      li.append(pb, db, kb);
     }
     pl.append(li);
   }
@@ -929,7 +943,10 @@ function appendMessage(m, live = true) {
   if (empty) empty.remove();
   const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 160;
   let node;
-  if (m.system) {
+  if (m.clue) {
+    node = clueCard(m.clue, true);
+    lastRendered = null;
+  } else if (m.system) {
     node = el('div', 'msg-system', m.text);
     lastRendered = null;
   } else {
@@ -1208,4 +1225,136 @@ function renderNightCard() {
     row.append(txt);
     card.append(row);
   }
+}
+
+// ---------- Calling cards, manifestos and clues ----------
+$('cardNav').onclick = () => openNoteEditor('card');
+$('manifestoNav').onclick = () => openNoteEditor('manifesto');
+
+function openNoteEditor(kind) {
+  closeDrawers();
+  const isCard = kind === 'card';
+  const max = isCard ? 100 : 200;
+  const current = (isCard ? state.me.callingCard : state.me.manifesto) || '';
+  const locked = !isCard && state.me.dead;
+  openModal((card) => {
+    card.classList.add('note-modal');
+    const art = el('div', 'note-icon', isCard ? '🃏' : '📜');
+    card.append(art);
+    card.append(el('h2', '', isCard ? 'Your calling card' : 'Your manifesto'));
+    card.append(
+      el(
+        'p',
+        '',
+        isCard
+          ? 'Left next to each victim you pick at night. When day comes, everyone sees it in the clues bar.'
+          : 'Your last words. Nobody sees them unless you die. Then they are revealed to everyone.'
+      )
+    );
+    const ta = el('textarea', 'note-input');
+    ta.maxLength = max;
+    ta.rows = isCard ? 3 : 5;
+    ta.value = current;
+    ta.disabled = locked;
+    ta.placeholder = isCard ? 'e.g. "One by one, the village falls silent."' : 'e.g. "I was innocent. Watch Bob closely."';
+    const count = el('div', 'note-count');
+    const upd = () => (count.textContent = `${ta.value.length} / ${max}`);
+    ta.addEventListener('input', upd);
+    upd();
+    card.append(ta, count);
+    if (locked) card.append(el('p', 'hint', 'You are dead, so your manifesto can no longer change.'));
+    const actions = el('div', 'actions');
+    actions.append(btn('btn-ghost', locked ? 'Close' : 'Cancel', closeModal));
+    if (!locked) {
+      actions.append(
+        btn('btn-primary', 'Save', () => {
+          socket.emit(isCard ? 'card:set' : 'manifesto:set', ta.value);
+          closeModal();
+        })
+      );
+    }
+    card.append(actions);
+    setTimeout(() => ta.focus(), 60);
+  });
+}
+
+// A clue as a card: used in the chat, the clues bar pop-up and the reveal pop-up.
+function clueCard(clue, inChat) {
+  const isCard = clue.kind === 'card';
+  const d = el('div', 'clue-card ' + clue.kind + (inChat ? ' in-chat' : ''));
+  d.append(el('div', 'clue-kicker', isCard ? `🃏 Calling card · found with ${clue.about}` : `📜 Manifesto of ${clue.about}`));
+  d.append(el('div', 'clue-text', clue.text));
+  if (inChat) d.onclick = () => showClue(clue, false);
+  return d;
+}
+
+const clueQueue = [];
+socket.on('clue:reveal', (clue) => {
+  clueQueue.push(clue);
+  showNextClue();
+});
+function showNextClue() {
+  if (!clueQueue.length || !$('modal').classList.contains('hidden')) return;
+  showClue(clueQueue.shift(), true);
+}
+function showClue(clue, fresh) {
+  openModal((card) => {
+    card.classList.add('note-modal');
+    card.append(el('div', 'note-icon', clue.kind === 'card' ? '🃏' : '📜'));
+    card.append(el('h2', '', clue.kind === 'card' ? (fresh ? 'A calling card was found' : 'Calling card') : `${clue.about}'s manifesto`));
+    if (clue.kind === 'card') card.append(el('p', '', `It was left next to ${clue.about}.`));
+    card.append(clueCard(clue, false));
+    const actions = el('div', 'actions');
+    actions.append(btn('btn-primary', 'Close', closeModal));
+    card.append(actions);
+  });
+}
+
+function renderCluesBar() {
+  const bar = $('cluesBar');
+  const list = state.clues || [];
+  const show = channel === 'lobby' && list.length > 0;
+  bar.classList.toggle('hidden', !show);
+  if (!show) return;
+  const sig = list.map((c) => c.id).join(',');
+  if (bar.dataset.sig === sig) return;
+  bar.dataset.sig = sig;
+  bar.innerHTML = '';
+  bar.append(el('span', 'clues-label', `🔎 Clues (${list.length})`));
+  const chips = el('div', 'clue-chips');
+  for (const c of [...list].reverse()) {
+    const b = el('button', 'clue-chip ' + c.kind, `${c.kind === 'card' ? '🃏' : '📜'} ${c.about}`);
+    b.type = 'button';
+    b.title = c.text;
+    b.onclick = () => showClue(c, false);
+    chips.append(b);
+  }
+  bar.append(chips);
+}
+
+function confirmDeath(name, isDead) {
+  openModal((card) => {
+    card.append(el('div', 'note-icon', isDead ? '✨' : '💀'));
+    card.append(el('h2', '', isDead ? `Bring ${name} back?` : `Mark ${name} as dead?`));
+    card.append(
+      el(
+        'p',
+        '',
+        isDead
+          ? 'They can talk in the chat again.'
+          : state.phase === 'night'
+            ? 'It is night, so the death (and any manifesto or calling card) is revealed when day starts.'
+            : 'Everyone is told now, and their manifesto (and a calling card, if the killer picked them) is revealed.'
+      )
+    );
+    const actions = el('div', 'actions');
+    actions.append(
+      btn('btn-ghost', 'Cancel', closeModal),
+      btn(isDead ? 'btn-success' : 'btn-danger', isDead ? 'Bring back' : '💀 Mark dead', () => {
+        socket.emit('mod:kill', name);
+        closeModal();
+      })
+    );
+    card.append(actions);
+  });
 }
