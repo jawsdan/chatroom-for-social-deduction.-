@@ -735,8 +735,6 @@ body.night .scene::after { background: linear-gradient(180deg, rgba(5, 6, 15, 0.
 .players li .role-tag { font-size: 0.8rem; }
 .side-right .card { padding: 16px; }
 
-/* Keep the house in view when the night video is cropped on narrow screens. */
-.scene-video.night { object-position: 38% bottom; }
 
 /* ---------- Night actions ---------- */
 .action-card.kill { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
@@ -802,3 +800,6 @@ body.night .scene::after { background: linear-gradient(180deg, rgba(5, 6, 15, 0.
 }
 .kill-btn:hover, .kill-btn.on { filter: none; opacity: 1; border-color: var(--danger); }
 @media (max-width: 760px) { .clues-bar { padding: 8px 12px; } }
+
+/* Keep the fire pit and the red eyes in view when the night video is cropped. */
+.scene-video.night { object-position: 55% bottom; }

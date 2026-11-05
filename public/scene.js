@@ -2,7 +2,7 @@
 // Both load once; switching phase cross-fades them, and the hidden one is paused.
 (function () {
   // Bump this when a video file changes so browsers fetch the new one.
-  const VERSION = 3;
+  const VERSION = 4;
   let videos = null;
   function build(root) {
     videos = {};
