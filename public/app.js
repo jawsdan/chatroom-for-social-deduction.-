@@ -304,6 +304,7 @@ socket.on('trial:result', (r) => {
     card.append(art);
     card.append(el('h2', '', `The village has decided. ${r.accused} is`));
     card.append(el('div', 'verdict ' + r.result, r.result.toUpperCase()));
+    if (r.result === 'guilty') card.append(killVideo('vote'));
     const tally = el('div', 'tally');
     tally.append(el('span', 'g', `${r.guilty} guilty`), el('span', 'i', `${r.innocent} innocent`));
     card.append(tally);
@@ -1457,6 +1458,7 @@ socket.on('night:result', ({ victims, lines = [] }) => {
       card.append(el('div', 'note-icon', victims.length ? '☠️' : '🌅'));
       if (victims.length) {
         card.append(el('h2', '', victims.length === 1 ? `${victims[0]} was killed in the night` : `${victims.join(' and ')} were killed in the night`));
+        card.append(killVideo('night'));
         for (const l of lines) card.append(el('p', 'death-line', l));
         card.append(el('p', 'hint', victims.some((v) => key(v) === key(me)) ? 'You are dead. You can only talk to the moderator now.' : 'They can no longer speak in the village.'));
       } else {
@@ -1631,4 +1633,44 @@ function renderEndGame() {
     $('modTools').append(b);
   }
   b.classList.toggle('hidden', state.gameState !== 'running');
+}
+
+// ---------- Death animations ----------
+// 'night' = the werewolf attack, 'vote' = the village's verdict. Plays once and stops on the last frame.
+const KILL_VIDEO_VERSION = 1;
+function killVideo(kind) {
+  const wrap = el('div', 'kill-video');
+  const v = document.createElement('video');
+  v.muted = true;
+  v.playsInline = true;
+  v.autoplay = true;
+  v.preload = 'auto';
+  v.setAttribute('muted', '');
+  v.setAttribute('playsinline', '');
+  v.poster = `video/kill-${kind}-poster.jpg?v=${KILL_VIDEO_VERSION}`;
+  for (const [ext, type] of [['webm', 'video/webm'], ['mp4', 'video/mp4']]) {
+    const src = document.createElement('source');
+    src.src = `video/kill-${kind}.${ext}?v=${KILL_VIDEO_VERSION}`;
+    src.type = type;
+    v.append(src);
+  }
+  const replay = el('button', 'kill-replay', '↻ Replay');
+  replay.type = 'button';
+  replay.onclick = () => {
+    v.currentTime = 0;
+    v.play().catch(() => {});
+  };
+  v.addEventListener('ended', () => wrap.classList.add('done'));
+  v.addEventListener('play', () => wrap.classList.remove('done'));
+  wrap.append(v, replay);
+  setTimeout(() => v.play().catch(() => {}), 50);
+  return wrap;
+}
+// Preload both so they start right away.
+for (const k of ['night', 'vote']) {
+  const l = document.createElement('link');
+  l.rel = 'preload';
+  l.as = 'video';
+  l.href = `video/kill-${k}.mp4?v=${KILL_VIDEO_VERSION}`;
+  document.head.append(l);
 }
