@@ -19,7 +19,7 @@ Then open http://localhost:3000 (set `PORT` to change it). Everyone who wants to
 - **Roles** — Civilian, Werewolf, Doctor and Officer. If there is only **one** werewolf, they are shown as the **Serial Killer** instead. Each player gets a pop-up card with their role that only they can see.
   - Give roles one at a time from a player's tab in the moderator inbox, or
   - pick how many of each role to play with in *Roles in this game* and click *Hand out random roles*. Everyone left over is a Civilian.
-- **Moderator's player list** — always shows every player's role. The 🛡️ button marks a player as *protected* so the moderator doesn't forget. Only the moderator sees this.
+- **Moderator's player list** — always shows every player's role. The 🛡️ button marks a player as *protected* so the moderator doesn't forget, and ✕ kicks a player (after a confirm). Only the moderator sees these.
 - **Officer checks** — when an Officer asks the moderator about someone, the moderator opens the Officer's tab, picks the player they asked about and clicks *Wolf* or *Civilian*. The answer stays in the Officer's chat as a card.
 - **Role themes** — each player's screen matches their own secret role: red with fangs and dripping blood for Werewolves, blood splatter for the Serial Killer, teal with a heartbeat line for the Doctor, police lights and caution tape for the Officer, and a village with clouds (fireflies at night) for Civilians. The moderator sees the plain look.
 - **Test bots** — the moderator can add 1–10 bots. Bots count as players, get roles and vote at random in trials. They don't count for wipe votes. *Remove bots* takes them out again.

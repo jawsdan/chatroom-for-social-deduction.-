@@ -176,6 +176,20 @@ socket.on('state', (s) => {
 });
 
 socket.on('notice', toast);
+// Kicked by the moderator: go back to the join screen with a message.
+socket.on('kicked', () => {
+  try {
+    sessionStorage.setItem('kicked', '1');
+  } catch {}
+  me = null;
+  location.reload();
+});
+try {
+  if (sessionStorage.getItem('kicked')) {
+    sessionStorage.removeItem('kicked');
+    $('joinError').textContent = 'You were removed from the game by the moderator.';
+  }
+} catch {}
 
 socket.on('lobby:history', (list) => {
   lobbyMsgs = list;
@@ -829,7 +843,12 @@ function renderPanel() {
       pb.type = 'button';
       pb.title = isProt ? `Remove protection from ${u.name}` : `Mark ${u.name} as protected`;
       pb.onclick = () => socket.emit('protect:toggle', u.name);
-      li.append(pb);
+      const kb = el('button', 'kick-btn', '✕');
+      kb.type = 'button';
+      kb.title = `Kick ${u.name}`;
+      kb.setAttribute('aria-label', `Kick ${u.name}`);
+      kb.onclick = () => confirmKick(u.name);
+      li.append(pb, kb);
     }
     pl.append(li);
   }
@@ -1071,3 +1090,23 @@ function tickPhaseTimer() {
   $('phaseTimer').classList.toggle('night', night);
 }
 setInterval(tickPhaseTimer, 250);
+
+// ---------- Kick (moderator) ----------
+function confirmKick(name) {
+  openModal((card) => {
+    const art = el('div', 'art');
+    art.innerHTML = '<div style="font-size:4rem;line-height:140px">👢</div>';
+    card.append(art);
+    card.append(el('h2', '', `Kick ${name}?`));
+    card.append(el('p', '', 'They are removed from the game and their role is cleared. They can join again with a name.'));
+    const actions = el('div', 'actions');
+    actions.append(
+      btn('btn-ghost', 'Cancel', closeModal),
+      btn('btn-danger', `Kick ${name}`, () => {
+        socket.emit('mod:kick', name);
+        closeModal();
+      })
+    );
+    card.append(actions);
+  });
+}

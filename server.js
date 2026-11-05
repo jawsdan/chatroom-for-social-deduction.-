@@ -457,6 +457,32 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
+  // The moderator removes a player from the game. Their role and protection are cleared.
+  socket.on('mod:kick', (name) => {
+    if (!isMod(socket)) return;
+    const target = userByName(String(name || ''));
+    if (!target || target.id === socket.id) return;
+    const before = displayRoleMap();
+    roles.delete(key(target.name));
+    protectedNames.delete(key(target.name));
+    wipeVotes.delete(target.id);
+    if (trial && trial.open) trial.votes.delete(target.name);
+    if (target.bot) {
+      users.delete(target.id);
+    } else {
+      target.kicked = true;
+      const sock = io.sockets.sockets.get(target.id);
+      sock?.emit('kicked');
+      users.delete(target.id);
+      sock?.disconnect(true);
+    }
+    announceRoleChanges(before);
+    systemLobby(`${target.name} was kicked by the moderator.`);
+    checkWipe();
+    maybeAutoFinishTrial();
+    broadcastState();
+  });
+
   socket.on('protect:toggle', (name) => {
     if (!isMod(socket)) return;
     const k = key(String(name || ''));

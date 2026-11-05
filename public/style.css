@@ -28,7 +28,7 @@
   --radius-sm: 10px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --left-w: 272px;
-  --right-w: 320px;
+  --right-w: 400px;
 }
 body.night {
   --bg: #0d0f1e;
@@ -307,7 +307,7 @@ body.night .thread-tab.on { color: #c9c7ff; }
 .transfer select { flex: 1; min-width: 0; }
 
 .players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.players li { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: var(--radius-sm); }
+.players li { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: var(--radius-sm); font-size: 1.02rem; }
 .players li:hover { background: var(--surface-2); }
 .players li .pname { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
 .players li.me .pname { font-weight: 700; }
@@ -440,7 +440,7 @@ body.night .protect-btn.on { background: #1e2f5c; }
 }
 
 /* ---------- Narrower screens: right panel slides in ---------- */
-@media (max-width: 1100px) {
+@media (max-width: 1180px) {
   .app { grid-template-columns: var(--left-w) minmax(0, 1fr); }
   .side-right {
     position: fixed; z-index: 30; top: 0; right: 0; bottom: 0; width: min(340px, 88vw);
@@ -721,3 +721,16 @@ body.night .scene::after { background: linear-gradient(180deg, rgba(5, 6, 15, 0.
 .msg-meta { align-self: flex-start; background: color-mix(in srgb, var(--surface) 88%, transparent); padding: 1px 8px; border-radius: 999px; }
 .msg-row.me .msg-meta { align-self: flex-end; }
 .empty-state { background: color-mix(in srgb, var(--surface) 90%, transparent); padding: 16px 20px; border-radius: 16px; }
+
+/* Kick button (moderator's player list) */
+.kick-btn {
+  width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border); background: transparent;
+  color: var(--muted); font-size: 0.8rem; display: grid; place-items: center; flex-shrink: 0;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+.kick-btn:hover { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+
+/* Bigger player rows in the wider side panel */
+.players li .avatar.sm { width: 36px; height: 36px; font-size: 0.85rem; }
+.players li .role-tag { font-size: 0.8rem; }
+.side-right .card { padding: 16px; }
