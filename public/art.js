@@ -63,3 +63,4 @@ window.ART = {
   <circle cx="100" cy="28" r="9" fill="#e9c46a"/>
 </svg>`,
 };
+for (const k in window.ART) window.ART[k] = window.ART[k].trim();
