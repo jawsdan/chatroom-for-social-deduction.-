@@ -505,7 +505,7 @@ function renderTrialBanner() {
   banner.dataset.sig = sigOf(t);
   banner.innerHTML = '';
   const sc = el('div', 'scales');
-  sc.innerHTML = ART.scales;
+  sc.innerHTML = ART.scalesSmall;
   const txt = el('div', 't-text');
   txt.append(el('div', 't-title', `${t.accused} is on trial`));
   const mine = myVote();

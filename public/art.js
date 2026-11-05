@@ -25,19 +25,13 @@ window.ART = {
   <circle cx="72" cy="115" r="8" fill="#d9d6bf"/><circle cx="92" cy="150" r="5" fill="#d9d6bf"/><circle cx="60" cy="85" r="4" fill="#d9d6bf"/>
 </svg>`,
 
-  scales: `
-<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-label="Trial">
-  <g stroke="#e9c46a" stroke-width="7" stroke-linecap="round" fill="none">
-    <line x1="100" y1="30" x2="100" y2="170"/><line x1="40" y1="55" x2="160" y2="55"/>
-    <line x1="40" y1="55" x2="22" y2="110"/><line x1="40" y1="55" x2="58" y2="110"/>
-    <line x1="160" y1="55" x2="142" y2="110"/><line x1="160" y1="55" x2="178" y2="110"/>
-    <line x1="65" y1="170" x2="135" y2="170"/>
-  </g>
-  <path d="M15 110 Q40 140 65 110Z M135 110 Q160 140 185 110Z" fill="#e9c46a"/>
-  <circle cx="100" cy="28" r="9" fill="#e9c46a"/>
-</svg>`,
 };
 for (const k in window.ART) window.ART[k] = window.ART[k].trim();
+
+// Trial picture (gavel), with a small version for the banner.
+window.ART.scales = '<img class="role-img" src="img/trial.webp" alt="" draggable="false">';
+window.ART.scalesSmall = '<img class="role-img" src="img/trial-sm.webp" alt="" draggable="false">';
+new Image().src = 'img/trial.webp';
 
 // Role pictures (round badges in public/img/roles).
 window.ROLE_IMG = {};

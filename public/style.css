@@ -689,3 +689,7 @@ body[class*="fx-role-"] .msg-meta .author.mod { color: #6d28d9; }
 body[class*="fx-role-"] .msg-system { background: rgba(255, 255, 255, 0.88); color: #111; }
 body[class*="fx-role-"] .empty-state { background: rgba(255, 255, 255, 0.88); color: #333; padding: 16px 20px; border-radius: 16px; }
 body[class*="fx-role-"] .empty-state b { color: #111; }
+
+/* Trial picture */
+.modal-card .art:has(img[src*="trial"]) { width: 170px; height: 170px; filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.35)); }
+.trial-banner .scales { width: 36px; height: 36px; }
