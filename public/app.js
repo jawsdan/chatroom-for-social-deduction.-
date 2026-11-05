@@ -289,6 +289,7 @@ socket.on('trial:result', (r) => {
 // ---------- Phase ----------
 function setPhase(phase, animate) {
   currentPhase = phase;
+  window.setScene?.(phase);
   document.body.classList.toggle('night', phase === 'night');
   const corner = $('phaseCorner');
   renderPhaseDisplay();
