@@ -967,7 +967,10 @@ function appendMessage(m, live = true) {
   const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 160;
   let node;
   if (m.clue) {
-    node = clueCard(m.clue, true);
+    // The note itself is pinned top right; the chat just says it was found.
+    const c = m.clue;
+    node = el('div', 'msg-system clue-note', c.kind === 'card' ? `🃏 A calling card was found with ${c.about} — pinned top right` : `📜 ${c.about}'s manifesto was revealed — pinned top right`);
+    node.onclick = () => showClue(c, false);
     lastRendered = null;
   } else if (m.system) {
     node = el('div', 'msg-system', m.text);
@@ -1360,28 +1363,49 @@ function showClue(clue, fresh) {
   });
 }
 
+// Revealed notes as tiles pinned to the top-right of the chat. Click a tile to read it in full.
+let tilesCollapsed = false;
+try {
+  tilesCollapsed = localStorage.getItem('tilesCollapsed') === '1';
+} catch {}
 function renderCluesBar() {
-  const bar = $('cluesBar');
-  // Public clues plus this player's private investigation results.
-  const list = [...(state.clues || []), ...(state.me.privateClues || [])].sort((a, b) => a.ts - b.ts);
+  const box = $('clueTiles');
+  // Public clues plus this player's private investigation results, newest first.
+  const list = [...(state.clues || []), ...(state.me.privateClues || [])].sort((a, b) => b.ts - a.ts);
   const show = (channel === 'lobby' || (channel === 'mod' && !amMod())) && list.length > 0;
-  bar.classList.toggle('hidden', !show);
+  box.classList.toggle('hidden', !show);
   if (!show) return;
-  const sig = list.map((c) => c.id).join(',');
-  if (bar.dataset.sig === sig) return;
-  bar.dataset.sig = sig;
-  bar.innerHTML = '';
-  bar.append(el('span', 'clues-label', `🔎 Clues (${list.length})`));
-  const chips = el('div', 'clue-chips');
-  for (const c of [...list].reverse()) {
-    const icon = c.kind === 'card' ? '🃏' : c.kind === 'check' ? '🔒🔍' : '📜';
-    const b = el('button', 'clue-chip ' + c.kind + (c.kind === 'check' ? ' ' + c.result : ''), `${icon} ${c.about}${c.kind === 'check' ? ': ' + c.label : ''}`);
-    b.type = 'button';
-    b.title = c.text;
-    b.onclick = () => showClue(c, false);
-    chips.append(b);
+  // Sit just below whatever banners are showing above the messages.
+  box.style.top = $('messages').offsetTop + 10 + 'px';
+  const sig = list.map((c) => c.id).join(',') + '|' + tilesCollapsed;
+  if (box.dataset.sig === sig) return;
+  const known = new Set((box.dataset.sig || '').split('|')[0].split(','));
+  box.dataset.sig = sig;
+  box.innerHTML = '';
+  box.classList.toggle('collapsed', tilesCollapsed);
+  const head = el('button', 'tiles-head', `🔎 Clues (${list.length}) ${tilesCollapsed ? '▸' : '▾'}`);
+  head.type = 'button';
+  head.title = tilesCollapsed ? 'Show clues' : 'Hide clues';
+  head.onclick = () => {
+    tilesCollapsed = !tilesCollapsed;
+    try {
+      localStorage.setItem('tilesCollapsed', tilesCollapsed ? '1' : '0');
+    } catch {}
+    renderCluesBar();
+  };
+  box.append(head);
+  if (tilesCollapsed) return;
+  const grid = el('div', 'tiles');
+  for (const c of list) {
+    const t = el('button', 'tile ' + c.kind + (c.kind === 'check' ? ' ' + c.result : '') + (known.has(String(c.id)) ? '' : ' new'));
+    t.type = 'button';
+    const kicker = c.kind === 'card' ? `🃏 Calling card · ${c.about}` : c.kind === 'check' ? `🔒 Your investigation` : `📜 ${c.about}`;
+    t.append(el('div', 'tile-kicker', kicker), el('div', 'tile-text', c.text));
+    t.title = 'Click to read';
+    t.onclick = () => showClue(c, false);
+    grid.append(t);
   }
-  bar.append(chips);
+  box.append(grid);
 }
 
 function confirmDeath(name, isDead) {
@@ -1479,3 +1503,5 @@ function renderModOverview() {
   const roleItems = order.filter((r) => counts[r]).map((r) => roleLabel('ov-chip role', r, `${counts[r]} × ${ROLE[r].label}`));
   box.append(panel('🟢 Alive', 'alive', alive.map((u) => chip(u.name))), panel('💀 Dead', 'dead', dead.map((u) => chip(u.name))), panel('🎭 Roles still alive', 'roles', roleItems));
 }
+
+window.addEventListener('resize', () => state && renderCluesBar());
