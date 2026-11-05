@@ -1225,7 +1225,8 @@ function renderActionCard() {
   card.append(list);
   if (a.pack?.length) {
     const pack = el('div', 'pack');
-    pack.append(el('div', 'pack-title', 'Your pack'));
+    pack.append(el('div', 'pack-title', 'Your pack — everyone must pick the same player'));
+    pack.append(el('div', 'pack-status ' + (a.agreed ? 'ok' : 'no'), a.agreed ? `✓ The pack agrees on ${a.agreed}` : '✗ Not agreed yet: nobody dies unless you all pick the same player'));
     for (const p of a.pack) pack.append(el('div', 'pack-row', `${p.name} → ${p.target || 'not chosen yet'}`));
     card.append(pack);
   }
@@ -1240,6 +1241,7 @@ function renderNightCard() {
   card.innerHTML = '';
   const night = state.phase === 'night';
   card.append(el('div', 'card-title', night ? '🌙 Tonight\'s choices' : '🌙 Last night\'s choices'));
+  if (night && state.modView?.outcome) card.append(el('div', 'outcome', `At sunrise: ${state.modView.outcome}`));
   const order = { kill: 0, heal: 1, investigate: 2 };
   for (const a of [...list].sort((x, y) => order[x.kind] - order[y.kind])) {
     const row = el('div', 'night-row' + (a.target ? '' : ' waiting'));
@@ -1321,7 +1323,9 @@ socket.on('clue:reveal', (clue) => {
 });
 function showNextClue() {
   if (!clueQueue.length || !$('modal').classList.contains('hidden')) return;
-  showClue(clueQueue.shift(), true);
+  const next = clueQueue.shift();
+  if (next.__result) next.__result();
+  else showClue(next, true);
 }
 function showClue(clue, fresh) {
   openModal((card) => {
@@ -1384,3 +1388,24 @@ function confirmDeath(name, isDead) {
     card.append(actions);
   });
 }
+
+// ---------- Sunrise result ----------
+socket.on('night:result', ({ victims }) => {
+  const show = () =>
+    openModal((card) => {
+      card.append(el('div', 'note-icon', victims.length ? '☠️' : '🌅'));
+      if (victims.length) {
+        card.append(el('h2', '', victims.length === 1 ? `${victims[0]} was killed in the night` : `${victims.join(' and ')} were killed in the night`));
+        card.append(el('p', '', victims.some((v) => key(v) === key(me)) ? 'You are dead. You can only talk to the moderator now.' : 'They can no longer speak in the village.'));
+      } else {
+        card.append(el('h2', '', 'No victim'));
+        card.append(el('p', '', 'The village wakes up. Nobody died last night.'));
+      }
+      const actions = el('div', 'actions');
+      actions.append(btn('btn-primary', 'Close', closeModal));
+      card.append(actions);
+    });
+  // Let any open pop-up finish first; clue reveals queue up behind this one.
+  if ($('modal').classList.contains('hidden')) show();
+  else clueQueue.unshift({ __result: show });
+});

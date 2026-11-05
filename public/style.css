@@ -808,3 +808,8 @@ body.night .scene::after { background: linear-gradient(180deg, rgba(5, 6, 15, 0.
 .bubble.flash { animation: pickFlash 0.7s ease; }
 @keyframes pickFlash { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
 .bubble.check-bubble.locked { opacity: 0.85; border-style: dashed; }
+
+.pack-status { margin: 4px 0 6px; font-weight: 700; font-size: 0.85rem; }
+.pack-status.ok { color: var(--success); }
+.pack-status.no { color: var(--danger); }
+.outcome { font-size: 0.85rem; font-weight: 700; padding: 6px 10px; border-radius: 10px; background: var(--surface-2); margin-bottom: 6px; }

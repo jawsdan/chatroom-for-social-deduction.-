@@ -163,6 +163,8 @@ function broadcastState() {
       s.me.action = { kind, target: nightActions.get(key(u.name))?.target || null, targets: validTargets(u.name) };
       // Wolves see what the rest of the pack picked.
       if (kind === 'kill' && myRole === 'werewolf') {
+        const o = nightOutcome();
+        s.me.action.agreed = o.reason === 'killed' || o.reason === 'saved' ? o.victim || o.target : null;
         s.me.action.pack = wolfNames().filter((n) => key(n) !== key(u.name)).map((n) => ({ name: n, target: nightActions.get(key(n))?.target || null }));
       }
     }
@@ -173,6 +175,7 @@ function broadcastState() {
         roleConfig,
         wolfCount: wolfCount(),
         nightActions: nightActionList(),
+        outcome: phase === 'night' ? OUTCOME_TEXT[nightOutcome().reason](nightOutcome()) : null,
         notes: Object.fromEntries([...roles.keys()].map((k) => [k, { manifesto: manifestos.get(k) || '', card: callingCards.get(k) || '' }])),
       };
     }
@@ -390,10 +393,44 @@ function scheduleBotActions() {
       if (phase !== 'night' || !users.has(b.id) || nightActions.has(key(b.name))) return;
       const options = validTargets(b.name);
       if (!options.length) return;
-      setNightAction(b.name, options[Math.floor(Math.random() * options.length)]);
+      // Bot wolves go along with a packmate's pick so the pack can agree.
+      const packPick = actionKindFor(b.name) === 'kill' ? livingWolves().map((k) => nightActions.get(k)?.target).find(Boolean) : null;
+      setNightAction(b.name, packPick || options[Math.floor(Math.random() * options.length)]);
       broadcastState();
     }, 2000 + Math.random() * 4000);
   }
+}
+
+// ---- Settling the night ----
+// Living wolves (not dead or muted) are the ones who must agree.
+function livingWolves() {
+  return [...roles.entries()].filter(([k, r]) => r === 'werewolf' && !killedNames.has(k) && !mutedNames.has(k)).map(([k]) => k);
+}
+// What happens at sunrise with tonight's picks.
+function nightOutcome() {
+  const wolves = livingWolves();
+  if (!wolves.length) return { victim: null, reason: 'nokiller' };
+  const picks = wolves.map((k) => nightActions.get(k)?.target || null);
+  if (picks.some((t) => !t)) return { victim: null, reason: wolves.length > 1 ? 'disagree' : 'nopick', picks };
+  if (new Set(picks.map(key)).size > 1) return { victim: null, reason: 'disagree', picks };
+  const target = picks[0];
+  if (!userByName(target) || killedNames.has(key(target))) return { victim: null, reason: 'nopick' };
+  const healed = [...nightActions.values()].some((a) => a.kind === 'heal' && key(a.target) === key(target));
+  if (healed) return { victim: null, reason: 'saved', target };
+  return { victim: target, reason: 'killed' };
+}
+const OUTCOME_TEXT = {
+  killed: (o) => `${o.victim} will die`,
+  saved: (o) => `${o.target} was attacked but the Doctor saved them`,
+  disagree: () => 'The wolves did not agree on one victim',
+  nopick: () => 'The killer did not choose anyone',
+  nokiller: () => 'There is no killer alive',
+};
+function killPlayer(name) {
+  const k = key(name);
+  killedNames.add(k);
+  mutedNames.add(k);
+  nightActions.delete(k);
 }
 
 // ---- Deaths, calling cards and manifestos ----
@@ -700,6 +737,9 @@ io.on('connection', (socket) => {
     if (!u || isMod(socket)) return;
     const err = setNightAction(u.name, target ? String(target) : null);
     if (err) return socket.emit('notice', err);
+    if (actionKindFor(u.name) === 'kill' && target) {
+      for (const b of bots()) if (actionKindFor(b.name) === 'kill' && livingWolves().includes(key(b.name))) setNightAction(b.name, String(target));
+    }
     broadcastState();
   });
 
@@ -728,6 +768,7 @@ io.on('connection', (socket) => {
   socket.on('phase:set', (p) => {
     if (!isMod(socket) || (p !== 'day' && p !== 'night')) return;
     const newNight = p === 'night' && phase !== 'night';
+    const wasNight = phase === 'night';
     phase = p;
     phaseStartedAt = Date.now();
     // Sunrise locks in tonight's picks; the next night starts new messages.
@@ -742,11 +783,21 @@ io.on('connection', (socket) => {
     }
     io.emit('phase:changed', { phase });
     systemLobby(p === 'night' ? 'Night falls over the village.' : 'The sun rises. It is day.');
-    if (p === 'day' && pendingReveals.length) {
-      const list = pendingReveals;
+    if (p === 'day' && wasNight) {
+      // Settle the night: the agreed, unhealed victim dies.
+      const outcome = nightOutcome();
+      let list = pendingReveals;
       pendingReveals = [];
-      // Give the sunrise animation a moment before the bad news.
+      if (outcome.victim) {
+        const card = callingCardFor(outcome.victim);
+        killPlayer(outcome.victim);
+        if (!list.some((r) => key(r.victim) === key(outcome.victim))) list = [{ victim: outcome.victim, card }, ...list];
+      }
+      if (moderatorId) io.to(moderatorId).emit('notice', `🌅 ${OUTCOME_TEXT[outcome.reason](outcome)}.`);
+      // Give the sunrise animation a moment before the news.
       setTimeout(() => {
+        io.emit('night:result', { victims: list.map((r) => r.victim) });
+        if (!list.length) systemLobby('🌅 Nobody died last night.');
         for (const r of list) revealDeath(r);
         broadcastState();
       }, 1800);
