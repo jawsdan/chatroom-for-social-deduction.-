@@ -247,6 +247,29 @@ socket.on('mod:message', ({ thread, message }) => {
   if (channel === 'mod' && amMod()) renderThreadTabs();
 });
 
+// A private message was edited (a changed or locked-in night pick): swap it in place.
+socket.on('mod:update', ({ thread, message }) => {
+  const list = amMod() ? modThreads[thread] : myThread;
+  if (!list) return;
+  const i = list.findIndex((m) => m.id === message.id);
+  if (i < 0) return;
+  list[i] = message;
+  const viewing = channel === 'mod' && (amMod() ? selectedThread === thread : true);
+  if (viewing) {
+    const box = $('messages');
+    const top = box.scrollTop;
+    renderMessages();
+    box.scrollTop = Math.min(top, box.scrollHeight);
+    const node = box.querySelector(`[data-mid="${message.id}"] .bubble`);
+    if (node && !message.action?.locked) {
+      node.classList.remove('flash');
+      void node.offsetWidth;
+      node.classList.add('flash');
+    }
+  }
+  if (amMod() && message.action?.target && !message.action.locked) toast(`🌙 ${message.from} changed to ${ACTION_TEXT[message.action.kind].verb} ${message.action.target}.`);
+});
+
 socket.on('phase:changed', ({ phase, silent }) => {
   setPhase(phase, !silent);
   if (!silent && phase === 'night' && state?.me?.wolfAccess && !amMod()) setTimeout(() => toast('🐺 The wolf den is open. Plan your target!'), 1800);
@@ -975,10 +998,12 @@ function appendMessage(m, live = true) {
       const role = m.action.kind === 'kill' ? (knownRole(m.from) || 'werewolf') : m.action.kind === 'heal' ? 'doctor' : 'officer';
       art.innerHTML = ART[role] || '';
       const txt = el('div');
-      txt.append(el('div', 'check-kicker', `🌙 Night action · ${ACTION_TEXT[m.action.kind].noun}`));
+      const status = m.action.locked ? ' · 🔒 locked in' : m.action.changes ? ` · changed ${m.action.changes}×` : '';
+      txt.append(el('div', 'check-kicker', `🌙 Night action · ${ACTION_TEXT[m.action.kind].noun}${status}`));
+      if (m.action.locked) bubble.classList.add('locked');
       const line = el('div', 'check-line');
       if (m.action.target) line.append(el('b', '', m.from), document.createTextNode(` chose to ${ACTION_TEXT[m.action.kind].verb} `), el('b', 'action-target ' + m.action.kind, m.action.target));
-      else line.append(el('b', '', m.from), document.createTextNode(' cleared their choice'));
+      else line.append(el('b', '', m.from), document.createTextNode(m.action.locked ? ' chose nobody' : ' has not chosen yet'));
       txt.append(line);
       r.append(art, txt);
       bubble.append(r);
@@ -1002,6 +1027,7 @@ function appendMessage(m, live = true) {
     node.append(body);
     lastRendered = { from: m.from, ts: m.ts };
   }
+  if (m.id != null) node.dataset.mid = m.id;
   if (!live) node.style.animation = 'none';
   box.append(node);
   if (live && (nearBottom || key(m.from || '') === key(me))) box.scrollTop = box.scrollHeight;

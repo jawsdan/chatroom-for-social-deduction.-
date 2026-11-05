@@ -189,6 +189,23 @@ function sendOwnThread(socket) {
   const u = users.get(socket.id);
   if (u) socket.emit('mod:thread', modThreads.get(key(u.name)) || []);
 }
+// Change a message already in a private thread (same id) and tell both sides.
+function updateModThread(memberName, m) {
+  const k = key(memberName);
+  const member = userByName(k);
+  if (member) io.to(member.id).emit('mod:update', { thread: k, message: m });
+  if (moderatorId && moderatorId !== member?.id) io.to(moderatorId).emit('mod:update', { thread: k, message: m });
+}
+// Each actor gets one night-action message per night; changing the pick edits it.
+let actionMsgs = new Map(); // actor key -> message object in their thread
+function lockActionMessages() {
+  for (const [k, m] of actionMsgs) {
+    m.action.locked = true;
+    updateModThread(k, m);
+  }
+  actionMsgs = new Map();
+}
+
 function pushModThread(memberName, m) {
   const k = key(memberName);
   if (!modThreads.has(k)) modThreads.set(k, []);
@@ -232,6 +249,7 @@ function wipeEverything(reason) {
   protectedNames = new Set();
   mutedNames = new Set();
   nightActions = new Map();
+  actionMsgs = new Map();
   autoProtected.clear();
   callingCards = new Map();
   manifestos = new Map();
@@ -341,7 +359,18 @@ function setNightAction(actorName, targetName) {
   }
   const actor = userByName(k)?.name || actorName;
   const act = nightActions.get(k);
-  pushModThread(k, msg(actor, act ? `chose to ${ACTION_VERB[kind]} ${act.target}` : 'cleared their choice', { action: { kind, target: act?.target || null } }));
+  const text = act ? `chose to ${ACTION_VERB[kind]} ${act.target}` : 'has not chosen yet';
+  const existing = actionMsgs.get(k);
+  if (existing && modThreads.get(k)?.includes(existing)) {
+    existing.text = text;
+    existing.action = { kind, target: act?.target || null, changes: (existing.action.changes || 0) + 1 };
+    existing.edited = now();
+    updateModThread(k, existing);
+  } else {
+    const m = msg(actor, text, { action: { kind, target: act?.target || null, changes: 0 } });
+    actionMsgs.set(k, m);
+    pushModThread(k, m);
+  }
   return null;
 }
 function nightActionList() {
@@ -701,8 +730,11 @@ io.on('connection', (socket) => {
     const newNight = p === 'night' && phase !== 'night';
     phase = p;
     phaseStartedAt = Date.now();
+    // Sunrise locks in tonight's picks; the next night starts new messages.
+    if (p === 'day') lockActionMessages();
     if (newNight) {
       // A fresh night: everyone picks again, and last night's protections end.
+      actionMsgs = new Map();
       nightActions = new Map();
       autoProtected.clear();
       protectedNames = new Set();
