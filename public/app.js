@@ -150,6 +150,9 @@ socket.on('connect', () => {
 // ---------- Server events ----------
 socket.on('state', (s) => {
   state = s;
+  // The server's clock decides when the phase started, so everyone's timer matches.
+  clockOffset = s.serverNow - Date.now();
+  tickPhaseTimer();
   if (channel === 'wolf' && !s.me.wolfAccess) channel = 'lobby';
   renderAll(false);
   maybeShowTrialPopup();
@@ -1024,3 +1027,23 @@ const ART_FX = {
   slashes: `<svg viewBox="0 0 160 200" xmlns="http://www.w3.org/2000/svg"><g fill="#9b111e">
 <path d="M20 10 L34 8 L120 190 L112 194Z"/><path d="M55 4 L68 4 L148 180 L140 186Z"/><path d="M0 50 L10 46 L80 196 L74 198Z"/></g></svg>`,
 };
+
+// ---------- Phase timer (counts up from the start of the current day or night) ----------
+let clockOffset = 0;
+function formatElapsed(ms) {
+  const t = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const sec = t % 60;
+  const two = (n) => String(n).padStart(2, '0');
+  return h ? `${h}:${two(m)}:${two(sec)}` : `${two(m)}:${two(sec)}`;
+}
+function tickPhaseTimer() {
+  if (!state) return;
+  const night = state.phase === 'night';
+  $('phaseTimerLabel').textContent = night ? '🌙 Night' : '☀️ Day';
+  const text = formatElapsed(Date.now() + clockOffset - state.phaseStartedAt);
+  if ($('phaseTimerTime').textContent !== text) $('phaseTimerTime').textContent = text;
+  $('phaseTimer').classList.toggle('night', night);
+}
+setInterval(tickPhaseTimer, 250);

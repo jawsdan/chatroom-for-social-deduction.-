@@ -23,6 +23,7 @@ let roles = new Map(); // lowercase name -> role (one of ROLES)
 let protectedNames = new Set(); // lowercase names the moderator marked as protected
 let mutedNames = new Set(); // lowercase names muted until the chat is wiped
 let phase = 'day';
+let phaseStartedAt = Date.now(); // when the current day/night began, for the timer
 let trial = null; // { accusedName, votes: Map(name -> 'guilty'|'innocent'), open, result }
 let wipeVotes = new Set(); // socket ids of players who voted to wipe everything
 const roleConfig = { werewolf: 2, doctor: 1, officer: 1 }; // the rest are civilians
@@ -119,6 +120,8 @@ function broadcastState() {
     })),
     moderator: moderatorId && users.get(moderatorId) ? users.get(moderatorId).name : null,
     phase,
+    phaseStartedAt,
+    serverNow: Date.now(),
     trial: trialPublic,
     wipe: { votes: wipeVotes.size, needed: wipeVoters().length },
   };
@@ -201,6 +204,7 @@ function wipeEverything(reason) {
   mutedNames = new Set();
   trial = null;
   phase = 'day';
+  phaseStartedAt = Date.now();
   io.emit('lobby:history', []);
   for (const [id, sock] of io.sockets.sockets) if (users.has(id)) sock.emit('mod:thread', []);
   sendModThreads();
@@ -478,6 +482,7 @@ io.on('connection', (socket) => {
   socket.on('phase:set', (p) => {
     if (!isMod(socket) || (p !== 'day' && p !== 'night')) return;
     phase = p;
+    phaseStartedAt = Date.now();
     io.emit('phase:changed', { phase });
     systemLobby(p === 'night' ? 'Night falls over the village.' : 'The sun rises. It is day.');
     broadcastState();

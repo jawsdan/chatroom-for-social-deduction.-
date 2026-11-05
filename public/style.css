@@ -654,3 +654,16 @@ body:not(.night) .firefly { display: none; }
 /* Moving decorations get their own layer so the browser only moves them, not redraws them. */
 .drip, .drop, .plus, .firefly, .tape-text, .siren { will-change: transform, opacity; }
 .role-fx { contain: strict; }
+
+/* ---------- Phase timer ---------- */
+.phase-timer {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--border); flex-shrink: 0; white-space: nowrap;
+}
+.phase-timer .pt-label { font-size: 0.8rem; font-weight: 600; color: var(--text-2); }
+.phase-timer .pt-time { font-weight: 800; font-size: 1rem; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; min-width: 3.1em; text-align: right; }
+@media (max-width: 760px) {
+  .phase-timer { padding: 4px 9px; }
+  .phase-timer .pt-label { display: none; }
+  .phase-timer .pt-time { font-size: 0.9rem; min-width: 0; }
+}
