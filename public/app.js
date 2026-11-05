@@ -103,7 +103,10 @@ function displayName(k) {
 function timeOf(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
-function openModal(build) {
+// A locked pop-up can't be closed by clicking outside it or pressing Escape (used for the trial vote).
+let modalLocked = false;
+function openModal(build, locked = false) {
+  modalLocked = locked;
   const card = $('modalCard');
   card.innerHTML = '';
   build(card);
@@ -114,12 +117,13 @@ function openModal(build) {
   card.style.animation = '';
 }
 function closeModal() {
+  modalLocked = false;
   $('modal').classList.add('hidden');
 }
-$('modal').addEventListener('click', (e) => e.target === $('modal') && closeModal());
+$('modal').addEventListener('click', (e) => e.target === $('modal') && !modalLocked && closeModal());
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    closeModal();
+    if (!modalLocked) closeModal();
     closeDrawers();
   }
 });
@@ -348,6 +352,7 @@ function maybeShowTrialPopup() {
   const t = state?.trial;
   if (!t || !t.open || trialPopupShownFor === t.accused) return;
   trialPopupShownFor = t.accused;
+  const voting = canVote();
   openModal((card) => {
     const art = el('div', 'art');
     art.innerHTML = ART.scales;
@@ -358,7 +363,7 @@ function maybeShowTrialPopup() {
     else if (canVote()) text = 'Is this person guilty? Everyone will see who voted what when the trial ends.';
     card.append(el('p', '', text));
     const actions = el('div', 'actions');
-    if (canVote()) {
+    if (voting) {
       actions.append(
         btn('btn-danger', 'Guilty', () => {
           socket.emit('trial:vote', 'guilty');
@@ -370,9 +375,10 @@ function maybeShowTrialPopup() {
         })
       );
     }
-    actions.append(btn('btn-ghost', canVote() ? 'Decide later' : 'Close', closeModal));
+    // Voters must choose Guilty or Innocent; everyone else can close it.
+    else actions.append(btn('btn-ghost', 'Close', closeModal));
     card.append(actions);
-  });
+  }, voting);
 }
 
 function openTrialPicker() {
