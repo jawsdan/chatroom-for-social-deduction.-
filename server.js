@@ -2,6 +2,7 @@ const path = require('path');
 const http = require('http');
 const express = require('express');
 const { Server } = require('socket.io');
+const DEATH_LINES = require('./deaths');
 
 const app = express();
 const server = http.createServer(app);
@@ -446,8 +447,16 @@ function addClue(kind, about, text) {
   io.emit('clue:reveal', clue);
 }
 // Announce a death and reveal any notes. card = the killer's calling card text, if any.
-function revealDeath({ victim, card, announce = true }) {
-  if (announce) systemLobby(`☠️ ${victim} was found dead.`);
+// Pick a random funny death line, avoiding the last few used.
+let recentDeathLines = [];
+function deathLine(victim) {
+  const fresh = DEATH_LINES.map((_, i) => i).filter((i) => !recentDeathLines.includes(i));
+  const i = fresh[Math.floor(Math.random() * fresh.length)];
+  recentDeathLines = [...recentDeathLines, i].slice(-10);
+  return DEATH_LINES[i].replace('{name}', victim);
+}
+function revealDeath({ victim, card, announce = true, line }) {
+  if (announce) systemLobby(line || `☠️ ${victim} was found dead.`);
   if (card) addClue('card', victim, card);
   const manifesto = manifestos.get(key(victim));
   if (manifesto) addClue('manifesto', victim, manifesto);
@@ -808,7 +817,9 @@ io.on('connection', (socket) => {
       if (moderatorId) io.to(moderatorId).emit('notice', `🌅 ${OUTCOME_TEXT[outcome.reason](outcome)}.`);
       // Give the sunrise animation a moment before the news.
       setTimeout(() => {
-        io.emit('night:result', { victims: list.map((r) => r.victim) });
+        // Night deaths get a funny morning story.
+        for (const r of list) r.line = deathLine(r.victim);
+        io.emit('night:result', { victims: list.map((r) => r.victim), lines: list.map((r) => r.line) });
         if (!list.length) systemLobby('🌅 Nobody died last night.');
         for (const r of list) revealDeath(r);
         broadcastState();

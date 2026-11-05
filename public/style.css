@@ -835,3 +835,5 @@ body.night .scene::after { background: linear-gradient(180deg, rgba(5, 6, 15, 0.
 .clue-chip.check { background: #eef4ff; color: #0f1d3d; border-color: #93b4f5; }
 .clue-chip.check.wolf { background: #fff0f0; color: #7f1d1d; border-color: #f0a3a3; }
 @media (max-width: 900px) { .mod-overview { grid-template-columns: 1fr; padding: 8px 12px; } }
+
+.death-line { font-style: italic; font-size: 1.02rem; color: var(--text) !important; background: var(--surface-2); border-radius: 12px; padding: 10px 14px; }
