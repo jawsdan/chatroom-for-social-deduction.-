@@ -1,0 +1,17 @@
+{
+  "name": "social-deduction-chatroom",
+  "version": "1.0.0",
+  "description": "Real-time chatroom for social deduction games (werewolf style) with a moderator, day/night phases, trials and wipe votes.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.22.3",
+    "socket.io": "^4.8.4"
+  }
+}

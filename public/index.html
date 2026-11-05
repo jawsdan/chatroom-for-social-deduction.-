@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Village Chat</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Join screen -->
+  <div id="join" class="join">
+    <form id="joinForm" class="join-card">
+      <div class="join-logo" id="joinLogo"></div>
+      <h1>Village Chat</h1>
+      <p>A chatroom for werewolf-style games.</p>
+      <input id="nameInput" maxlength="20" placeholder="Your name" autocomplete="off" autofocus />
+      <button type="submit">Enter the lobby</button>
+      <div id="joinError" class="error"></div>
+    </form>
+  </div>
+
+  <!-- App -->
+  <div id="app" class="app hidden">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">Village Chat</div>
+
+      <div class="section-title">Chats</div>
+      <button class="channel" data-channel="lobby"># Main lobby</button>
+      <button class="channel" data-channel="mod">🛡️ <span id="modChannelLabel">Moderator</span> <span class="badge hidden" id="modUnread"></span></button>
+
+      <div class="section-title">Groups <button id="newGroupBtn" class="tiny" title="Create group">+ New</button></div>
+      <div id="groupList"></div>
+
+      <div class="section-title">Moderator</div>
+      <div id="modBox" class="mod-box"></div>
+
+      <div class="section-title"><span>Players (<span id="playerCount">0</span>)</span></div>
+      <ul id="playerList" class="players"></ul>
+    </aside>
+
+    <main class="main">
+      <header class="chat-header">
+        <button id="menuBtn" class="menu-btn" aria-label="Open menu">☰</button>
+        <div class="chat-title" id="chatTitle"># Main lobby</div>
+        <div class="header-actions" id="headerActions"></div>
+        <div class="phase-corner" id="phaseCorner" title="Current phase"></div>
+      </header>
+
+      <div id="modToolbar" class="mod-toolbar hidden">
+        <span class="label">Moderator tools:</span>
+        <button id="dayBtn">☀️ Day</button>
+        <button id="nightBtn">🌙 Night</button>
+        <button id="trialBtn" class="danger">⚖️ Trial</button>
+        <button id="endTrialBtn" class="hidden">End voting</button>
+        <button id="cancelTrialBtn" class="hidden ghost">Cancel trial</button>
+      </div>
+
+      <div id="trialBanner" class="trial-banner hidden"></div>
+
+      <div id="threadTabs" class="thread-tabs hidden"></div>
+      <div id="roleBar" class="role-bar hidden">
+        <span class="label">Give <b id="roleTarget"></b> a role:</span>
+        <button data-role="civilian">🧑‍🌾 Civilian</button>
+        <button data-role="werewolf" class="danger">🐺 Werewolf</button>
+      </div>
+
+      <div id="messages" class="messages"></div>
+
+      <form id="composer" class="composer">
+        <input id="msgInput" maxlength="500" autocomplete="off" placeholder="Type a message…" />
+        <button type="submit">Send</button>
+      </form>
+    </main>
+  </div>
+
+  <!-- Overlays -->
+  <div id="phaseOverlay" class="phase-overlay hidden"></div>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-card" id="modalCard"></div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="art.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
