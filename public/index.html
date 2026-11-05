@@ -115,6 +115,11 @@
             <button id="nightBtn">🌙 Night</button>
           </div>
           <button id="trialBtn" class="btn btn-danger btn-block">⚖️ Put someone on trial</button>
+          <div class="bot-row" title="Fake players for testing. They get roles and vote in trials.">
+            <select id="botCount" aria-label="Number of bots"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select>
+            <button id="addBotsBtn" class="btn btn-soft">🤖 Add bots</button>
+            <button id="removeBotsBtn" class="btn btn-ghost hidden">Remove bots</button>
+          </div>
         </div>
       </section>
 
@@ -146,6 +151,10 @@
 
     <div class="scrim" id="scrim"></div>
   </div>
+
+  <!-- Role-themed screen effects (only for the player's own role) -->
+  <div id="roleFxBack" class="role-fx back" aria-hidden="true"></div>
+  <div id="roleFx" class="role-fx" aria-hidden="true"></div>
 
   <!-- Overlays -->
   <div id="phaseOverlay" class="phase-overlay hidden"></div>

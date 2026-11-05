@@ -27,6 +27,10 @@ let trial = null; // { accusedName, votes: Map(name -> 'guilty'|'innocent'), ope
 const wipeVotes = { main: new Set(), mod: new Set() }; // socket ids
 const roleConfig = { werewolf: 2, doctor: 1, officer: 1 }; // the rest are civilians
 let nextMsgId = 1;
+let nextBotId = 1;
+const BOT_NAMES = ['Astrid', 'Bjorn', 'Cora', 'Dag', 'Edda', 'Finn', 'Greta', 'Hugo', 'Ingrid', 'Jonas', 'Kari', 'Leif', 'Mia', 'Nils', 'Oda', 'Per', 'Runa', 'Sven', 'Tora', 'Ulf'];
+const humans = () => [...users.values()].filter((u) => !u.bot);
+const bots = () => [...users.values()].filter((u) => u.bot);
 
 const key = (name) => String(name).toLowerCase();
 const now = () => Date.now();
@@ -111,11 +115,12 @@ function broadcastState() {
       name: u.name,
       moderator: u.id === moderatorId,
       muted: mutedNames.has(key(u.name)),
+      bot: !!u.bot,
     })),
     moderator: moderatorId && users.get(moderatorId) ? users.get(moderatorId).name : null,
     phase,
     trial: trialPublic,
-    wipe: { main: wipeVotes.main.size, mod: wipeVotes.mod.size, needed: users.size },
+    wipe: { main: wipeVotes.main.size, mod: wipeVotes.mod.size, needed: humans().length },
   };
   for (const [id, sock] of io.sockets.sockets) {
     const u = users.get(id);
@@ -177,7 +182,9 @@ function pushWolf(m) {
 // ---- Votes ----
 function checkWipe(kind) {
   for (const id of wipeVotes[kind]) if (!users.has(id)) wipeVotes[kind].delete(id);
-  if (users.size === 0 || wipeVotes[kind].size < users.size) return false;
+  // Bots don't vote, so only real people count.
+  const needed = humans().length;
+  if (needed === 0 || wipeVotes[kind].size < needed) return false;
   wipeVotes[kind].clear();
   if (kind === 'main') {
     // A fresh game.
@@ -244,6 +251,46 @@ function becomeModerator(socket) {
   protectedNames.delete(key(u.name));
   sendModThreads();
   sendWolfHistoryToAll();
+}
+
+// ---- Test bots ----
+function addBots(n) {
+  const added = [];
+  for (let i = 0; i < n; i++) {
+    let name = BOT_NAMES.find((b) => !userByName(b));
+    if (!name) name = `Bot ${nextBotId}`;
+    while (userByName(name)) name = `Bot ${++nextBotId}`;
+    const id = `bot:${nextBotId++}`;
+    users.set(id, { id, name, bot: true });
+    added.push(name);
+  }
+  if (added.length) systemLobby(`🤖 Added ${added.length} test bot${added.length === 1 ? '' : 's'}: ${added.join(', ')}.`);
+}
+function removeBots() {
+  const list = bots();
+  if (!list.length) return;
+  const before = displayRoleMap();
+  for (const b of list) {
+    users.delete(b.id);
+    roles.delete(key(b.name));
+    protectedNames.delete(key(b.name));
+  }
+  announceRoleChanges(before);
+  systemLobby(`🤖 Removed ${list.length} test bot${list.length === 1 ? '' : 's'}.`);
+  maybeAutoFinishTrial();
+}
+// Bots vote at random a few seconds after a trial starts.
+function scheduleBotVotes() {
+  const t = trial;
+  for (const b of bots()) {
+    setTimeout(() => {
+      if (trial !== t || !t.open || !users.has(b.id)) return;
+      if (!eligibleVoters().some((v) => v.id === b.id)) return;
+      t.votes.set(b.name, Math.random() < 0.5 ? 'guilty' : 'innocent');
+      maybeAutoFinishTrial();
+      broadcastState();
+    }, 1500 + Math.random() * 3500);
+  }
 }
 
 // ---- Sockets ----
@@ -354,6 +401,19 @@ io.on('connection', (socket) => {
     }));
   });
 
+  socket.on('bots:add', (n) => {
+    if (!isMod(socket)) return;
+    n = Math.max(1, Math.min(10, Number(n) || 1));
+    if (bots().length + n > 30) return socket.emit('notice', 'That is a lot of bots. Remove some first.');
+    addBots(n);
+    broadcastState();
+  });
+  socket.on('bots:remove', () => {
+    if (!isMod(socket)) return;
+    removeBots();
+    broadcastState();
+  });
+
   socket.on('roles:config', (cfg = {}) => {
     if (!isMod(socket)) return;
     for (const r of ['werewolf', 'doctor', 'officer']) {
@@ -428,6 +488,7 @@ io.on('connection', (socket) => {
     if (trial && trial.open) return socket.emit('notice', 'A trial is already running.');
     trial = { accusedName: target.name, votes: new Map(), open: true, result: null };
     io.emit('trial:started', { accused: target.name });
+    scheduleBotVotes();
     systemLobby(`${target.name} is on trial! Vote guilty or innocent.`);
     broadcastState();
   });
@@ -479,6 +540,8 @@ io.on('connection', (socket) => {
     } else {
       systemLobby(`${u.name} left.`);
     }
+    // When the last real person leaves, clear out the test bots too.
+    if (humans().length === 0) removeBots();
     // Someone leaving can complete a vote.
     checkWipe('main');
     checkWipe('mod');
