@@ -29,6 +29,10 @@ let wipeVotes = new Set(); // socket ids of players who voted to wipe everything
 const roleConfig = { werewolf: 2, doctor: 1, officer: 1 }; // the rest are civilians
 let nextMsgId = 1;
 let nextBotId = 1;
+// Night actions: lowercase actor name -> { kind: 'kill'|'heal'|'investigate', target: name }.
+// Cleared when a new night starts.
+let nightActions = new Map();
+const autoProtected = new Map(); // doctor key -> target key they protected
 const BOT_NAMES = ['Astrid', 'Bjorn', 'Cora', 'Dag', 'Edda', 'Finn', 'Greta', 'Hugo', 'Ingrid', 'Jonas', 'Kari', 'Leif', 'Mia', 'Nils', 'Oda', 'Per', 'Runa', 'Sven', 'Tora', 'Ulf'];
 const humans = () => [...users.values()].filter((u) => !u.bot);
 const bots = () => [...users.values()].filter((u) => u.bot);
@@ -139,12 +143,21 @@ function broadcastState() {
       wolfAccess: hasWolfAccess(id),
       wolfmates: myRole === 'werewolf' ? wolfNames() : [],
     };
+    const kind = id === moderatorId ? null : actionKindFor(u.name);
+    if (kind) {
+      s.me.action = { kind, target: nightActions.get(key(u.name))?.target || null, targets: validTargets(u.name) };
+      // Wolves see what the rest of the pack picked.
+      if (kind === 'kill' && myRole === 'werewolf') {
+        s.me.action.pack = wolfNames().filter((n) => key(n) !== key(u.name)).map((n) => ({ name: n, target: nightActions.get(key(n))?.target || null }));
+      }
+    }
     if (id === moderatorId) {
       s.modView = {
         roles: Object.fromEntries(displayRoleMap()),
         protected: [...protectedNames],
         roleConfig,
         wolfCount: wolfCount(),
+        nightActions: nightActionList(),
       };
     }
     sock.emit('state', s);
@@ -202,6 +215,8 @@ function wipeEverything(reason) {
   roles = new Map();
   protectedNames = new Set();
   mutedNames = new Set();
+  nightActions = new Map();
+  autoProtected.clear();
   trial = null;
   phase = 'day';
   phaseStartedAt = Date.now();
@@ -259,6 +274,75 @@ function becomeModerator(socket) {
   sendModThreads();
   sendWolfHistoryToAll();
   checkWipe();
+}
+
+// ---- Night actions ----
+const ACTION_FOR_ROLE = { werewolf: 'kill', doctor: 'heal', officer: 'investigate' };
+const ACTION_VERB = { kill: 'kill', heal: 'heal', investigate: 'investigate' };
+function actionKindFor(name) {
+  return ACTION_FOR_ROLE[roles.get(key(name))] || null;
+}
+// Players this actor may pick tonight.
+function validTargets(actorName) {
+  const kind = actionKindFor(actorName);
+  if (!kind) return [];
+  return [...users.values()].filter((u) => {
+    if (u.id === moderatorId || mutedNames.has(key(u.name))) return false;
+    const self = key(u.name) === key(actorName);
+    if (kind === 'heal') return true; // the doctor may protect themselves
+    if (self) return false;
+    if (kind === 'kill' && roles.get(key(u.name)) === 'werewolf') return false; // wolves don't hunt wolves
+    return true;
+  }).map((u) => u.name);
+}
+function setNightAction(actorName, targetName) {
+  const k = key(actorName);
+  const kind = actionKindFor(actorName);
+  if (!kind) return 'You have no night action.';
+  if (phase !== 'night') return 'You can only choose at night.';
+  if (mutedNames.has(k)) return 'You are muted and cannot act.';
+  if (kind === 'heal' && autoProtected.has(k)) {
+    protectedNames.delete(autoProtected.get(k));
+    autoProtected.delete(k);
+  }
+  if (!targetName) {
+    nightActions.delete(k);
+  } else {
+    const target = validTargets(actorName).find((n) => key(n) === key(targetName));
+    if (!target) return 'You cannot choose that player.';
+    if (nightActions.get(k)?.target === target) return null;
+    nightActions.set(k, { kind, target });
+    if (kind === 'heal') {
+      protectedNames.add(key(target));
+      autoProtected.set(k, key(target));
+    }
+  }
+  const actor = userByName(k)?.name || actorName;
+  const act = nightActions.get(k);
+  pushModThread(k, msg(actor, act ? `chose to ${ACTION_VERB[kind]} ${act.target}` : 'cleared their choice', { action: { kind, target: act?.target || null } }));
+  return null;
+}
+function nightActionList() {
+  const out = [];
+  for (const [k, r] of roles) {
+    const kind = ACTION_FOR_ROLE[r];
+    if (!kind) continue;
+    out.push({ actor: userByName(k)?.name || k, role: displayRole(k), kind, target: nightActions.get(k)?.target || null, muted: mutedNames.has(k) });
+  }
+  return out;
+}
+// Bots with a role pick someone at random a few seconds into the night.
+function scheduleBotActions() {
+  for (const b of bots()) {
+    if (!actionKindFor(b.name)) continue;
+    setTimeout(() => {
+      if (phase !== 'night' || !users.has(b.id) || nightActions.has(key(b.name))) return;
+      const options = validTargets(b.name);
+      if (!options.length) return;
+      setNightAction(b.name, options[Math.floor(Math.random() * options.length)]);
+      broadcastState();
+    }, 2000 + Math.random() * 4000);
+  }
 }
 
 // ---- Test bots ----
@@ -467,6 +551,8 @@ io.on('connection', (socket) => {
     protectedNames.delete(key(target.name));
     wipeVotes.delete(target.id);
     if (trial && trial.open) trial.votes.delete(target.name);
+    nightActions.delete(key(target.name));
+    autoProtected.delete(key(target.name));
     if (target.bot) {
       users.delete(target.id);
     } else {
@@ -480,6 +566,14 @@ io.on('connection', (socket) => {
     systemLobby(`${target.name} was kicked by the moderator.`);
     checkWipe();
     maybeAutoFinishTrial();
+    broadcastState();
+  });
+
+  socket.on('night:choose', (target) => {
+    const u = me();
+    if (!u || isMod(socket)) return;
+    const err = setNightAction(u.name, target ? String(target) : null);
+    if (err) return socket.emit('notice', err);
     broadcastState();
   });
 
@@ -507,8 +601,16 @@ io.on('connection', (socket) => {
   // ---- Phase ----
   socket.on('phase:set', (p) => {
     if (!isMod(socket) || (p !== 'day' && p !== 'night')) return;
+    const newNight = p === 'night' && phase !== 'night';
     phase = p;
     phaseStartedAt = Date.now();
+    if (newNight) {
+      // A fresh night: everyone picks again, and last night's protections end.
+      nightActions = new Map();
+      autoProtected.clear();
+      protectedNames = new Set();
+      scheduleBotActions();
+    }
     io.emit('phase:changed', { phase });
     systemLobby(p === 'night' ? 'Night falls over the village.' : 'The sun rises. It is day.');
     broadcastState();

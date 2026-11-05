@@ -238,6 +238,7 @@ socket.on('mod:message', ({ thread, message }) => {
     if (channel === 'mod') appendMessage(message);
     if (message.check) toast(`🔍 The moderator answered: ${message.check.target} is ${message.check.result === 'wolf' ? 'a Wolf' : 'a Civilian'}.`);
   }
+  if (amMod() && message.action?.target) toast(`🌙 ${message.from} chose to ${ACTION_TEXT[message.action.kind].verb} ${message.action.target}.`);
   if (channel !== 'mod' && message.from !== me) modUnread++;
   renderNav();
   if (channel === 'mod' && amMod()) renderThreadTabs();
@@ -612,12 +613,20 @@ function renderCheckBar(show) {
   const prev = sel.value;
   const options = state.users.filter((u) => !u.moderator && key(u.name) !== selectedThread).map((u) => u.name);
   const sig = selectedThread + '|' + options.join(',');
-  if (sel.dataset.sig === sig) return updateCheckHint();
-  sel.dataset.sig = sig;
-  sel.innerHTML = '';
-  sel.append(new Option('Who did they ask about?', ''));
-  for (const n of options) sel.append(new Option(n, n));
-  if (options.includes(prev)) sel.value = prev;
+  if (sel.dataset.sig !== sig) {
+    sel.dataset.sig = sig;
+    sel.innerHTML = '';
+    sel.append(new Option('Who did they ask about?', ''));
+    for (const n of options) sel.append(new Option(n, n));
+    if (options.includes(prev)) sel.value = prev;
+  }
+  // Pre-fill with the player the Officer picked tonight (once per new pick).
+  const picked = (state.modView?.nightActions || []).find((a) => a.kind === 'investigate' && key(a.actor) === selectedThread)?.target;
+  const mark = selectedThread + '|' + picked;
+  if (picked && options.includes(picked) && sel.dataset.prefilled !== mark) {
+    sel.value = picked;
+    sel.dataset.prefilled = mark;
+  }
   updateCheckHint();
 }
 function updateCheckHint() {
@@ -727,6 +736,8 @@ function renderRolesCard() {
 
 function renderPanel() {
   renderPhaseDisplay();
+  renderActionCard();
+  renderNightCard();
 
   // Moderator tools
   $('modTools').classList.toggle('hidden', !amMod());
@@ -941,6 +952,20 @@ function appendMessage(m, live = true) {
       const info = ROLE[m.role] || { icon: '', label: m.role };
       r.append(art, el('div', '', `Secret role: ${info.label}`));
       bubble.append(r);
+    } else if (m.action) {
+      const r = el('div', 'role-msg action-msg');
+      const art = el('div', 'art');
+      const role = m.action.kind === 'kill' ? (knownRole(m.from) || 'werewolf') : m.action.kind === 'heal' ? 'doctor' : 'officer';
+      art.innerHTML = ART[role] || '';
+      const txt = el('div');
+      txt.append(el('div', 'check-kicker', `🌙 Night action · ${ACTION_TEXT[m.action.kind].noun}`));
+      const line = el('div', 'check-line');
+      if (m.action.target) line.append(el('b', '', m.from), document.createTextNode(` chose to ${ACTION_TEXT[m.action.kind].verb} `), el('b', 'action-target ' + m.action.kind, m.action.target));
+      else line.append(el('b', '', m.from), document.createTextNode(' cleared their choice'));
+      txt.append(line);
+      r.append(art, txt);
+      bubble.append(r);
+      bubble.classList.add('check-bubble');
     } else if (m.check) {
       const wolf = m.check.result === 'wolf';
       const r = el('div', 'role-msg check-msg');
@@ -1109,4 +1134,78 @@ function confirmKick(name) {
     );
     card.append(actions);
   });
+}
+
+// ---------- Night actions ----------
+const ACTION_TEXT = {
+  kill: { verb: 'kill', noun: 'Kill', title: 'Choose your victim', btn: 'btn-danger' },
+  heal: { verb: 'heal', noun: 'Heal', title: 'Choose who to protect', btn: 'btn-success' },
+  investigate: { verb: 'investigate', noun: 'Investigate', title: 'Choose who to investigate', btn: 'btn-primary' },
+};
+
+// The player's own panel: pick a target at night.
+function renderActionCard() {
+  const card = $('actionCard');
+  const a = !amMod() && state.me.action;
+  card.classList.toggle('hidden', !a);
+  if (!a) return;
+  const t = ACTION_TEXT[a.kind];
+  const night = state.phase === 'night';
+  const sig = JSON.stringify([a, night, amMuted()]);
+  if (card.dataset.sig === sig) return; // nothing changed; keep it still
+  card.dataset.sig = sig;
+  card.className = 'card action-card ' + a.kind;
+  card.innerHTML = '';
+  const title = el('div', 'card-title');
+  title.append(roleIcon(state.me.role), document.createTextNode(' Your night action'));
+  card.append(title);
+  if (amMuted()) {
+    card.append(el('p', 'hint', 'You are muted and cannot act.'));
+    return;
+  }
+  if (!night) {
+    card.append(el('p', 'hint', a.target ? `Last night you chose to ${t.verb} ${a.target}.` : `At night you choose someone to ${t.verb}. The moderator is told who.`));
+    return;
+  }
+  card.append(el('div', 'action-title', t.title));
+  card.append(el('p', 'hint', a.target ? `You chose ${a.target}. You can change it until morning.` : 'Only the moderator sees your choice.'));
+  const list = el('div', 'target-list');
+  for (const name of a.targets) {
+    const b = el('button', 'target-btn' + (a.target === name ? ' on ' + a.kind : ''));
+    b.type = 'button';
+    b.append(avatar(name, 'sm'), el('span', 'tname', name + (key(name) === key(me) ? ' (you)' : '')));
+    if (a.target === name) b.append(el('span', 'tag picked', '✓ ' + t.verb));
+    b.onclick = () => socket.emit('night:choose', a.target === name ? null : name);
+    list.append(b);
+  }
+  if (!a.targets.length) list.append(el('p', 'hint', 'There is nobody to choose.'));
+  card.append(list);
+  if (a.pack?.length) {
+    const pack = el('div', 'pack');
+    pack.append(el('div', 'pack-title', 'Your pack'));
+    for (const p of a.pack) pack.append(el('div', 'pack-row', `${p.name} → ${p.target || 'not chosen yet'}`));
+    card.append(pack);
+  }
+}
+
+// The moderator's summary of tonight's choices.
+function renderNightCard() {
+  const card = $('nightCard');
+  const list = amMod() ? state.modView?.nightActions || [] : [];
+  card.classList.toggle('hidden', !list.length);
+  if (!list.length) return;
+  card.innerHTML = '';
+  const night = state.phase === 'night';
+  card.append(el('div', 'card-title', night ? '🌙 Tonight\'s choices' : '🌙 Last night\'s choices'));
+  const order = { kill: 0, heal: 1, investigate: 2 };
+  for (const a of [...list].sort((x, y) => order[x.kind] - order[y.kind])) {
+    const row = el('div', 'night-row' + (a.target ? '' : ' waiting'));
+    row.append(avatar(a.actor, 'sm'));
+    const txt = el('div', 'night-text');
+    txt.append(el('b', '', a.actor));
+    txt.append(document.createTextNode(a.muted ? ' · muted' : a.target ? ` → ${ACTION_TEXT[a.kind].verb} ` : ` · ${night ? 'choosing…' : 'chose nobody'}`));
+    if (a.target && !a.muted) txt.append(el('b', 'action-target ' + a.kind, a.target));
+    row.append(txt);
+    card.append(row);
+  }
 }

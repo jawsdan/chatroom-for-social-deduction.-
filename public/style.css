@@ -737,3 +737,32 @@ body.night .scene::after { background: linear-gradient(180deg, rgba(5, 6, 15, 0.
 
 /* Keep the house in view when the night video is cropped on narrow screens. */
 .scene-video.night { object-position: 38% bottom; }
+
+/* ---------- Night actions ---------- */
+.action-card.kill { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.action-card.heal { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
+.action-card.investigate { border-color: color-mix(in srgb, #3b82f6 45%, var(--border)); }
+.action-card .card-title .ri { width: 18px; height: 18px; }
+.action-title { font-weight: 800; font-size: 1.05rem; margin-bottom: 2px; }
+.target-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+.target-btn {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 12px; text-align: left;
+  border: 1.5px solid var(--border); background: var(--surface); font-weight: 600;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+.target-btn .tname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.target-btn:hover { border-color: var(--accent); }
+.target-btn.on.kill { border-color: var(--danger); background: var(--danger-soft); }
+.target-btn.on.heal { border-color: var(--success); background: var(--success-soft); }
+.target-btn.on.investigate { border-color: #3b82f6; background: color-mix(in srgb, #3b82f6 14%, var(--surface)); }
+.tag.picked { background: var(--surface-2); color: var(--text); text-transform: none; letter-spacing: 0; }
+.pack { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 0.85rem; }
+.pack-title { font-weight: 700; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+.pack-row { color: var(--text-2); }
+.night-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 0.92rem; }
+.night-row + .night-row { border-top: 1px solid var(--border); }
+.night-row.waiting { opacity: 0.6; }
+.night-text { flex: 1; min-width: 0; }
+.action-target.kill { color: var(--danger); }
+.action-target.heal { color: var(--success); }
+.action-target.investigate { color: #3b82f6; }
