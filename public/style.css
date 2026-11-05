@@ -872,3 +872,28 @@ body.night .scene::after { background: linear-gradient(180deg, rgba(5, 6, 15, 0.
   .clue-tiles { top: 68px; right: 8px; width: 160px; }
   .chat:has(.clue-tiles:not(.hidden):not(.collapsed)) .messages { padding-right: 178px; }
 }
+
+/* ---------- Start menu ---------- */
+.mod-tools-inner { display: flex; flex-direction: column; gap: 10px; }
+.start-screen { position: absolute; inset: 68px 0 84px 0; z-index: 4; display: grid; place-items: center; padding: 16px; pointer-events: none; }
+.start-screen > * { pointer-events: auto; }
+.start-screen.minimized { place-items: start center; padding-top: 14px; }
+.start-card {
+  position: relative; width: min(460px, 100%); max-height: 100%; overflow-y: auto; text-align: center;
+  background: var(--surface); color: var(--text); border-radius: 22px; padding: 26px 24px; box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border); animation: popIn 0.4s var(--ease);
+}
+.start-card h2 { margin: 6px 0 2px; font-size: 1.6rem; letter-spacing: -0.02em; }
+.start-sub { color: var(--text-2); margin: 0 0 14px; }
+.start-min { position: absolute; top: 12px; right: 12px; }
+.start-logo { width: 72px; height: 72px; margin: 0 auto; border-radius: 20px; background: #1b1f45; padding: 8px; }
+.start-logo svg { width: 100%; height: 100%; }
+.start-label { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 10px 0 6px; text-align: left; }
+.start-chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 150px; overflow-y: auto; }
+.start-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; background: var(--surface-2); font-weight: 600; font-size: 0.9rem; animation: popIn 0.3s var(--ease); }
+.start-roles { display: flex; flex-wrap: wrap; gap: 6px; }
+.start-role { display: inline-flex; align-items: center; gap: 2px; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); font-weight: 600; font-size: 0.85rem; }
+.start-role .ri { width: 18px; height: 18px; }
+.start-check { display: flex; align-items: center; gap: 8px; margin: 12px 0 14px; font-size: 0.9rem; text-align: left; cursor: pointer; }
+.start-warn { color: var(--danger); font-weight: 600; font-size: 0.88rem; }
+@media (max-width: 760px) { .start-screen { inset: 60px 0 74px 0; } }

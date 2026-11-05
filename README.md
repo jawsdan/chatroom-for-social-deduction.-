@@ -13,6 +13,7 @@ Then open http://localhost:3000 (set `PORT` to change it). Everyone who wants to
 
 ## Features
 
+- **Start menu** — the game waits in a start menu until the moderator presses *New game* (optionally handing out random roles). The timer doesn't run until then. People can join at any time, also mid-game. *End game* wipes everything and returns to the start menu.
 - **Main lobby** — everyone who joins is here and can type. Players only have the main lobby and their private chat with the moderator.
 - **Moderator** — anyone can click *Become moderator* when the seat is empty. The moderator can step down or hand the role to someone else. The moderator can read and write in every chat.
 - **Talk to moderator** — every player has a private chat with the moderator. Nobody else sees it. The moderator sees one tab per player.

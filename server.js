@@ -25,6 +25,8 @@ let protectedNames = new Set(); // lowercase names the moderator marked as prote
 let mutedNames = new Set(); // lowercase names muted until the chat is wiped
 let phase = 'day';
 let phaseStartedAt = Date.now(); // when the current day/night began, for the timer
+// 'waiting' = start menu before a game; 'running' = a game is on. People can join either way.
+let gameState = 'waiting';
 let trial = null; // { accusedName, votes: Map(name -> 'guilty'|'innocent'), open, result }
 let wipeVotes = new Set(); // socket ids of players who voted to wipe everything
 const roleConfig = { werewolf: 2, doctor: 1, officer: 1 }; // the rest are civilians
@@ -136,6 +138,7 @@ function broadcastState() {
     moderator: moderatorId && users.get(moderatorId) ? users.get(moderatorId).name : null,
     phase,
     phaseStartedAt,
+    gameState,
     serverNow: Date.now(),
     trial: trialPublic,
     wipe: { votes: wipeVotes.size, needed: wipeVoters().length },
@@ -272,7 +275,8 @@ function wipeEverything(reason) {
   sendWolfHistoryToAll();
   io.emit('role:cleared');
   io.emit('trial:cleared');
-  systemLobby(`${reason} All chats were wiped and a fresh game begins.`);
+  gameState = 'waiting';
+  systemLobby(`${reason} All chats were wiped. Waiting for the moderator to start a new game.`);
   io.emit('phase:changed', { phase, silent: true });
 }
 
@@ -471,6 +475,29 @@ function callingCardFor(victimName) {
   return null;
 }
 
+// Shuffle roles out to every player. Returns an error message, or null.
+// quiet = don't announce yet (the game start does that).
+function randomizeRoles(quiet = false) {
+  const players = [...users.values()].filter((u) => u.id !== moderatorId);
+  const special = roleConfig.werewolf + roleConfig.doctor + roleConfig.officer;
+  if (players.length === 0) return 'There are no players to give roles to.';
+  if (special > players.length) return `Not enough players: you picked ${special} special roles but there are only ${players.length} players.`;
+  const deck = [...Array(roleConfig.werewolf).fill('werewolf'), ...Array(roleConfig.doctor).fill('doctor'), ...Array(roleConfig.officer).fill('officer')];
+  while (deck.length < players.length) deck.push('civilian');
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  const before = displayRoleMap();
+  roles = new Map(players.map((p, i) => [key(p.name), deck[i]]));
+  protectedNames = new Set();
+  if (!quiet) {
+    announceRoleChanges(before, true);
+    systemLobby('The moderator handed out secret roles. Check your pop-up!');
+  }
+  return null;
+}
+
 // ---- Test bots ----
 function addBots(n) {
   const added = [];
@@ -652,27 +679,35 @@ io.on('connection', (socket) => {
 
   socket.on('roles:randomize', () => {
     if (!isMod(socket)) return;
-    const players = [...users.values()].filter((u) => u.id !== moderatorId);
-    const special = roleConfig.werewolf + roleConfig.doctor + roleConfig.officer;
-    if (players.length === 0) return socket.emit('notice', 'There are no players to give roles to.');
-    if (special > players.length) {
-      return socket.emit('notice', `Not enough players: you picked ${special} special roles but there are only ${players.length} players.`);
+    const err = randomizeRoles();
+    if (err) return socket.emit('notice', err);
+    broadcastState();
+  });
+
+  // Start a new game from the start menu.
+  socket.on('game:start', ({ randomize } = {}) => {
+    if (!isMod(socket) || gameState === 'running') return;
+    if (randomize) {
+      const err = randomizeRoles(true);
+      if (err) return socket.emit('notice', err);
     }
-    const deck = [
-      ...Array(roleConfig.werewolf).fill('werewolf'),
-      ...Array(roleConfig.doctor).fill('doctor'),
-      ...Array(roleConfig.officer).fill('officer'),
-    ];
-    while (deck.length < players.length) deck.push('civilian');
-    for (let i = deck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [deck[i], deck[j]] = [deck[j], deck[i]];
+    gameState = 'running';
+    phase = 'day';
+    phaseStartedAt = Date.now();
+    io.emit('game:started');
+    systemLobby('🎮 A new game has started! It is day.');
+    if (randomize) {
+      announceRoleChanges(new Map(), true);
+      systemLobby('The moderator handed out secret roles. Check your pop-up!');
     }
-    const before = displayRoleMap();
-    roles = new Map(players.map((p, i) => [key(p.name), deck[i]]));
-    protectedNames = new Set();
-    announceRoleChanges(before, true);
-    systemLobby('The moderator handed out secret roles. Check your pop-up!');
+    io.emit('phase:changed', { phase, silent: true });
+    broadcastState();
+  });
+
+  // End the game: wipe everything and go back to the start menu.
+  socket.on('game:end', () => {
+    if (!isMod(socket) || gameState !== 'running') return;
+    wipeEverything('The moderator ended the game.');
     broadcastState();
   });
 
@@ -788,6 +823,7 @@ io.on('connection', (socket) => {
   // ---- Phase ----
   socket.on('phase:set', (p) => {
     if (!isMod(socket) || (p !== 'day' && p !== 'night')) return;
+    if (gameState !== 'running') return socket.emit('notice', 'Start a new game first.');
     const newNight = p === 'night' && phase !== 'night';
     const wasNight = phase === 'night';
     phase = p;
@@ -831,6 +867,7 @@ io.on('connection', (socket) => {
   // ---- Trial ----
   socket.on('trial:start', (name) => {
     if (!isMod(socket)) return;
+    if (gameState !== 'running') return socket.emit('notice', 'Start a new game first.');
     const target = userByName(String(name || ''));
     if (!target) return socket.emit('notice', 'That player is not online.');
     if (target.id === moderatorId) return socket.emit('notice', 'The moderator cannot be put on trial.');

@@ -372,6 +372,11 @@ function renderPhaseDisplay() {
   const art = el('div', 'art');
   art.innerHTML = ART[currentPhase];
   const txt = el('div');
+  if (state && state.gameState !== 'running') {
+    art.innerHTML = ART.night;
+    txt.append(el('div', 'p-name', 'Not started'), el('div', 'p-sub', 'Waiting for players to join.'));
+    return d.append(art, txt);
+  }
   txt.append(el('div', 'p-name', currentPhase === 'night' ? 'Night' : 'Day'));
   txt.append(el('div', 'p-sub', currentPhase === 'night' ? 'The werewolves are awake…' : 'Discuss and find the wolves.'));
   d.append(art, txt);
@@ -495,6 +500,7 @@ function renderAll(redrawMessages = true) {
   renderHeader();
   renderTrialBanner();
   renderCluesBar();
+  renderStartScreen();
   renderModOverview();
   renderThreadTabs();
   renderComposer();
@@ -772,6 +778,8 @@ function renderPanel() {
 
   // Moderator tools
   $('modTools').classList.toggle('hidden', !amMod());
+  $('inGameTools').classList.toggle('hidden', state.gameState !== 'running');
+  renderEndGame();
   const open = !!state.trial?.open;
   $('dayBtn').classList.toggle('on', state.phase === 'day');
   $('nightBtn').classList.toggle('on', state.phase === 'night');
@@ -1155,6 +1163,13 @@ function formatElapsed(ms) {
 }
 function tickPhaseTimer() {
   if (!state) return;
+  // Before a game starts, the timer waits.
+  if (state.gameState !== 'running') {
+    $('phaseTimerLabel').textContent = '⏳';
+    if ($('phaseTimerTime').textContent !== 'Waiting') $('phaseTimerTime').textContent = 'Waiting';
+    $('phaseTimer').classList.remove('night');
+    return;
+  }
   const night = state.phase === 'night';
   $('phaseTimerLabel').textContent = night ? '🌙 Night' : '☀️ Day';
   const text = formatElapsed(Date.now() + clockOffset - state.phaseStartedAt);
@@ -1505,3 +1520,115 @@ function renderModOverview() {
 }
 
 window.addEventListener('resize', () => state && renderCluesBar());
+
+// ---------- Start menu (before a game) ----------
+let startMinimized = false;
+let randomizeOnStart = true;
+socket.on('game:started', () => {
+  startMinimized = false;
+  toast('🎮 The game has started!');
+});
+function renderStartScreen() {
+  const box = $('startScreen');
+  const show = state.gameState !== 'running' && channel === 'lobby';
+  box.classList.toggle('hidden', !show);
+  if (!show) return;
+  const players = state.users.filter((u) => !u.moderator);
+  const cfg = state.modView?.roleConfig;
+  const sig = JSON.stringify([startMinimized, randomizeOnStart, state.users, state.moderator, amMod(), cfg]);
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  box.innerHTML = '';
+  box.classList.toggle('minimized', startMinimized);
+  if (startMinimized) {
+    const b = btn('btn-primary', `🎮 ${amMod() ? 'Start menu' : 'Waiting for the game'} (${players.length} joined) ▸`, () => {
+      startMinimized = false;
+      renderStartScreen();
+    });
+    box.append(b);
+    return;
+  }
+  const card = el('div', 'start-card');
+  const min = el('button', 'icon-btn start-min', '—');
+  min.type = 'button';
+  min.title = 'Minimize so you can chat';
+  min.onclick = () => {
+    startMinimized = true;
+    renderStartScreen();
+  };
+  const logo = el('div', 'start-logo');
+  logo.innerHTML = ART.night;
+  card.append(min, logo, el('h2', '', 'Village Chat'));
+  card.append(el('p', 'start-sub', amMod() ? 'Wait for everyone to join, then start a new game.' : state.moderator ? `Waiting for ${state.moderator} to start the game…` : 'Waiting for someone to become the moderator…'));
+  const who = el('div', 'start-players');
+  who.append(el('div', 'start-label', `Players joined (${players.length})`));
+  const chips = el('div', 'start-chips');
+  if (!players.length) chips.append(el('span', 'hint', 'Nobody yet. Share the link!'));
+  for (const u of players) {
+    const c = el('span', 'start-chip');
+    c.append(avatar(u.name, 'sm'), document.createTextNode(u.name + (u.bot ? ' 🤖' : '')));
+    chips.append(c);
+  }
+  who.append(chips);
+  card.append(who);
+  if (amMod() && cfg) {
+    const special = cfg.werewolf + cfg.doctor + cfg.officer;
+    const setup = el('div', 'start-setup');
+    const civ = Math.max(players.length - special, 0);
+    const parts = [
+      [cfg.werewolf === 1 ? 'serialkiller' : 'werewolf', cfg.werewolf === 1 ? '1 Serial Killer' : `${cfg.werewolf} Werewolves`],
+      ['doctor', `${cfg.doctor} Doctor${cfg.doctor === 1 ? '' : 's'}`],
+      ['officer', `${cfg.officer} Officer${cfg.officer === 1 ? '' : 's'}`],
+      ['civilian', `${civ} Civilian${civ === 1 ? '' : 's'}`],
+    ];
+    const row = el('div', 'start-roles');
+    for (const [r, t] of parts) row.append(roleLabel('start-role', r, t));
+    setup.append(el('div', 'start-label', 'Roles (change them in the right panel)'), row);
+    const lab = el('label', 'start-check');
+    const cb = el('input');
+    cb.type = 'checkbox';
+    cb.checked = randomizeOnStart;
+    cb.onchange = () => {
+      randomizeOnStart = cb.checked;
+      renderStartScreen();
+    };
+    lab.append(cb, document.createTextNode(' Hand out random roles when the game starts'));
+    setup.append(lab);
+    card.append(setup);
+    const tooMany = randomizeOnStart && special > players.length;
+    if (tooMany) card.append(el('p', 'start-warn', `You picked ${special} special roles but only ${players.length} player${players.length === 1 ? ' has' : 's have'} joined.`));
+    const go = btn('btn-primary btn-lg btn-block', '🎮 New game', () => socket.emit('game:start', { randomize: randomizeOnStart }));
+    go.disabled = players.length === 0 || tooMany;
+    card.append(go);
+  } else if (!state.moderator) {
+    card.append(btn('btn-primary btn-block', '🛡️ Become moderator', () => socket.emit('mod:claim')));
+  } else {
+    card.append(el('p', 'hint', 'You can chat while you wait. New players can also join after the game has started.'));
+  }
+  box.append(card);
+}
+
+function renderEndGame() {
+  let b = $('endGameBtn');
+  if (!b) {
+    b = btn('btn-ghost btn-block', '⏹ End game', () =>
+      openModal((card) => {
+        card.append(el('div', 'note-icon', '⏹'));
+        card.append(el('h2', '', 'End the game?'));
+        card.append(el('p', '', 'All chats, roles and clues are wiped and everyone goes back to the start menu.'));
+        const actions = el('div', 'actions');
+        actions.append(
+          btn('btn-ghost', 'Cancel', closeModal),
+          btn('btn-danger', 'End game', () => {
+            socket.emit('game:end');
+            closeModal();
+          })
+        );
+        card.append(actions);
+      })
+    );
+    b.id = 'endGameBtn';
+    $('modTools').append(b);
+  }
+  b.classList.toggle('hidden', state.gameState !== 'running');
+}

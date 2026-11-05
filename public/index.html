@@ -97,6 +97,7 @@
       </div>
       <div id="scene" class="scene" aria-hidden="true"></div>
       <aside id="clueTiles" class="clue-tiles hidden" aria-label="Clues"></aside>
+      <section id="startScreen" class="start-screen hidden" aria-label="Start menu"></section>
       <div id="messages" class="messages"></div>
 
       <div id="checkBar" class="role-bar check-bar bottom hidden">
@@ -125,11 +126,13 @@
         <div class="card-title">Game</div>
         <div class="phase-display" id="phaseDisplay"></div>
         <div id="modTools" class="mod-tools hidden">
+          <div id="inGameTools" class="mod-tools-inner">
           <div class="segmented" role="group" aria-label="Phase">
             <button id="dayBtn">☀️ Day</button>
             <button id="nightBtn">🌙 Night</button>
           </div>
           <button id="trialBtn" class="btn btn-danger btn-block">⚖️ Put someone on trial</button>
+          </div>
           <div class="bot-row" title="Fake players for testing. They get roles and vote in trials.">
             <select id="botCount" aria-label="Number of bots"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select>
             <button id="addBotsBtn" class="btn btn-soft">🤖 Add bots</button>
