@@ -299,6 +299,7 @@ function finishTrial() {
     guilty,
     innocent,
     votes: [...trial.votes.entries()].map(([name, vote]) => ({ name, vote })),
+    wolf: trial.result === 'guilty' && isWerewolf(trial.accusedName),
   });
   if (trial.result === 'guilty') revealDeath({ victim: trial.accusedName, card: null, announce: false });
 }
@@ -407,6 +408,11 @@ function scheduleBotActions() {
       broadcastState();
     }, 2000 + Math.random() * 4000);
   }
+}
+
+// True if this player is a werewolf (not a lone Serial Killer).
+function isWerewolf(name) {
+  return displayRole(name) === 'werewolf';
 }
 
 // ---- Settling the night ----
@@ -783,6 +789,8 @@ io.on('connection', (socket) => {
       pendingReveals.push(reveal); // discovered at sunrise
       socket.emit('notice', `${target.name} is dead. It will be revealed when day starts.`);
     } else {
+      // A daytime death gets its own pop-up for everyone.
+      io.emit('death:shown', { victim: target.name, wolf: isWerewolf(target.name) });
       revealDeath(reveal);
     }
     broadcastState();
@@ -856,7 +864,8 @@ io.on('connection', (socket) => {
         // Night deaths get a funny morning story.
         for (const r of list) r.line = deathLine(r.victim);
         // Which animation to show: a lone Serial Killer or the wolf pack.
-        const killer = wolfCount() === 1 ? 'killer' : 'night';
+        // A werewolf among the dead gets the silver-bullet animation instead.
+        const killer = list.some((r) => isWerewolf(r.victim)) ? 'wolfdeath' : wolfCount() === 1 ? 'killer' : 'night';
         io.emit('night:result', { victims: list.map((r) => r.victim), lines: list.map((r) => r.line), killer });
         if (!list.length) systemLobby('🌅 Nobody died last night.');
         for (const r of list) revealDeath(r);

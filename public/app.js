@@ -304,7 +304,7 @@ socket.on('trial:result', (r) => {
     card.append(art);
     card.append(el('h2', '', `The village has decided. ${r.accused} is`));
     card.append(el('div', 'verdict ' + r.result, r.result.toUpperCase()));
-    if (r.result === 'guilty') card.append(killVideo('vote'));
+    if (r.result === 'guilty') card.append(killVideo(r.wolf ? 'wolfdeath' : 'vote'));
     const tally = el('div', 'tally');
     tally.append(el('span', 'g', `${r.guilty} guilty`), el('span', 'i', `${r.innocent} innocent`));
     card.append(tally);
@@ -1636,7 +1636,8 @@ function renderEndGame() {
 }
 
 // ---------- Death animations ----------
-// 'night' = the werewolf attack, 'killer' = the Serial Killer, 'vote' = the village's verdict. Plays once and stops on the last frame.
+// 'night' = the werewolf attack, 'killer' = the Serial Killer, 'vote' = the village's verdict,
+// 'wolfdeath' = a werewolf shot with a silver bullet. Plays once and stops on the last frame.
 const KILL_VIDEO_VERSION = 1;
 function killVideo(kind) {
   const wrap = el('div', 'kill-video');
@@ -1667,10 +1668,26 @@ function killVideo(kind) {
   return wrap;
 }
 // Preload both so they start right away.
-for (const k of ['night', 'killer', 'vote']) {
+for (const k of ['night', 'killer', 'vote', 'wolfdeath']) {
   const l = document.createElement('link');
   l.rel = 'preload';
   l.as = 'video';
   l.href = `video/kill-${k}.mp4?v=${KILL_VIDEO_VERSION}`;
   document.head.append(l);
 }
+
+// A death the moderator marks during the day.
+socket.on('death:shown', ({ victim, wolf }) => {
+  const show = () =>
+    openModal((card) => {
+      card.append(el('div', 'note-icon', '☠️'));
+      card.append(el('h2', '', `${victim} has died`));
+      if (wolf) card.append(killVideo('wolfdeath'));
+      card.append(el('p', 'hint', key(victim) === key(me) ? 'You are dead. You can only talk to the moderator now.' : 'They can no longer speak in the village.'));
+      const actions = el('div', 'actions');
+      actions.append(btn('btn-primary', 'Close', closeModal));
+      card.append(actions);
+    });
+  if ($('modal').classList.contains('hidden')) show();
+  else clueQueue.unshift({ __result: show });
+});
