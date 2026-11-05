@@ -734,3 +734,6 @@ body.night .scene::after { background: linear-gradient(180deg, rgba(5, 6, 15, 0.
 .players li .avatar.sm { width: 36px; height: 36px; font-size: 0.85rem; }
 .players li .role-tag { font-size: 0.8rem; }
 .side-right .card { padding: 16px; }
+
+/* Keep the house in view when the night video is cropped on narrow screens. */
+.scene-video.night { object-position: 38% bottom; }

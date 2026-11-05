@@ -2,13 +2,13 @@
 // Both load once; switching phase cross-fades them, and the hidden one is paused.
 (function () {
   // Bump this when a video file changes so browsers fetch the new one.
-  const VERSION = 2;
+  const VERSION = 3;
   let videos = null;
   function build(root) {
     videos = {};
     for (const phase of ['day', 'night']) {
       const v = document.createElement('video');
-      v.className = 'scene-video';
+      v.className = `scene-video ${phase}`;
       v.muted = true;
       v.loop = true;
       v.playsInline = true;
