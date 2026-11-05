@@ -44,7 +44,27 @@ function btn(cls, text, onClick) {
   return b;
 }
 const COLORS = ['#5b5bf0', '#e5484d', '#16a37b', '#f08c3a', '#8b5cf6', '#0ea5e9', '#d946ef', '#14b8a6', '#c2410c', '#4f46e5'];
+// The role I'm allowed to know for a player: everyone's if I'm the moderator, my own, and my fellow wolves'.
+function knownRole(name) {
+  if (!state || !name) return null;
+  const k = key(name);
+  if (state.modView) return state.modView.roles[k] || null;
+  if (k === key(me)) return state.me.role || null;
+  if (state.me.wolfmates?.some((n) => key(n) === k)) return 'werewolf';
+  return null;
+}
 function avatar(name, extra = '') {
+  const role = knownRole(name);
+  if (role && ROLE_IMG[role]) {
+    const a = el('div', 'avatar has-role ' + extra);
+    const img = el('img');
+    img.src = ROLE_IMG[role].replace('/roles/', '/roles/sm/');
+    img.alt = '';
+    img.draggable = false;
+    a.title = `${name}: ${ROLE[role].label}`;
+    a.append(img);
+    return a;
+  }
   let h = 0;
   for (const ch of key(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   const a = el('div', 'avatar ' + extra);
@@ -950,7 +970,7 @@ function renderRoleFx() {
     add('fx-vignette');
     add('fx-edge fx-top fangs');
     add('fx-edge fx-bottom fangs');
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 10; i++) {
       const left = rnd(1, 99).toFixed(1);
       const s = `left:${left}%;--w:${rnd(6, 14).toFixed(0)}px;--h:${rnd(24, 90).toFixed(0)}px;--d:${rnd(0, 6).toFixed(2)}s;--t:${rnd(5, 9).toFixed(1)}s`;
       add('drip', s);
@@ -969,7 +989,7 @@ function renderRoleFx() {
     for (const c of spots) addBack('splat', c, ART_FX.splat);
     addBack('slashes', 'top:14%;right:calc(var(--right-w) + 30px)', ART_FX.slashes);
     addBack('slashes', 'bottom:30%;left:calc(var(--left-w) + 20px);transform:rotate(180deg) scale(0.8)', ART_FX.slashes);
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 6; i++) {
       const s = `left:${rnd(2, 98).toFixed(1)}%;--w:${rnd(5, 10).toFixed(0)}px;--h:${rnd(20, 70).toFixed(0)}px;--d:${rnd(0, 8).toFixed(2)}s;--t:${rnd(7, 11).toFixed(1)}s`;
       add('drip', s);
       add('drop', s);
@@ -978,7 +998,7 @@ function renderRoleFx() {
     add('fx-glow');
     add('fx-edge fx-top crosses');
     add('fx-edge fx-bottom ecg', '', '<div class="ecg-line"></div>');
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 10; i++) {
       addBack('plus', `left:${rnd(2, 98).toFixed(1)}%;font-size:${rnd(14, 40).toFixed(0)}px;--d:${rnd(0, 14).toFixed(2)}s;--t:${rnd(10, 18).toFixed(1)}s`, '+');
     }
   } else if (role === 'officer') {
@@ -990,7 +1010,7 @@ function renderRoleFx() {
     for (let i = 0; i < 5; i++) {
       addBack('cloud', `top:${rnd(2, 22).toFixed(1)}%;--s:${rnd(0.6, 1.4).toFixed(2)};--d:-${rnd(0, 60).toFixed(1)}s;--t:${rnd(50, 90).toFixed(0)}s`);
     }
-    for (let i = 0; i < 18; i++) {
+    for (let i = 0; i < 12; i++) {
       addBack('firefly', `left:${rnd(2, 98).toFixed(1)}%;top:${rnd(40, 92).toFixed(1)}%;--d:-${rnd(0, 6).toFixed(1)}s;--t:${rnd(4, 8).toFixed(1)}s`);
     }
   }

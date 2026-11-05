@@ -59,7 +59,7 @@ body {
   transition: background-color 0.6s ease, color 0.6s ease;
   overflow: hidden;
 }
-.app *, .modal * { transition: background-color 0.6s var(--ease), border-color 0.6s var(--ease), color 0.3s var(--ease); }
+.side, .chat-header, .card, .composer-box, .modal-card, .bubble, .nav-item, .thread-tab, .role-bar { transition: background-color 0.5s ease, border-color 0.5s ease, color 0.3s ease; }
 button { font: inherit; color: inherit; cursor: pointer; }
 input, select { font: inherit; color: var(--text); }
 .hidden { display: none !important; }
@@ -307,7 +307,7 @@ body.night .thread-tab.on { color: #c9c7ff; }
 .transfer select { flex: 1; min-width: 0; }
 
 .players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.players li { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: var(--radius-sm); animation: fade 0.3s var(--ease); }
+.players li { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: var(--radius-sm); }
 .players li:hover { background: var(--surface-2); }
 .players li .pname { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
 .players li.me .pname { font-weight: 700; }
@@ -371,7 +371,6 @@ body.night .protect-btn.on { background: #1e2f5c; }
   transform: translate(-50%, -50%) scale(0.7); opacity: 0; pointer-events: none; text-align: center;
   transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease-out;
   will-change: transform, opacity;
-  filter: drop-shadow(0 18px 40px rgba(0,0,0,0.4));
 }
 .phase-overlay svg { width: 100%; height: 100%; }
 .phase-overlay .caption {
@@ -382,16 +381,15 @@ body.night .protect-btn.on { background: #1e2f5c; }
 .phase-overlay.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 /* Glide into the corner using only transform, which the browser can animate smoothly. */
 .phase-overlay.fly {
-  transition: transform 0.55s cubic-bezier(0.65, 0, 0.35, 1), filter 0.55s ease;
+  transition: transform 0.55s cubic-bezier(0.65, 0, 0.35, 1);
   transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(var(--s));
-  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
 }
 .phase-overlay.fly .caption { opacity: 0; }
-.phase-flash { position: fixed; inset: 0; z-index: 45; pointer-events: none; opacity: 0; transition: opacity 0.4s ease; background: radial-gradient(circle at center, rgba(10,12,30,0.5), rgba(10,12,30,0.7)); backdrop-filter: blur(3px); }
+.phase-flash { position: fixed; inset: 0; z-index: 45; pointer-events: none; opacity: 0; transition: opacity 0.4s ease; background: radial-gradient(circle at center, rgba(10,12,30,0.55), rgba(10,12,30,0.78)); will-change: opacity; }
 .phase-flash.on { opacity: 1; }
 
 /* ---------- Modal ---------- */
-.modal { position: fixed; inset: 0; z-index: 40; background: rgba(8,10,25,0.55); backdrop-filter: blur(6px); display: grid; place-items: center; padding: 16px; animation: fade 0.25s var(--ease); }
+.modal { position: fixed; inset: 0; z-index: 40; background: rgba(8,10,25,0.66); display: grid; place-items: center; padding: 16px; animation: fade 0.25s var(--ease); }
 .modal-card {
   background: var(--surface); color: var(--text); border-radius: 22px; padding: 28px; width: min(440px, 100%);
   text-align: center; box-shadow: var(--shadow-lg); animation: popIn 0.45s var(--ease); max-height: 90vh; overflow-y: auto;
@@ -514,9 +512,9 @@ body.night.fx-role-werewolf {
   filter: drop-shadow(0 4px 6px rgba(80, 0, 0, 0.45));
 }
 .fx-bottom.fangs { transform: scaleY(-1); }
-.fx-vignette { position: fixed; inset: 0; animation: vignettePulse 5s ease-in-out infinite; }
-.fx-role-werewolf .fx-vignette { box-shadow: inset 0 0 140px 40px rgba(170, 0, 0, 0.45); }
-.fx-role-serialkiller .fx-vignette { box-shadow: inset 0 0 160px 60px rgba(40, 0, 0, 0.55); }
+.fx-vignette { position: fixed; inset: 0; animation: vignettePulse 5s ease-in-out infinite; will-change: opacity; }
+.fx-role-werewolf .fx-vignette { background: radial-gradient(ellipse at center, transparent 55%, rgba(170, 0, 0, 0.42) 100%); }
+.fx-role-serialkiller .fx-vignette { background: radial-gradient(ellipse at center, transparent 50%, rgba(40, 0, 0, 0.5) 100%); }
 @keyframes vignettePulse { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
 .drip {
   position: fixed; top: calc(var(--fx-top, 0px) + 2px); width: var(--w); height: var(--h); margin-left: calc(var(--w) / -2);
@@ -564,12 +562,12 @@ body.night.fx-role-doctor {
 }
 .ecg { height: 34px; background: #062b28; overflow: hidden; box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2); }
 .ecg-line {
-  position: absolute; inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='34'%3E%3Cpolyline points='0,18 40,18 48,18 54,10 60,18 70,18 76,2 84,32 90,18 104,18 110,13 118,18 160,18' fill='none' stroke='%2334f5c5' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-size: 160px 34px; animation: ecgScroll 2.4s linear infinite; filter: drop-shadow(0 0 4px #34f5c5);
+  position: absolute; top: 0; bottom: 0; left: 0; width: calc(100% + 160px); will-change: transform;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='34'%3E%3Cpolyline points='0,18 40,18 48,18 54,10 60,18 70,18 76,2 84,32 90,18 104,18 110,13 118,18 160,18' fill='none' stroke='%2334f5c5' stroke-opacity='0.35' stroke-width='6' stroke-linejoin='round'/%3E%3Cpolyline points='0,18 40,18 48,18 54,10 60,18 70,18 76,2 84,32 90,18 104,18 110,13 118,18 160,18' fill='none' stroke='%2334f5c5' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-size: 160px 34px; animation: ecgScroll 2.4s linear infinite;
 }
-@keyframes ecgScroll { from { background-position-x: 0; } to { background-position-x: -160px; } }
-.fx-glow { position: fixed; inset: 0; box-shadow: inset 0 0 120px 20px rgba(20, 184, 166, 0.18); }
+@keyframes ecgScroll { from { transform: translateX(0); } to { transform: translateX(-160px); } }
+.fx-glow { position: fixed; inset: 0; background: radial-gradient(ellipse at center, transparent 60%, rgba(20, 184, 166, 0.16) 100%); }
 .plus {
   position: fixed; bottom: -60px; color: var(--accent); font-weight: 800; opacity: 0; line-height: 1;
   animation: floatUp var(--t) linear var(--d) infinite;
@@ -590,13 +588,15 @@ body.night.fx-role-officer {
 .siren { position: absolute; top: 0; height: 16px; width: 50%; }
 .siren.red { left: 0; background: linear-gradient(90deg, #ff2a2a, #ff2a2a00); animation: sirenA 1.1s steps(1) infinite; }
 .siren.blue { right: 0; background: linear-gradient(270deg, #2a6bff, #2a6bff00); animation: sirenB 1.1s steps(1) infinite; }
-.siren::after { content: ''; position: absolute; top: 0; width: 60%; height: 120px; filter: blur(30px); opacity: 0.22; }
-.siren.red::after { left: 0; background: #ff2a2a; }
-.siren.blue::after { right: 0; background: #2a6bff; }
+.siren::after { content: ''; position: absolute; top: 0; width: 70%; height: 140px; opacity: 0.25; }
+.siren.red::after { left: 0; background: radial-gradient(ellipse at top left, #ff2a2a, transparent 70%); }
+.siren.blue::after { right: 0; background: radial-gradient(ellipse at top right, #2a6bff, transparent 70%); }
 @keyframes sirenA { 0% { opacity: 1; } 50% { opacity: 0.15; } }
 @keyframes sirenB { 0% { opacity: 0.15; } 50% { opacity: 1; } }
-.fx-sirenglow { position: fixed; inset: 0; animation: sirenGlow 1.1s steps(1) infinite; }
-@keyframes sirenGlow { 0% { box-shadow: inset 60px 0 80px -40px rgba(255, 42, 42, 0.35); } 50% { box-shadow: inset -60px 0 80px -40px rgba(42, 107, 255, 0.35); } }
+.fx-sirenglow { position: fixed; inset: 0; }
+.fx-sirenglow::before, .fx-sirenglow::after { content: ''; position: absolute; top: 0; bottom: 0; width: 120px; will-change: opacity; }
+.fx-sirenglow::before { left: 0; background: linear-gradient(90deg, rgba(255, 42, 42, 0.28), transparent); animation: sirenA 1.1s steps(1) infinite; }
+.fx-sirenglow::after { right: 0; background: linear-gradient(270deg, rgba(42, 107, 255, 0.28), transparent); animation: sirenB 1.1s steps(1) infinite; }
 .tape {
   height: 28px; background: #facc15; border-top: 3px solid #111; border-bottom: 3px solid #111; overflow: hidden;
   display: flex; align-items: center; box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.2);
@@ -624,7 +624,7 @@ body.night .village { filter: brightness(0.55) saturate(0.7); }
 .cloud {
   position: fixed; left: -220px; width: 180px; height: 50px; border-radius: 999px; background: #fff; opacity: 0.55;
   transform: scale(var(--s)); animation: cloudDrift var(--t) linear var(--d) infinite;
-  filter: blur(1px);
+  will-change: transform;
 }
 .cloud::before, .cloud::after { content: ''; position: absolute; background: #fff; border-radius: 50%; }
 .cloud::before { width: 80px; height: 80px; left: 28px; top: -40px; }
@@ -642,3 +642,15 @@ body:not(.night) .firefly { display: none; }
 
 .wipe-note { margin: 10px 0 0; }
 #wipeBox .btn { margin-top: 10px; }
+
+/* ---------- Role pictures ---------- */
+.role-img { width: 100%; height: 100%; object-fit: contain; display: block; user-select: none; }
+.avatar.has-role { background: transparent; padding: 0; }
+.avatar.has-role img { width: 100%; height: 100%; border-radius: 50%; display: block; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); }
+.me-card .avatar.has-role { width: 44px; height: 44px; }
+.modal-card .art.role { width: 210px; height: 210px; filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.35)); }
+.role-msg .art { width: 52px; height: 52px; }
+
+/* Moving decorations get their own layer so the browser only moves them, not redraws them. */
+.drip, .drop, .plus, .firefly, .tape-text, .siren { will-change: transform, opacity; }
+.role-fx { contain: strict; }
