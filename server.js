@@ -339,6 +339,21 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
+  // Officer check: the moderator answers "wolf" or "civilian" about a player. It stays in the asker's chat.
+  socket.on('mod:check', ({ to, target, result } = {}) => {
+    if (!isMod(socket)) return;
+    if (result !== 'wolf' && result !== 'civilian') return;
+    const asker = key(String(to || ''));
+    if (!userByName(asker) && !modThreads.has(asker)) return socket.emit('notice', 'Pick a player to answer.');
+    const t = userByName(String(target || ''));
+    const targetName = t ? t.name : String(target || '').slice(0, 20);
+    if (!targetName) return socket.emit('notice', 'Pick who they asked about.');
+    pushModThread(asker, msg(me().name, `${targetName} is ${result === 'wolf' ? 'a wolf' : 'a civilian'}`, {
+      moderator: true,
+      check: { target: targetName, result },
+    }));
+  });
+
   socket.on('roles:config', (cfg = {}) => {
     if (!isMod(socket)) return;
     for (const r of ['werewolf', 'doctor', 'officer']) {

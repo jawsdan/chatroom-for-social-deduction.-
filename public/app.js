@@ -182,6 +182,7 @@ socket.on('mod:message', ({ thread, message }) => {
   } else {
     myThread.push(message);
     if (channel === 'mod') appendMessage(message);
+    if (message.check) toast(`🔍 The moderator answered: ${message.check.target} is ${message.check.result === 'wolf' ? 'a Wolf' : 'a Civilian'}.`);
   }
   if (channel !== 'mod' && message.from !== me) modUnread++;
   renderNav();
@@ -531,6 +532,7 @@ function renderThreadTabs() {
     }
   }
   $('roleBar').classList.toggle('hidden', !show || !selectedThread);
+  renderCheckBar(show);
   $('roleTarget').textContent = selectedThread ? displayName(selectedThread) : '';
   const cur = selectedThread && state.modView?.roles[selectedThread];
   document.querySelectorAll('#roleBar button').forEach((b) => {
@@ -538,6 +540,48 @@ function renderThreadTabs() {
     b.classList.toggle('current', !!r && (r === cur || (r === 'werewolf' && cur === 'serialkiller')));
   });
 }
+
+// The moderator answers an Officer's question: is this player a wolf or a civilian?
+function renderCheckBar(show) {
+  const bar = $('checkBar');
+  const askerRole = selectedThread && state.modView?.roles[selectedThread];
+  const visible = show && askerRole === 'officer';
+  bar.classList.toggle('hidden', !visible);
+  if (!visible) return;
+  $('checkAsker').textContent = displayName(selectedThread);
+  const sel = $('checkTarget');
+  const prev = sel.value;
+  const options = state.users.filter((u) => !u.moderator && key(u.name) !== selectedThread).map((u) => u.name);
+  const sig = selectedThread + '|' + options.join(',');
+  if (sel.dataset.sig === sig) return updateCheckHint();
+  sel.dataset.sig = sig;
+  sel.innerHTML = '';
+  sel.append(new Option('Who did they ask about?', ''));
+  for (const n of options) sel.append(new Option(n, n));
+  if (options.includes(prev)) sel.value = prev;
+  updateCheckHint();
+}
+function updateCheckHint() {
+  const target = $('checkTarget').value;
+  const real = target && state.modView?.roles[key(target)];
+  const hint = $('checkHint');
+  const isWolf = real === 'werewolf' || real === 'serialkiller';
+  hint.textContent = real ? `(really ${ROLE[real].icon} ${ROLE[real].label})` : target ? '(no role yet)' : '';
+  document.querySelectorAll('#checkBar [data-check]').forEach((b) => {
+    b.disabled = !target;
+    b.classList.toggle('current', !!real && (b.dataset.check === 'wolf') === isWolf);
+  });
+}
+$('checkTarget').onchange = updateCheckHint;
+document.querySelectorAll('#checkBar [data-check]').forEach((b) => {
+  b.onclick = () => {
+    const target = $('checkTarget').value;
+    if (!selectedThread || !target) return toast('Pick who they asked about first.');
+    socket.emit('mod:check', { to: displayName(selectedThread), target, result: b.dataset.check });
+    $('checkTarget').value = '';
+    updateCheckHint();
+  };
+});
 
 function renderComposer() {
   const input = $('msgInput');
@@ -831,6 +875,19 @@ function appendMessage(m, live = true) {
       const info = ROLE[m.role] || { icon: '', label: m.role };
       r.append(art, el('div', '', `Secret role: ${info.icon} ${info.label}`));
       bubble.append(r);
+    } else if (m.check) {
+      const wolf = m.check.result === 'wolf';
+      const r = el('div', 'role-msg check-msg');
+      const art = el('div', 'art');
+      art.innerHTML = ART[wolf ? 'werewolf' : 'civilian'];
+      const txt = el('div');
+      txt.append(el('div', 'check-kicker', '🔍 Investigation result'));
+      const line = el('div', 'check-line');
+      line.append(el('b', '', m.check.target), document.createTextNode(' is '), el('b', 'check-verdict ' + (wolf ? 'wolf' : 'civ'), wolf ? '🐺 a Wolf' : '🧑‍🌾 a Civilian'));
+      txt.append(line);
+      r.append(art, txt);
+      bubble.append(r);
+      bubble.classList.add('check-bubble');
     } else bubble.textContent = m.text;
     bubble.title = timeOf(m.ts);
     body.append(bubble);

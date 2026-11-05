@@ -350,6 +350,18 @@ body.night .protect-btn.on { background: #1e2f5c; }
 .role-bar .btn.current { outline: 2px solid currentColor; outline-offset: 1px; }
 .role-kicker { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
 
+/* Officer checks */
+.btn-success-soft { background: var(--success-soft); color: var(--success); border-color: transparent; }
+.check-bar { background: color-mix(in srgb, #3b82f6 10%, var(--surface-2)); }
+.check-bar select { padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); min-width: 190px; }
+.check-hint { font-size: 0.8rem; color: var(--muted); }
+.check-bar .btn.current { outline: 2px solid currentColor; outline-offset: 1px; }
+.bubble.check-bubble { background: var(--surface) !important; color: var(--text) !important; border: 1.5px solid #3b82f6; }
+.check-kicker { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #3b82f6; margin-bottom: 2px; }
+.check-line { font-size: 1rem; }
+.check-verdict.wolf { color: var(--danger); }
+.check-verdict.civ { color: var(--success); }
+
 /* ---------- Phase overlay ---------- */
 .phase-overlay {
   position: fixed; z-index: 50; left: 50%; top: 50%; width: 280px; height: 280px;

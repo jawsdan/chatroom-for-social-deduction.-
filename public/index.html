@@ -82,6 +82,15 @@
           <button class="btn btn-ghost" data-role="">Clear</button>
         </div>
       </div>
+      <div id="checkBar" class="role-bar check-bar hidden">
+        <span>🔍 Tell <b id="checkAsker"></b> what someone is:</span>
+        <div class="role-actions">
+          <select id="checkTarget" aria-label="Player to reveal"></select>
+          <span id="checkHint" class="check-hint"></span>
+          <button class="btn btn-danger-soft" data-check="wolf">🐺 Wolf</button>
+          <button class="btn btn-success-soft" data-check="civilian">🧑‍🌾 Civilian</button>
+        </div>
+      </div>
 
       <div id="messages" class="messages"></div>
 
