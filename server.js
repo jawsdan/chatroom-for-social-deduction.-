@@ -21,10 +21,10 @@ let modThreads = new Map(); // lowercase name -> [messages]  (private player <->
 let wolfChat = []; // night-only chat for werewolves
 let roles = new Map(); // lowercase name -> role (one of ROLES)
 let protectedNames = new Set(); // lowercase names the moderator marked as protected
-let mutedNames = new Set(); // lowercase names muted until the main chat is wiped
+let mutedNames = new Set(); // lowercase names muted until the chat is wiped
 let phase = 'day';
 let trial = null; // { accusedName, votes: Map(name -> 'guilty'|'innocent'), open, result }
-const wipeVotes = { main: new Set(), mod: new Set() }; // socket ids
+let wipeVotes = new Set(); // socket ids of players who voted to wipe everything
 const roleConfig = { werewolf: 2, doctor: 1, officer: 1 }; // the rest are civilians
 let nextMsgId = 1;
 let nextBotId = 1;
@@ -120,7 +120,7 @@ function broadcastState() {
     moderator: moderatorId && users.get(moderatorId) ? users.get(moderatorId).name : null,
     phase,
     trial: trialPublic,
-    wipe: { main: wipeVotes.main.size, mod: wipeVotes.mod.size, needed: humans().length },
+    wipe: { votes: wipeVotes.size, needed: wipeVoters().length },
   };
   for (const [id, sock] of io.sockets.sockets) {
     const u = users.get(id);
@@ -131,8 +131,7 @@ function broadcastState() {
       name: u.name,
       moderator: id === moderatorId,
       muted: mutedNames.has(key(u.name)),
-      wipedMain: wipeVotes.main.has(id),
-      wipedMod: wipeVotes.mod.has(id),
+      wiped: wipeVotes.has(id),
       role: id === moderatorId ? null : myRole,
       wolfAccess: hasWolfAccess(id),
       wolfmates: myRole === 'werewolf' ? wolfNames() : [],
@@ -180,33 +179,36 @@ function pushWolf(m) {
 }
 
 // ---- Votes ----
-function checkWipe(kind) {
-  for (const id of wipeVotes[kind]) if (!users.has(id)) wipeVotes[kind].delete(id);
-  // Bots don't vote, so only real people count.
-  const needed = humans().length;
-  if (needed === 0 || wipeVotes[kind].size < needed) return false;
-  wipeVotes[kind].clear();
-  if (kind === 'main') {
-    // A fresh game.
-    lobby = [];
-    wolfChat = [];
-    roles = new Map();
-    protectedNames = new Set();
-    mutedNames = new Set();
-    trial = null;
-    phase = 'day';
-    io.emit('lobby:history', []);
-    io.emit('role:cleared');
-    sendWolfHistoryToAll();
-    systemLobby('Everyone voted. The main chat was wiped and a fresh game begins. Roles and mutes are cleared.');
-    io.emit('phase:changed', { phase, silent: true });
-  } else {
-    modThreads = new Map();
-    for (const [id, sock] of io.sockets.sockets) if (users.has(id)) sock.emit('mod:thread', []);
-    sendModThreads();
-    systemLobby('Everyone voted. The moderator chat was wiped.');
-  }
+// Real players vote. Bots and the moderator don't need to.
+function wipeVoters() {
+  return humans().filter((u) => u.id !== moderatorId);
+}
+function checkWipe() {
+  const voters = new Set(wipeVoters().map((u) => u.id));
+  for (const id of wipeVotes) if (!voters.has(id)) wipeVotes.delete(id);
+  if (voters.size === 0 || wipeVotes.size < voters.size) return false;
+  wipeEverything('Everyone voted.');
   return true;
+}
+// A fresh game: every chat, role, protection and mute is cleared.
+function wipeEverything(reason) {
+  wipeVotes = new Set();
+  lobby = [];
+  modThreads = new Map();
+  wolfChat = [];
+  roles = new Map();
+  protectedNames = new Set();
+  mutedNames = new Set();
+  trial = null;
+  phase = 'day';
+  io.emit('lobby:history', []);
+  for (const [id, sock] of io.sockets.sockets) if (users.has(id)) sock.emit('mod:thread', []);
+  sendModThreads();
+  sendWolfHistoryToAll();
+  io.emit('role:cleared');
+  io.emit('trial:cleared');
+  systemLobby(`${reason} All chats were wiped and a fresh game begins.`);
+  io.emit('phase:changed', { phase, silent: true });
 }
 
 function finishTrial() {
@@ -249,8 +251,10 @@ function becomeModerator(socket) {
   // The moderator does not play a role.
   if (roles.delete(key(u.name))) announceRoleChanges(before);
   protectedNames.delete(key(u.name));
+  wipeVotes.delete(socket.id);
   sendModThreads();
   sendWolfHistoryToAll();
+  checkWipe();
 }
 
 // ---- Test bots ----
@@ -317,7 +321,7 @@ io.on('connection', (socket) => {
     const t = cleanText(text);
     if (!u || !t) return;
     if (mutedNames.has(key(u.name))) {
-      return socket.emit('notice', 'You are muted. You can only talk to the moderator until the main chat is wiped.');
+      return socket.emit('notice', 'You are muted. You can only talk to the moderator until the chat is wiped.');
     }
     const m = msg(u.name, t, { moderator: isMod(socket) });
     push(lobby, m);
@@ -519,12 +523,15 @@ io.on('connection', (socket) => {
   });
 
   // ---- Wipe votes ----
-  socket.on('wipe:vote', (kind) => {
-    if (!me() || (kind !== 'main' && kind !== 'mod')) return;
-    const set = wipeVotes[kind];
-    if (set.has(socket.id)) set.delete(socket.id);
-    else set.add(socket.id);
-    checkWipe(kind);
+  socket.on('wipe:vote', () => {
+    if (!me()) return;
+    if (isMod(socket)) {
+      // The moderator doesn't vote, but can wipe straight away when there are no players to ask.
+      if (wipeVoters().length === 0) wipeEverything('The moderator started over.');
+      else socket.emit('notice', 'The players vote to wipe. You don\'t need to.');
+    } else if (wipeVotes.has(socket.id)) wipeVotes.delete(socket.id);
+    else wipeVotes.add(socket.id);
+    checkWipe();
     broadcastState();
   });
 
@@ -532,8 +539,7 @@ io.on('connection', (socket) => {
     const u = me();
     if (!u) return;
     users.delete(socket.id);
-    wipeVotes.main.delete(socket.id);
-    wipeVotes.mod.delete(socket.id);
+    wipeVotes.delete(socket.id);
     if (moderatorId === socket.id) {
       moderatorId = null;
       systemLobby(`${u.name} (moderator) left. Someone can take over as moderator.`);
@@ -543,8 +549,7 @@ io.on('connection', (socket) => {
     // When the last real person leaves, clear out the test bots too.
     if (humans().length === 0) removeBots();
     // Someone leaving can complete a vote.
-    checkWipe('main');
-    checkWipe('mod');
+    checkWipe();
     maybeAutoFinishTrial();
     broadcastState();
   });

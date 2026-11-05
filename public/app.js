@@ -191,7 +191,7 @@ socket.on('mod:message', ({ thread, message }) => {
 
 socket.on('phase:changed', ({ phase, silent }) => {
   setPhase(phase, !silent);
-  if (!silent && phase === 'night' && state?.me?.wolfAccess && !amMod()) setTimeout(() => toast('🐺 The wolf den is open. Plan your target!'), 3600);
+  if (!silent && phase === 'night' && state?.me?.wolfAccess && !amMod()) setTimeout(() => toast('🐺 The wolf den is open. Plan your target!'), 1800);
   if (state) renderAll(false);
 });
 
@@ -238,7 +238,7 @@ socket.on('trial:result', (r) => {
     });
     card.append(ul);
     if (r.result === 'guilty') {
-      card.append(el('p', '', `${r.accused} is muted and can only talk to the moderator until the main chat is wiped.`));
+      card.append(el('p', '', `${r.accused} is muted and can only talk to the moderator until the chat is wiped.`));
     }
     const actions = el('div', 'actions');
     actions.append(btn('btn-primary', 'Close', closeModal));
@@ -265,19 +265,15 @@ function setPhase(phase, animate) {
   ov.innerHTML = ART[phase] + `<div class="caption">${phase === 'night' ? 'Night falls' : 'Day breaks'}</div>`;
   corner.style.visibility = 'hidden';
   flash.classList.add('on');
-  // Pop in at the center.
+  // Pop in at the center (0.45s), hold briefly, then glide into the corner (0.55s). About 1.75s in all.
   requestAnimationFrame(() => requestAnimationFrame(() => ov.classList.add('show')));
-  // After a few seconds, fly into the corner of the chat.
   setPhase._t1 = setTimeout(() => {
     flash.classList.remove('on');
-    ov.classList.add('fly');
     const r = corner.getBoundingClientRect();
-    Object.assign(ov.style, {
-      left: r.left + r.width / 2 + 'px',
-      top: r.top + r.height / 2 + 'px',
-      width: r.width + 'px',
-      height: r.height + 'px',
-    });
+    ov.style.setProperty('--dx', r.left + r.width / 2 - window.innerWidth / 2 + 'px');
+    ov.style.setProperty('--dy', r.top + r.height / 2 - window.innerHeight / 2 + 'px');
+    ov.style.setProperty('--s', r.width / ov.offsetWidth);
+    ov.classList.add('fly');
     setPhase._t2 = setTimeout(() => {
       corner.innerHTML = ART[phase];
       corner.style.visibility = '';
@@ -285,8 +281,8 @@ function setPhase(phase, animate) {
       void corner.offsetWidth;
       corner.classList.add('land');
       ov.className = 'phase-overlay hidden';
-    }, 900);
-  }, 2600);
+    }, 560);
+  }, 1200);
 }
 
 function renderPhaseDisplay() {
@@ -791,26 +787,25 @@ function renderPanel() {
     pl.append(li);
   }
 
-  // Wipe votes
+  // Wipe everything: the players vote, the moderator doesn't have to.
   const wb = $('wipeBox');
   wb.innerHTML = '';
-  const item = (kind, label) => {
-    const voted = kind === 'main' ? state.me.wipedMain : state.me.wipedMod;
-    const n = kind === 'main' ? state.wipe.main : state.wipe.mod;
-    const need = state.wipe.needed;
-    const w = el('div', 'wipe-item');
-    const lab = el('div', 'progress-label');
-    lab.append(el('span', '', label), el('b', '', `${n} / ${need}`));
-    const bar = el('div', 'progress');
-    const fill = el('i');
-    fill.style.width = (100 * n) / Math.max(need, 1) + '%';
-    bar.append(fill);
-    const b = btn('btn-block ' + (voted ? 'on' : ''), voted ? '✓ You voted (undo)' : '🧹 Vote to wipe', () => socket.emit('wipe:vote', kind));
-    w.append(lab, bar, b);
-    wb.append(w);
-  };
-  item('main', 'Main chat (new game)');
-  item('mod', 'Moderator chat');
+  const n = state.wipe.votes;
+  const need = state.wipe.needed;
+  const lab = el('div', 'progress-label');
+  lab.append(el('span', '', 'Players who voted'), el('b', '', `${n} / ${need}`));
+  const bar = el('div', 'progress');
+  const fill = el('i');
+  fill.style.width = (100 * n) / Math.max(need, 1) + '%';
+  bar.append(fill);
+  wb.append(lab, bar);
+  if (amMod()) {
+    if (need === 0) wb.append(btn('btn-block', '🧹 Wipe everything now', () => socket.emit('wipe:vote')));
+    else wb.append(el('p', 'hint wipe-note', "You don't need to vote. It happens when all players have voted."));
+  } else {
+    const voted = state.me.wiped;
+    wb.append(btn('btn-block ' + (voted ? 'on' : ''), voted ? '✓ You voted (undo)' : '🧹 Vote to wipe everything', () => socket.emit('wipe:vote')));
+  }
 }
 
 // ---------- Messages ----------

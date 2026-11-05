@@ -56,7 +56,7 @@ body {
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
-  transition: background-color 0.9s var(--ease), color 0.9s var(--ease);
+  transition: background-color 0.6s ease, color 0.6s ease;
   overflow: hidden;
 }
 .app *, .modal * { transition: background-color 0.6s var(--ease), border-color 0.6s var(--ease), color 0.3s var(--ease); }
@@ -187,7 +187,7 @@ body.night .nav-item.selected { color: #c9c7ff; }
 .header-actions { display: flex; gap: 8px; }
 .phase-corner { width: 42px; height: 42px; flex-shrink: 0; transition: transform 0.4s var(--ease); }
 .phase-corner svg { width: 100%; height: 100%; }
-.phase-corner.land { animation: land 0.5s var(--ease); }
+.phase-corner.land { animation: land 0.35s ease-out; }
 .only-mobile, .only-narrow { display: none; }
 
 .trial-banner {
@@ -367,19 +367,27 @@ body.night .protect-btn.on { background: #1e2f5c; }
 /* ---------- Phase overlay ---------- */
 .phase-overlay {
   position: fixed; z-index: 50; left: 50%; top: 50%; width: 280px; height: 280px;
-  transform: translate(-50%, -50%) scale(0.2) rotate(-20deg); opacity: 0; pointer-events: none; text-align: center;
-  transition: transform 0.7s cubic-bezier(.2,1.5,.4,1), opacity 0.4s, left 0.9s var(--ease), top 0.9s var(--ease), width 0.9s var(--ease), height 0.9s var(--ease);
+  --dx: 0px; --dy: 0px; --s: 1;
+  transform: translate(-50%, -50%) scale(0.7); opacity: 0; pointer-events: none; text-align: center;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease-out;
+  will-change: transform, opacity;
   filter: drop-shadow(0 18px 40px rgba(0,0,0,0.4));
 }
 .phase-overlay svg { width: 100%; height: 100%; }
 .phase-overlay .caption {
   position: absolute; left: 50%; bottom: -46px; transform: translateX(-50%); white-space: nowrap;
   font-size: 2.2rem; font-weight: 800; color: #fff; letter-spacing: -0.02em; text-shadow: 0 4px 20px rgba(0,0,0,0.6);
-  transition: opacity 0.3s;
+  transition: opacity 0.2s ease-out;
 }
-.phase-overlay.show { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); }
+.phase-overlay.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+/* Glide into the corner using only transform, which the browser can animate smoothly. */
+.phase-overlay.fly {
+  transition: transform 0.55s cubic-bezier(0.65, 0, 0.35, 1), filter 0.55s ease;
+  transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(var(--s));
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+}
 .phase-overlay.fly .caption { opacity: 0; }
-.phase-flash { position: fixed; inset: 0; z-index: 45; pointer-events: none; opacity: 0; transition: opacity 0.6s var(--ease); background: radial-gradient(circle at center, rgba(10,12,30,0.55), rgba(10,12,30,0.75)); backdrop-filter: blur(3px); }
+.phase-flash { position: fixed; inset: 0; z-index: 45; pointer-events: none; opacity: 0; transition: opacity 0.4s ease; background: radial-gradient(circle at center, rgba(10,12,30,0.5), rgba(10,12,30,0.7)); backdrop-filter: blur(3px); }
 .phase-flash.on { opacity: 1; }
 
 /* ---------- Modal ---------- */
@@ -425,7 +433,7 @@ body.night .protect-btn.on { background: #1e2f5c; }
 @keyframes popIn { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
 @keyframes pop { 0% { transform: scale(0.5); } 70% { transform: scale(1.15); } 100% { transform: scale(1); } }
 @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
-@keyframes land { 0% { transform: scale(1.4); } 60% { transform: scale(0.9); } 100% { transform: scale(1); } }
+@keyframes land { 0% { transform: scale(1.08); } 100% { transform: scale(1); } }
 @keyframes flip { from { transform: rotateY(90deg) scale(0.8); opacity: 0; } to { transform: rotateY(0) scale(1); opacity: 1; } }
 @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @keyframes toastOut { to { opacity: 0; transform: translateY(8px); } }
@@ -631,3 +639,6 @@ body:not(.night) .firefly { display: none; }
   .splat { width: 140px; height: 140px; }
   
 }
+
+.wipe-note { margin: 10px 0 0; }
+#wipeBox .btn { margin-top: 10px; }
