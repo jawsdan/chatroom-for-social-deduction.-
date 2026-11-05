@@ -855,7 +855,9 @@ io.on('connection', (socket) => {
       setTimeout(() => {
         // Night deaths get a funny morning story.
         for (const r of list) r.line = deathLine(r.victim);
-        io.emit('night:result', { victims: list.map((r) => r.victim), lines: list.map((r) => r.line) });
+        // Which animation to show: a lone Serial Killer or the wolf pack.
+        const killer = wolfCount() === 1 ? 'killer' : 'night';
+        io.emit('night:result', { victims: list.map((r) => r.victim), lines: list.map((r) => r.line), killer });
         if (!list.length) systemLobby('🌅 Nobody died last night.');
         for (const r of list) revealDeath(r);
         broadcastState();

@@ -1452,13 +1452,13 @@ function confirmDeath(name, isDead) {
 }
 
 // ---------- Sunrise result ----------
-socket.on('night:result', ({ victims, lines = [] }) => {
+socket.on('night:result', ({ victims, lines = [], killer = 'night' }) => {
   const show = () =>
     openModal((card) => {
       card.append(el('div', 'note-icon', victims.length ? '☠️' : '🌅'));
       if (victims.length) {
         card.append(el('h2', '', victims.length === 1 ? `${victims[0]} was killed in the night` : `${victims.join(' and ')} were killed in the night`));
-        card.append(killVideo('night'));
+        card.append(killVideo(killer));
         for (const l of lines) card.append(el('p', 'death-line', l));
         card.append(el('p', 'hint', victims.some((v) => key(v) === key(me)) ? 'You are dead. You can only talk to the moderator now.' : 'They can no longer speak in the village.'));
       } else {
@@ -1636,7 +1636,7 @@ function renderEndGame() {
 }
 
 // ---------- Death animations ----------
-// 'night' = the werewolf attack, 'vote' = the village's verdict. Plays once and stops on the last frame.
+// 'night' = the werewolf attack, 'killer' = the Serial Killer, 'vote' = the village's verdict. Plays once and stops on the last frame.
 const KILL_VIDEO_VERSION = 1;
 function killVideo(kind) {
   const wrap = el('div', 'kill-video');
@@ -1667,7 +1667,7 @@ function killVideo(kind) {
   return wrap;
 }
 // Preload both so they start right away.
-for (const k of ['night', 'vote']) {
+for (const k of ['night', 'killer', 'vote']) {
   const l = document.createElement('link');
   l.rel = 'preload';
   l.as = 'video';
