@@ -5,18 +5,27 @@ const key = (n) => String(n).toLowerCase();
 
 let me = null; // my name
 let state = null; // latest public state from server
-let channel = 'lobby'; // 'lobby' | 'mod' | 'group:<id>'
+let channel = 'lobby'; // 'lobby' | 'mod' | 'wolf'
 let lobbyMsgs = [];
-const groupMsgs = {}; // id -> []
+let wolfMsgs = null; // wolf den messages, or null when I have no access
 let myThread = []; // my private chat with the moderator
 let modThreads = {}; // moderator only: key -> []
 let selectedThread = null; // moderator only: key of member being viewed
 const unreadThreads = new Set();
 let modUnread = 0;
 let lobbyUnread = 0;
+let wolfUnread = 0;
 let currentPhase = 'day';
 let trialPopupShownFor = null;
 let lastRendered = null; // { from, ts } of the last message drawn, for grouping
+
+const ROLE = {
+  civilian: { label: 'Civilian', icon: '🧑‍🌾', color: 'var(--success)', desc: 'Find the killers before it is too late.' },
+  werewolf: { label: 'Werewolf', icon: '🐺', color: 'var(--danger)', desc: 'Hunt at night with your pack. Plan in the wolf den, then tell the moderator your target.' },
+  serialkiller: { label: 'Serial Killer', icon: '🔪', color: 'var(--danger)', desc: 'You work alone. Each night, tell the moderator who you want to eliminate. Do not get caught.' },
+  doctor: { label: 'Doctor', icon: '🩺', color: '#0ea5e9', desc: 'Each night, tell the moderator one player to protect.' },
+  officer: { label: 'Officer', icon: '👮', color: '#3b82f6', desc: 'Each night, ask the moderator to investigate one player.' },
+};
 
 $('joinLogo').innerHTML = ART.night;
 $('brandLogo').innerHTML = ART.night;
@@ -121,7 +130,7 @@ socket.on('connect', () => {
 // ---------- Server events ----------
 socket.on('state', (s) => {
   state = s;
-  if (channel.startsWith('group:') && !s.groups.some((g) => 'group:' + g.id === channel)) channel = 'lobby';
+  if (channel === 'wolf' && !s.me.wolfAccess) channel = 'lobby';
   renderAll(false);
   maybeShowTrialPopup();
 });
@@ -141,15 +150,21 @@ socket.on('lobby:message', (m) => {
   }
 });
 
-socket.on('group:history', ({ id, messages }) => {
-  groupMsgs[id] = messages;
-  if (channel === 'group:' + id) renderMessages();
+socket.on('wolf:history', (list) => {
+  wolfMsgs = list;
+  if (channel === 'wolf') {
+    if (!list) switchChannel('lobby');
+    else renderMessages();
+  }
 });
-socket.on('group:message', ({ id, message }) => {
-  (groupMsgs[id] ||= []).push(message);
-  if (channel === 'group:' + id) appendMessage(message);
+socket.on('wolf:message', (m) => {
+  (wolfMsgs ||= []).push(m);
+  if (channel === 'wolf') appendMessage(m);
+  else if (m.from !== me) {
+    wolfUnread++;
+    renderNav();
+  }
 });
-socket.on('group:opened', (id) => switchChannel('group:' + id));
 
 socket.on('mod:thread', (list) => {
   myThread = list;
@@ -173,33 +188,29 @@ socket.on('mod:message', ({ thread, message }) => {
   if (channel === 'mod' && amMod()) renderThreadTabs();
 });
 
-socket.on('phase:changed', ({ phase, silent }) => setPhase(phase, !silent));
+socket.on('phase:changed', ({ phase, silent }) => {
+  setPhase(phase, !silent);
+  if (!silent && phase === 'night' && state?.me?.wolfAccess && !amMod()) setTimeout(() => toast('🐺 The wolf den is open. Plan your target!'), 3600);
+  if (state) renderAll(false);
+});
 
 socket.on('role:assigned', ({ role }) => {
+  if (!role) return toast('The moderator removed your role.');
+  const r = ROLE[role];
   openModal((card) => {
     const art = el('div', 'art role');
     art.innerHTML = ART[role];
     card.append(art);
-    card.append(el('h2', '', role === 'werewolf' ? 'You are a Werewolf' : 'You are a Civilian'));
-    card.append(
-      el(
-        'p',
-        '',
-        role === 'werewolf'
-          ? 'Hunt at night. Blend in during the day. Only you and the moderator can see this.'
-          : 'Find the werewolves before it is too late. Only you and the moderator can see this.'
-      )
-    );
+    card.append(el('div', 'role-kicker', 'Your secret role'));
+    card.append(el('h2', '', `You are ${/^[aeiou]/i.test(r.label) ? 'an' : 'a'} ${r.label}`));
+    card.append(el('p', '', r.desc));
+    card.append(el('p', 'hint', 'Only you and the moderator can see this.'));
     const actions = el('div', 'actions');
     actions.append(btn('btn-primary', 'Got it', closeModal));
     card.append(actions);
   });
 });
-socket.on('roles:cleared', () => {
-  modThreads = {};
-  unreadThreads.clear();
-  if (channel === 'mod') renderAll();
-});
+socket.on('role:cleared', () => toast('New game: all roles were cleared.'));
 
 socket.on('trial:started', () => {
   trialPopupShownFor = null;
@@ -365,7 +376,7 @@ $('trialBtn').onclick = openTrialPicker;
 
 // ---------- Roles ----------
 document.querySelectorAll('#roleBar button').forEach((b) => {
-  b.onclick = () => selectedThread && socket.emit('mod:role', { to: displayName(selectedThread), role: b.dataset.role });
+  b.onclick = () => selectedThread && socket.emit('mod:role', { to: displayName(selectedThread), role: b.dataset.role || null });
 });
 
 // ---------- Channels ----------
@@ -373,35 +384,12 @@ function switchChannel(c) {
   channel = c;
   if (c === 'mod') modUnread = 0;
   if (c === 'lobby') lobbyUnread = 0;
+  if (c === 'wolf') wolfUnread = 0;
   closeDrawers();
   renderAll();
   if (!$('msgInput').disabled) $('msgInput').focus();
 }
 document.querySelectorAll('.nav-item[data-channel]').forEach((b) => (b.onclick = () => switchChannel(b.dataset.channel)));
-
-$('newGroupBtn').onclick = () => {
-  openModal((card) => {
-    const art = el('div', 'art');
-    art.innerHTML = '<div style="font-size:4rem;line-height:140px">👥</div>';
-    card.append(art);
-    card.append(el('h2', '', 'Create a group'));
-    card.append(el('p', '', 'A side chat. Only people who join can read it.'));
-    const input = el('input', 'text-input');
-    input.maxLength = 30;
-    input.placeholder = 'Group name, e.g. "Wolf den"';
-    card.append(input);
-    const create = () => {
-      if (!input.value.trim()) return input.focus();
-      socket.emit('group:create', input.value);
-      closeModal();
-    };
-    input.addEventListener('keydown', (e) => e.key === 'Enter' && create());
-    const actions = el('div', 'actions');
-    actions.append(btn('btn-ghost', 'Cancel', closeModal), btn('btn-primary', 'Create group', create));
-    card.append(actions);
-    setTimeout(() => input.focus(), 60);
-  });
-};
 
 // ---------- Sending ----------
 $('composer').addEventListener('submit', (e) => {
@@ -414,7 +402,7 @@ $('composer').addEventListener('submit', (e) => {
       if (!selectedThread) return toast('Pick a player to message.');
       socket.emit('mod:send', { to: displayName(selectedThread), text });
     } else socket.emit('mod:send', { text });
-  } else socket.emit('group:send', { id: channel.slice(6), text });
+  } else if (channel === 'wolf') socket.emit('wolf:send', text);
   $('msgInput').value = '';
 });
 
@@ -430,7 +418,7 @@ function renderAll(redrawMessages = true) {
   if (redrawMessages || !renderAll._ch || renderAll._ch !== channelKey()) renderMessages();
   renderAll._ch = channelKey();
 }
-const channelKey = () => channel + '|' + (channel === 'mod' ? (amMod() ? 'm:' + selectedThread : 'p') : '') + '|' + inCurrentGroup();
+const channelKey = () => channel + '|' + (channel === 'mod' ? (amMod() ? 'm:' + selectedThread : 'p') : '');
 
 function renderNav() {
   if (!state) return;
@@ -440,7 +428,10 @@ function renderNav() {
   a.append(el('span', 'dot'));
   const who = el('div', 'who');
   who.append(el('div', 'name', me));
-  who.append(el('div', 'status', amMod() ? '🛡️ Moderator' : amMuted() ? '🔇 Muted' : 'Player'));
+  const myRole = state.me.role && ROLE[state.me.role];
+  let status = amMod() ? '🛡️ Moderator' : myRole ? `${myRole.icon} ${myRole.label}` : 'Player · no role yet';
+  if (amMuted()) status += ' · 🔇 muted';
+  who.append(el('div', 'status', status));
   mc.append(a, who);
 
   document.querySelectorAll('.nav-item[data-channel]').forEach((b) => b.classList.toggle('selected', b.dataset.channel === channel));
@@ -451,24 +442,11 @@ function renderNav() {
   };
   setPill('modUnread', modUnread);
   setPill('lobbyUnread', lobbyUnread);
+  setPill('wolfUnread', wolfUnread);
+  $('wolfNav').classList.toggle('hidden', !state.me.wolfAccess);
+  $('wolfMeta').textContent = state.phase === 'night' ? '' : '🔒';
+  $('wolfNav').title = state.phase === 'night' ? 'Open now' : 'Opens at night';
 
-  const gl = $('groupList');
-  gl.innerHTML = '';
-  if (state.groups.length === 0) gl.append(el('div', 'empty-nav', 'No groups yet. Press ＋ to make one.'));
-  for (const g of state.groups) {
-    const b = el('button', 'nav-item' + (channel === 'group:' + g.id ? ' selected' : ''));
-    b.append(el('span', 'nav-icon', '👥'), el('span', 'nav-label', g.name), el('span', 'nav-meta', String(g.members.length)));
-    b.onclick = () => switchChannel('group:' + g.id);
-    gl.append(b);
-  }
-}
-
-function currentGroup() {
-  return channel.startsWith('group:') && state ? state.groups.find((g) => 'group:' + g.id === channel) : null;
-}
-function inCurrentGroup() {
-  const g = currentGroup();
-  return !!g && g.members.some((n) => key(n) === key(me));
 }
 
 function renderHeader() {
@@ -486,14 +464,10 @@ function renderHeader() {
       : state.moderator
         ? `Private. Only you and ${state.moderator} can see this.`
         : 'Private. No moderator yet, but your messages will be waiting.';
-  } else {
-    const g = currentGroup();
-    title.textContent = '👥 ' + (g ? g.name : '');
-    sub.textContent = g ? `${g.members.length} member${g.members.length === 1 ? '' : 's'}: ${g.members.join(', ')}` : '';
-    if (g) {
-      const inG = inCurrentGroup();
-      actions.append(btn(inG ? 'btn-ghost' : 'btn-primary', inG ? 'Leave' : 'Join group', () => socket.emit(inG ? 'group:leave' : 'group:join', g.id)));
-    }
+  } else if (channel === 'wolf') {
+    const wolves = (amMod() ? Object.entries(state.modView?.roles || {}).filter(([, r]) => r === 'werewolf').map(([k]) => displayName(k)) : state.me.wolfmates);
+    title.textContent = '🐺 Wolf den';
+    sub.textContent = (state.phase === 'night' ? 'Open now' : 'Closed until night') + ` · secret chat for the werewolves${wolves.length ? ': ' + wolves.join(', ') : ''}`;
   }
 }
 
@@ -546,7 +520,8 @@ function renderThreadTabs() {
       const online = state.users.some((u) => key(u.name) === k);
       const b = el('button', 'thread-tab' + (k === selectedThread ? ' on' : '') + (online ? '' : ' offline'));
       b.type = 'button';
-      b.append(avatar(displayName(k), 'sm'), el('span', '', displayName(k) + (online ? '' : ' (left)')));
+      const tr = state.modView?.roles[k];
+      b.append(avatar(displayName(k), 'sm'), el('span', '', displayName(k) + (online ? '' : ' (left)') + (tr ? ' ' + ROLE[tr].icon : '')));
       if (unreadThreads.has(k)) b.append(el('span', 'new'));
       b.onclick = () => {
         selectedThread = k;
@@ -557,6 +532,11 @@ function renderThreadTabs() {
   }
   $('roleBar').classList.toggle('hidden', !show || !selectedThread);
   $('roleTarget').textContent = selectedThread ? displayName(selectedThread) : '';
+  const cur = selectedThread && state.modView?.roles[selectedThread];
+  document.querySelectorAll('#roleBar button').forEach((b) => {
+    const r = b.dataset.role;
+    b.classList.toggle('current', !!r && (r === cur || (r === 'werewolf' && cur === 'serialkiller')));
+  });
 }
 
 function renderComposer() {
@@ -574,17 +554,71 @@ function renderComposer() {
       disabled = !selectedThread;
       ph = selectedThread ? `Private message to ${displayName(selectedThread)}…` : 'No player selected';
     } else ph = 'Message the moderator privately…';
-  } else if (!inCurrentGroup()) {
-    disabled = true;
-    ph = 'Join the group to chat here.';
-  } else if (amMuted()) {
-    disabled = true;
-    ph = '🔇 You are muted. You can only talk to the moderator.';
-  } else ph = 'Message the group…';
+  } else if (channel === 'wolf') {
+    if (amMod()) ph = 'Message the wolves (as moderator)…';
+    else if (state.phase !== 'night') {
+      disabled = true;
+      ph = '🌙 The wolf den opens at night.';
+    } else if (amMuted()) {
+      disabled = true;
+      ph = '🔇 You are muted. You can only talk to the moderator.';
+    } else ph = 'Plan your target with the pack…';
+  }
   input.disabled = disabled;
   send.disabled = disabled;
   input.placeholder = ph;
   $('composer').classList.toggle('locked', disabled);
+}
+
+function renderRolesCard() {
+  const card = $('rolesCard');
+  card.classList.toggle('hidden', !amMod());
+  if (!amMod() || !state.modView) return;
+  const cfg = state.modView.roleConfig;
+  const players = state.users.filter((u) => !u.moderator).length;
+  const special = cfg.werewolf + cfg.doctor + cfg.officer;
+  const civilians = Math.max(players - special, 0);
+  const box = $('roleSetup');
+  box.innerHTML = '';
+  const row = (r, label) => {
+    const d = el('div', 'stepper-row');
+    const icon = r === 'werewolf' && cfg.werewolf === 1 ? ROLE.serialkiller.icon : ROLE[r].icon;
+    const lab = el('span', 'stepper-label', `${icon} ${label}`);
+    const step = el('div', 'stepper');
+    const set = (n) => socket.emit('roles:config', { ...cfg, [r]: Math.max(0, Math.min(20, n)) });
+    const minus = el('button', '', '−');
+    minus.type = 'button';
+    minus.disabled = cfg[r] === 0;
+    minus.onclick = () => set(cfg[r] - 1);
+    const plus = el('button', '', '+');
+    plus.type = 'button';
+    plus.onclick = () => set(cfg[r] + 1);
+    step.append(minus, el('b', '', String(cfg[r])), plus);
+    d.append(lab, step);
+    if (cfg[r] === 0) d.classList.add('off');
+    box.append(d);
+  };
+  row('werewolf', cfg.werewolf === 1 ? 'Serial Killer' : 'Werewolves');
+  row('doctor', 'Doctors');
+  row('officer', 'Officers');
+  const civ = el('div', 'stepper-row');
+  civ.append(el('span', 'stepper-label', `${ROLE.civilian.icon} Civilians`), el('b', 'civ-count', String(civilians)));
+  box.append(civ);
+
+  const sum = $('roleSummary');
+  if (special > players) {
+    sum.className = 'role-summary warn';
+    sum.textContent = `You picked ${special} special roles but only ${players} player${players === 1 ? ' is' : 's are'} here.`;
+  } else {
+    sum.className = 'role-summary';
+    sum.textContent =
+      cfg.werewolf === 1
+        ? 'With only one werewolf, they play as the Serial Killer.'
+        : cfg.werewolf >= 2
+          ? `${cfg.werewolf} werewolves share the wolf den at night.`
+          : 'No killers in this setup.';
+  }
+  $('randomizeBtn').disabled = players === 0 || special > players;
 }
 
 function renderPanel() {
@@ -667,20 +701,44 @@ function renderPanel() {
     }
   }
 
+  // Roles setup (moderator only)
+  renderRolesCard();
+
   // Players
   $('playerCount').textContent = state.users.length;
   const pl = $('playerList');
   pl.innerHTML = '';
+  const mv = state.modView;
   const sorted = [...state.users].sort((a, b) => b.moderator - a.moderator);
   for (const u of sorted) {
     const isMe = key(u.name) === key(me);
     const li = el('li', isMe ? 'me' : '');
     const a = avatar(u.name, 'sm');
     a.append(el('span', 'dot'));
-    li.append(a, el('span', 'pname', u.name));
+    const nameBox = el('div', 'pname');
+    nameBox.append(el('span', '', u.name));
+    let role = null;
+    if (mv) role = mv.roles[key(u.name)];
+    else if (isMe) role = state.me.role;
+    else if (state.me.wolfmates?.some((n) => key(n) === key(u.name))) role = 'werewolf';
+    if (role && ROLE[role]) {
+      const rt = el('span', 'role-tag', `${ROLE[role].icon} ${ROLE[role].label}`);
+      rt.style.setProperty('--rc', ROLE[role].color);
+      nameBox.append(rt);
+    } else if (mv && !u.moderator) nameBox.append(el('span', 'role-tag none', 'no role'));
+    li.append(a, nameBox);
     if (isMe) li.append(el('span', 'tag you', 'you'));
     if (u.moderator) li.append(el('span', 'tag mod', 'mod'));
     if (u.muted) li.append(el('span', 'tag muted', 'muted'));
+    if (mv && !u.moderator) {
+      const isProt = mv.protected.includes(key(u.name));
+      if (isProt) li.append(el('span', 'tag prot', '🛡️ protected'));
+      const pb = el('button', 'protect-btn' + (isProt ? ' on' : ''), '🛡️');
+      pb.type = 'button';
+      pb.title = isProt ? `Remove protection from ${u.name}` : `Mark ${u.name} as protected`;
+      pb.onclick = () => socket.emit('protect:toggle', u.name);
+      li.append(pb);
+    }
     pl.append(li);
   }
 
@@ -710,9 +768,8 @@ function renderPanel() {
 function currentMessages() {
   if (channel === 'lobby') return lobbyMsgs;
   if (channel === 'mod') return amMod() ? modThreads[selectedThread] || [] : myThread;
-  const g = currentGroup();
-  if (!g) return [];
-  return inCurrentGroup() ? groupMsgs[g.id] || [] : null;
+  if (channel === 'wolf') return wolfMsgs || [];
+  return [];
 }
 
 function emptyState(icon, title, text) {
@@ -727,10 +784,6 @@ function renderMessages() {
   box.innerHTML = '';
   lastRendered = null;
   const list = currentMessages();
-  if (list === null) {
-    box.append(emptyState('🔒', 'This group is private', 'Join the group to read and send messages.'));
-    return;
-  }
   if (list.length === 0) {
     if (channel === 'mod') {
       if (amMod()) {
@@ -741,7 +794,7 @@ function renderMessages() {
         );
       } else box.append(emptyState('🤫', 'Just you and the moderator', 'Nobody else can see what you write here.'));
     } else if (channel === 'lobby') box.append(emptyState('👋', 'The lobby is quiet', 'Say hello to the village!'));
-    else box.append(emptyState('👥', 'No messages yet', 'Start the conversation.'));
+    else box.append(emptyState('🐺', 'The den is quiet', 'At night, the werewolves can plan their target here before telling the moderator.'));
     return;
   }
   for (const m of list) appendMessage(m, false);
@@ -775,7 +828,8 @@ function appendMessage(m, live = true) {
       const r = el('div', 'role-msg');
       const art = el('div', 'art');
       art.innerHTML = ART[m.role];
-      r.append(art, el('div', '', `Secret role: ${m.role === 'werewolf' ? '🐺 Werewolf' : '🧑‍🌾 Civilian'}`));
+      const info = ROLE[m.role] || { icon: '', label: m.role };
+      r.append(art, el('div', '', `Secret role: ${info.icon} ${info.label}`));
       bubble.append(r);
     } else bubble.textContent = m.text;
     bubble.title = timeOf(m.ts);
@@ -787,3 +841,24 @@ function appendMessage(m, live = true) {
   box.append(node);
   if (live && (nearBottom || key(m.from || '') === key(me))) box.scrollTop = box.scrollHeight;
 }
+
+$('randomizeBtn').onclick = () => {
+  const assigned = Object.keys(state.modView?.roles || {}).length;
+  if (!assigned) return socket.emit('roles:randomize');
+  openModal((card) => {
+    const art = el('div', 'art');
+    art.innerHTML = '<div style="font-size:4rem;line-height:140px">🎲</div>';
+    card.append(art);
+    card.append(el('h2', '', 'Hand out new roles?'));
+    card.append(el('p', '', 'Every player gets a new random role, and protections are cleared.'));
+    const actions = el('div', 'actions');
+    actions.append(
+      btn('btn-ghost', 'Cancel', closeModal),
+      btn('btn-primary', '🎲 Shuffle roles', () => {
+        socket.emit('roles:randomize');
+        closeModal();
+      })
+    );
+    card.append(actions);
+  });
+};

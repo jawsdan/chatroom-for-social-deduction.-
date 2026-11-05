@@ -51,6 +51,50 @@ window.ART = {
   <path d="M40 60 L52 72 M160 60 L148 72" stroke="#22223b" stroke-width="4"/>
 </svg>`,
 
+  serialkiller: `
+<svg viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg" aria-label="Serial Killer">
+  <rect x="0" y="0" width="200" height="220" rx="18" fill="#2b0f16"/>
+  <circle cx="100" cy="95" r="70" fill="#4a1622"/>
+  <path d="M40 220 C40 150 160 150 160 220Z" fill="#111"/>
+  <path d="M58 110 C58 55 142 55 142 110 L142 150 L58 150Z" fill="#1a1a1a"/>
+  <ellipse cx="100" cy="112" rx="30" ry="36" fill="#f1ece4"/>
+  <path d="M82 104 L96 108 L84 114Z" fill="#111"/><path d="M118 104 L104 108 L116 114Z" fill="#111"/>
+  <path d="M90 130 Q100 124 110 130" stroke="#111" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <g transform="translate(18 40) rotate(20 150 140)">
+    <rect x="144" y="120" width="12" height="34" rx="3" fill="#6b3e26"/>
+    <path d="M141 120 L159 120 L156 70 Q150 58 144 70Z" fill="#d9dde3" stroke="#9aa1ab" stroke-width="2"/>
+  </g>
+  <path d="M30 40 l6 14 M170 30 l-6 14" stroke="#e5484d" stroke-width="4" stroke-linecap="round"/>
+</svg>`,
+
+  doctor: `
+<svg viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg" aria-label="Doctor">
+  <rect x="0" y="0" width="200" height="220" rx="18" fill="#e3f4f7"/>
+  <path d="M35 220 C35 150 165 150 165 220Z" fill="#ffffff" stroke="#cfe3e8" stroke-width="3"/>
+  <path d="M85 160 L100 200 L115 160Z" fill="#0ea5e9"/>
+  <path d="M70 165 C65 185 80 200 95 195" stroke="#334155" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <circle cx="96" cy="195" r="7" fill="#94a3b8"/>
+  <circle cx="100" cy="100" r="38" fill="#f2c9a0"/>
+  <path d="M62 92 Q100 50 138 92 Q120 72 100 74 Q80 72 62 92Z" fill="#5b3a29"/>
+  <circle cx="86" cy="102" r="4" fill="#3d2b1f"/><circle cx="114" cy="102" r="4" fill="#3d2b1f"/>
+  <path d="M88 118 Q100 128 112 118" stroke="#3d2b1f" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <rect x="140" y="28" width="40" height="40" rx="10" fill="#e5484d"/>
+  <path d="M160 36 V60 M148 48 H172" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
+</svg>`,
+
+  officer: `
+<svg viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg" aria-label="Officer">
+  <rect x="0" y="0" width="200" height="220" rx="18" fill="#e6ecf8"/>
+  <path d="M35 220 C35 150 165 150 165 220Z" fill="#1e3a8a"/>
+  <path d="M120 170 l8 4 l8 -4 l-2 10 l-6 6 l-6 -6Z" fill="#facc15"/>
+  <circle cx="100" cy="108" r="36" fill="#e0b48c"/>
+  <circle cx="87" cy="110" r="4" fill="#2a1d14"/><circle cx="113" cy="110" r="4" fill="#2a1d14"/>
+  <path d="M88 126 H112" stroke="#2a1d14" stroke-width="4" stroke-linecap="round"/>
+  <path d="M58 86 Q100 40 142 86Z" fill="#1e3a8a"/>
+  <rect x="56" y="82" width="88" height="12" rx="4" fill="#0f1f4d"/>
+  <path d="M100 56 l5 8 l9 1 l-7 6 l2 9 l-9 -5 l-9 5 l2 -9 l-7 -6 l9 -1Z" fill="#facc15"/>
+</svg>`,
+
   scales: `
 <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-label="Trial">
   <g stroke="#e9c46a" stroke-width="7" stroke-linecap="round" fill="none">

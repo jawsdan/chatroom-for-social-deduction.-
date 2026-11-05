@@ -48,11 +48,11 @@
           <span class="pill hidden" id="modUnread"></span>
         </button>
 
-        <div class="nav-title">
-          Groups
-          <button id="newGroupBtn" class="icon-btn" title="Create a group" aria-label="Create a group">＋</button>
-        </div>
-        <div id="groupList"></div>
+        <button class="nav-item hidden" data-channel="wolf" id="wolfNav">
+          <span class="nav-icon">🐺</span><span class="nav-label">Wolf den</span>
+          <span class="nav-meta" id="wolfMeta"></span>
+          <span class="pill hidden" id="wolfUnread"></span>
+        </button>
       </nav>
     </aside>
 
@@ -76,7 +76,10 @@
         <span>Give <b id="roleTarget"></b> a secret role</span>
         <div class="role-actions">
           <button class="btn btn-soft" data-role="civilian">🧑‍🌾 Civilian</button>
-          <button class="btn btn-danger-soft" data-role="werewolf">🐺 Werewolf</button>
+          <button class="btn btn-danger-soft" data-role="werewolf" id="wolfRoleBtn">🐺 Werewolf</button>
+          <button class="btn btn-soft" data-role="doctor">🩺 Doctor</button>
+          <button class="btn btn-soft" data-role="officer">👮 Officer</button>
+          <button class="btn btn-ghost" data-role="">Clear</button>
         </div>
       </div>
 
@@ -108,14 +111,21 @@
 
       <section class="card hidden" id="trialCard"></section>
 
-      <section class="card">
-        <div class="card-title">Moderator</div>
-        <div id="modBox" class="mod-box"></div>
-      </section>
-
       <section class="card grow">
         <div class="card-title">Players <span class="count" id="playerCount">0</span></div>
         <ul id="playerList" class="players"></ul>
+      </section>
+
+      <section class="card hidden" id="rolesCard">
+        <div class="card-title">Roles in this game</div>
+        <div id="roleSetup" class="role-setup"></div>
+        <div class="role-summary" id="roleSummary"></div>
+        <button id="randomizeBtn" class="btn btn-primary btn-block">🎲 Hand out random roles</button>
+      </section>
+
+      <section class="card">
+        <div class="card-title">Moderator</div>
+        <div id="modBox" class="mod-box"></div>
       </section>
 
       <section class="card">

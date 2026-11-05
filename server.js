@@ -11,21 +11,24 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const MAX_MSG = 500;
 const MAX_HISTORY = 300;
+const ROLES = ['civilian', 'werewolf', 'doctor', 'officer'];
 
 // ---- State ----
 const users = new Map(); // socketId -> { id, name }
 let moderatorId = null;
 let lobby = [];
-const groups = new Map(); // groupId -> { id, name, members:Set<socketId>, messages:[] }
-let modThreads = new Map(); // lowercase name -> [messages]  (private member <-> moderator)
-let mutedNames = new Set(); // lowercase names muted until main chat reset
+let modThreads = new Map(); // lowercase name -> [messages]  (private player <-> moderator)
+let wolfChat = []; // night-only chat for werewolves
+let roles = new Map(); // lowercase name -> role (one of ROLES)
+let protectedNames = new Set(); // lowercase names the moderator marked as protected
+let mutedNames = new Set(); // lowercase names muted until the main chat is wiped
 let phase = 'day';
 let trial = null; // { accusedName, votes: Map(name -> 'guilty'|'innocent'), open, result }
 const wipeVotes = { main: new Set(), mod: new Set() }; // socket ids
-let nextGroupId = 1;
+const roleConfig = { werewolf: 2, doctor: 1, officer: 1 }; // the rest are civilians
 let nextMsgId = 1;
 
-const key = (name) => name.toLowerCase();
+const key = (name) => String(name).toLowerCase();
 const now = () => Date.now();
 
 function msg(from, text, extra = {}) {
@@ -40,9 +43,7 @@ function systemLobby(text) {
   push(lobby, m);
   io.emit('lobby:message', m);
 }
-function isMod(socket) {
-  return socket.id === moderatorId;
-}
+const isMod = (socket) => socket.id === moderatorId;
 function userByName(name) {
   for (const u of users.values()) if (key(u.name) === key(name)) return u;
   return null;
@@ -51,8 +52,61 @@ function cleanText(t) {
   return typeof t === 'string' ? t.trim().slice(0, MAX_MSG) : '';
 }
 
-function publicState() {
-  return {
+// ---- Roles ----
+function wolfCount() {
+  let n = 0;
+  for (const r of roles.values()) if (r === 'werewolf') n++;
+  return n;
+}
+// A lone werewolf is shown as a Serial Killer.
+function displayRole(name) {
+  const r = roles.get(key(name));
+  if (!r) return null;
+  if (r === 'werewolf' && wolfCount() === 1) return 'serialkiller';
+  return r;
+}
+function displayRoleMap() {
+  const out = new Map();
+  for (const k of roles.keys()) out.set(k, displayRole(k));
+  return out;
+}
+// The wolf den is for werewolves when there are at least two of them. The moderator always has access.
+function hasWolfAccess(socketId) {
+  if (socketId === moderatorId) return true;
+  const u = users.get(socketId);
+  return !!u && roles.get(key(u.name)) === 'werewolf' && wolfCount() >= 2;
+}
+function wolfNames() {
+  return [...roles.entries()].filter(([, r]) => r === 'werewolf').map(([k]) => userByName(k)?.name || k);
+}
+
+// Tell players whose shown role changed, with a pop-up and a note in their moderator chat.
+function announceRoleChanges(before, force = false) {
+  const after = displayRoleMap();
+  const modName = users.get(moderatorId)?.name || 'Moderator';
+  const keys = new Set([...before.keys(), ...after.keys()]);
+  for (const k of keys) {
+    const role = after.get(k) || null;
+    if (!force && before.get(k) === role) continue;
+    if (role) pushModThread(k, msg(modName, `role: ${role}`, { moderator: true, role }));
+    const u = userByName(k);
+    if (u) io.to(u.id).emit('role:assigned', { role });
+  }
+  sendWolfHistoryToAll();
+}
+
+// ---- State broadcast ----
+function broadcastState() {
+  const trialPublic = trial
+    ? {
+        accused: trial.accusedName,
+        open: trial.open,
+        result: trial.result,
+        // While voting is open, only show who has voted, not what.
+        votes: [...trial.votes.entries()].map(([name, vote]) => ({ name, vote: trial.open ? 'hidden' : vote })),
+      }
+    : null;
+  const base = {
     users: [...users.values()].map((u) => ({
       name: u.name,
       moderator: u.id === moderatorId,
@@ -60,99 +114,89 @@ function publicState() {
     })),
     moderator: moderatorId && users.get(moderatorId) ? users.get(moderatorId).name : null,
     phase,
-    trial: trial
-      ? {
-          accused: trial.accusedName,
-          open: trial.open,
-          result: trial.result,
-          votes: [...trial.votes.entries()].map(([name, vote]) => ({ name, vote })),
-          // While voting is open, only reveal who has voted, not what.
-        }
-      : null,
-    groups: [...groups.values()].map((g) => ({
-      id: g.id,
-      name: g.name,
-      members: [...g.members].map((id) => users.get(id)?.name).filter(Boolean),
-    })),
-    wipe: {
-      main: wipeVotes.main.size,
-      mod: wipeVotes.mod.size,
-      needed: users.size,
-    },
+    trial: trialPublic,
+    wipe: { main: wipeVotes.main.size, mod: wipeVotes.mod.size, needed: users.size },
   };
-}
-
-function sanitizedTrialFor() {
-  const s = publicState();
-  if (s.trial && s.trial.open) {
-    s.trial.votes = s.trial.votes.map((v) => ({ name: v.name, vote: 'hidden' }));
-  }
-  return s;
-}
-
-function broadcastState() {
-  // Each user also gets their own wipe-vote flags.
   for (const [id, sock] of io.sockets.sockets) {
-    if (!users.has(id)) continue;
-    const s = sanitizedTrialFor();
+    const u = users.get(id);
+    if (!u) continue;
+    const s = { ...base };
+    const myRole = displayRole(u.name);
     s.me = {
-      name: users.get(id).name,
+      name: u.name,
       moderator: id === moderatorId,
-      muted: mutedNames.has(key(users.get(id).name)),
+      muted: mutedNames.has(key(u.name)),
       wipedMain: wipeVotes.main.has(id),
       wipedMod: wipeVotes.mod.has(id),
+      role: id === moderatorId ? null : myRole,
+      wolfAccess: hasWolfAccess(id),
+      wolfmates: myRole === 'werewolf' ? wolfNames() : [],
     };
+    if (id === moderatorId) {
+      s.modView = {
+        roles: Object.fromEntries(displayRoleMap()),
+        protected: [...protectedNames],
+        roleConfig,
+        wolfCount: wolfCount(),
+      };
+    }
     sock.emit('state', s);
   }
 }
 
+// ---- Private moderator threads ----
 function sendModThreads() {
-  if (!moderatorId) return;
-  const sock = io.sockets.sockets.get(moderatorId);
-  if (!sock) return;
-  const threads = {};
-  for (const [k, list] of modThreads) threads[k] = list;
-  sock.emit('mod:threads', threads);
+  const sock = moderatorId && io.sockets.sockets.get(moderatorId);
+  if (sock) sock.emit('mod:threads', Object.fromEntries(modThreads));
 }
-
 function sendOwnThread(socket) {
   const u = users.get(socket.id);
-  if (!u) return;
-  socket.emit('mod:thread', modThreads.get(key(u.name)) || []);
+  if (u) socket.emit('mod:thread', modThreads.get(key(u.name)) || []);
 }
-
 function pushModThread(memberName, m) {
   const k = key(memberName);
   if (!modThreads.has(k)) modThreads.set(k, []);
   push(modThreads.get(k), m);
-  const member = userByName(memberName);
+  const member = userByName(k);
   if (member) io.to(member.id).emit('mod:message', { thread: k, message: m });
-  if (moderatorId && moderatorId !== member?.id) {
-    io.to(moderatorId).emit('mod:message', { thread: k, message: m });
-  }
+  if (moderatorId && moderatorId !== member?.id) io.to(moderatorId).emit('mod:message', { thread: k, message: m });
 }
 
+// ---- Wolf den ----
+function sendWolfHistoryToAll() {
+  for (const [id, sock] of io.sockets.sockets) {
+    if (!users.has(id)) continue;
+    sock.emit('wolf:history', hasWolfAccess(id) ? wolfChat : null);
+  }
+}
+function pushWolf(m) {
+  push(wolfChat, m);
+  for (const id of users.keys()) if (hasWolfAccess(id)) io.to(id).emit('wolf:message', m);
+}
+
+// ---- Votes ----
 function checkWipe(kind) {
-  // Remove votes from people who left, then check for unanimity.
   for (const id of wipeVotes[kind]) if (!users.has(id)) wipeVotes[kind].delete(id);
   if (users.size === 0 || wipeVotes[kind].size < users.size) return false;
   wipeVotes[kind].clear();
   if (kind === 'main') {
+    // A fresh game.
     lobby = [];
+    wolfChat = [];
+    roles = new Map();
+    protectedNames = new Set();
     mutedNames = new Set();
     trial = null;
     phase = 'day';
     io.emit('lobby:history', []);
-    systemLobby('Everyone voted. The main chat was wiped and a fresh game begins. All mutes are lifted.');
+    io.emit('role:cleared');
+    sendWolfHistoryToAll();
+    systemLobby('Everyone voted. The main chat was wiped and a fresh game begins. Roles and mutes are cleared.');
     io.emit('phase:changed', { phase, silent: true });
   } else {
     modThreads = new Map();
-    for (const [id, sock] of io.sockets.sockets) {
-      if (!users.has(id)) continue;
-      sock.emit('mod:thread', []);
-    }
+    for (const [id, sock] of io.sockets.sockets) if (users.has(id)) sock.emit('mod:thread', []);
     sendModThreads();
-    io.emit('roles:cleared');
     systemLobby('Everyone voted. The moderator chat was wiped.');
   }
   return true;
@@ -179,22 +223,33 @@ function finishTrial() {
     votes: [...trial.votes.entries()].map(([name, vote]) => ({ name, vote })),
   });
 }
-
 function eligibleVoters() {
   if (!trial) return [];
   return [...users.values()].filter(
     (u) => u.id !== moderatorId && key(u.name) !== key(trial.accusedName) && !mutedNames.has(key(u.name))
   );
 }
-
 function maybeAutoFinishTrial() {
   if (!trial || !trial.open) return;
   const voters = eligibleVoters();
   if (voters.length > 0 && voters.every((u) => trial.votes.has(u.name))) finishTrial();
 }
 
+function becomeModerator(socket) {
+  const u = users.get(socket.id);
+  const before = displayRoleMap();
+  moderatorId = socket.id;
+  // The moderator does not play a role.
+  if (roles.delete(key(u.name))) announceRoleChanges(before);
+  protectedNames.delete(key(u.name));
+  sendModThreads();
+  sendWolfHistoryToAll();
+}
+
 // ---- Sockets ----
 io.on('connection', (socket) => {
+  const me = () => users.get(socket.id);
+
   socket.on('join', (rawName, ack) => {
     const name = cleanText(rawName).replace(/\s+/g, ' ').slice(0, 20);
     if (!name) return ack?.({ ok: false, error: 'Please enter a name.' });
@@ -204,45 +259,41 @@ io.on('connection', (socket) => {
     ack?.({ ok: true, name });
     socket.emit('lobby:history', lobby);
     sendOwnThread(socket);
+    socket.emit('wolf:history', hasWolfAccess(socket.id) ? wolfChat : null);
     socket.emit('phase:changed', { phase, silent: true });
     systemLobby(`${name} joined the lobby.`);
     broadcastState();
   });
 
-  const requireUser = () => users.get(socket.id);
-
   socket.on('lobby:send', (text) => {
-    const u = requireUser();
+    const u = me();
     const t = cleanText(text);
     if (!u || !t) return;
     if (mutedNames.has(key(u.name))) {
       return socket.emit('notice', 'You are muted. You can only talk to the moderator until the main chat is wiped.');
     }
-    const m = msg(u.name, t, { moderator: u.id === moderatorId });
+    const m = msg(u.name, t, { moderator: isMod(socket) });
     push(lobby, m);
     io.emit('lobby:message', m);
   });
 
-  // ---- Moderator role ----
+  // ---- Moderator seat ----
   socket.on('mod:claim', () => {
-    const u = requireUser();
+    const u = me();
     if (!u) return;
-    if (moderatorId && users.has(moderatorId)) {
-      return socket.emit('notice', 'There is already a moderator.');
-    }
+    if (moderatorId && users.has(moderatorId)) return socket.emit('notice', 'There is already a moderator.');
     if (mutedNames.has(key(u.name))) return socket.emit('notice', 'Muted players cannot become moderator.');
-    moderatorId = socket.id;
+    becomeModerator(socket);
     systemLobby(`${u.name} is now the moderator.`);
-    sendModThreads();
     broadcastState();
   });
 
   socket.on('mod:stepDown', () => {
     if (!isMod(socket)) return;
-    const u = requireUser();
     moderatorId = null;
-    systemLobby(`${u.name} stepped down as moderator.`);
+    systemLobby(`${me().name} stepped down as moderator.`);
     sendOwnThread(socket);
+    sendWolfHistoryToAll();
     broadcastState();
   });
 
@@ -250,42 +301,103 @@ io.on('connection', (socket) => {
     if (!isMod(socket)) return;
     const target = userByName(String(targetName || ''));
     if (!target || target.id === socket.id) return;
-    moderatorId = target.id;
-    systemLobby(`${users.get(socket.id).name} handed the moderator role to ${target.name}.`);
+    const targetSock = io.sockets.sockets.get(target.id);
+    if (!targetSock) return;
+    becomeModerator(targetSock);
+    systemLobby(`${me().name} handed the moderator role to ${target.name}.`);
     sendOwnThread(socket);
-    sendModThreads();
+    sendWolfHistoryToAll();
     broadcastState();
   });
 
-  // ---- Moderator private chat ----
-  // Members send to their own thread. Moderator sends to a named member's thread.
+  // ---- Private moderator chat ----
   socket.on('mod:send', ({ to, text } = {}) => {
-    const u = requireUser();
+    const u = me();
     const t = cleanText(text);
     if (!u || !t) return;
     if (isMod(socket)) {
-      const target = userByName(String(to || '')) || (modThreads.has(key(String(to || ''))) ? { name: to } : null);
-      if (!target) return socket.emit('notice', 'Pick a member to message.');
-      pushModThread(target.name, msg(u.name, t, { moderator: true }));
+      const k = key(String(to || ''));
+      if (!userByName(k) && !modThreads.has(k)) return socket.emit('notice', 'Pick a player to message.');
+      pushModThread(k, msg(u.name, t, { moderator: true }));
     } else {
       pushModThread(u.name, msg(u.name, t));
       if (!moderatorId) socket.emit('notice', 'There is no moderator yet. Your message is saved for when one is chosen.');
     }
   });
 
+  // ---- Roles ----
   socket.on('mod:role', ({ to, role } = {}) => {
     if (!isMod(socket)) return;
-    if (role !== 'civilian' && role !== 'werewolf') return;
+    if (role !== null && !ROLES.includes(role)) return;
     const target = userByName(String(to || ''));
-    if (!target) return socket.emit('notice', 'That member is not online.');
-    pushModThread(target.name, msg(users.get(socket.id).name, `assigned role: ${role}`, { moderator: true, role }));
-    io.to(target.id).emit('role:assigned', { role });
+    if (!target) return socket.emit('notice', 'That player is not online.');
+    if (target.id === moderatorId) return;
+    const before = displayRoleMap();
+    if (role) roles.set(key(target.name), role);
+    else roles.delete(key(target.name));
+    announceRoleChanges(before);
+    broadcastState();
+  });
+
+  socket.on('roles:config', (cfg = {}) => {
+    if (!isMod(socket)) return;
+    for (const r of ['werewolf', 'doctor', 'officer']) {
+      const n = Number(cfg[r]);
+      if (Number.isInteger(n) && n >= 0 && n <= 20) roleConfig[r] = n;
+    }
+    broadcastState();
+  });
+
+  socket.on('roles:randomize', () => {
+    if (!isMod(socket)) return;
+    const players = [...users.values()].filter((u) => u.id !== moderatorId);
+    const special = roleConfig.werewolf + roleConfig.doctor + roleConfig.officer;
+    if (players.length === 0) return socket.emit('notice', 'There are no players to give roles to.');
+    if (special > players.length) {
+      return socket.emit('notice', `Not enough players: you picked ${special} special roles but there are only ${players.length} players.`);
+    }
+    const deck = [
+      ...Array(roleConfig.werewolf).fill('werewolf'),
+      ...Array(roleConfig.doctor).fill('doctor'),
+      ...Array(roleConfig.officer).fill('officer'),
+    ];
+    while (deck.length < players.length) deck.push('civilian');
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    const before = displayRoleMap();
+    roles = new Map(players.map((p, i) => [key(p.name), deck[i]]));
+    protectedNames = new Set();
+    announceRoleChanges(before, true);
+    systemLobby('The moderator handed out secret roles. Check your pop-up!');
+    broadcastState();
+  });
+
+  socket.on('protect:toggle', (name) => {
+    if (!isMod(socket)) return;
+    const k = key(String(name || ''));
+    if (!userByName(k) && !roles.has(k)) return;
+    if (protectedNames.has(k)) protectedNames.delete(k);
+    else protectedNames.add(k);
+    broadcastState();
+  });
+
+  // ---- Wolf den ----
+  socket.on('wolf:send', (text) => {
+    const u = me();
+    const t = cleanText(text);
+    if (!u || !t || !hasWolfAccess(socket.id)) return;
+    if (!isMod(socket)) {
+      if (phase !== 'night') return socket.emit('notice', 'The wolf den only opens at night.');
+      if (mutedNames.has(key(u.name))) return socket.emit('notice', 'You are muted. You can only talk to the moderator.');
+    }
+    pushWolf(msg(u.name, t, { moderator: isMod(socket) }));
   });
 
   // ---- Phase ----
   socket.on('phase:set', (p) => {
-    if (!isMod(socket)) return;
-    if (p !== 'day' && p !== 'night') return;
+    if (!isMod(socket) || (p !== 'day' && p !== 'night')) return;
     phase = p;
     io.emit('phase:changed', { phase });
     systemLobby(p === 'night' ? 'Night falls over the village.' : 'The sun rises. It is day.');
@@ -296,7 +408,7 @@ io.on('connection', (socket) => {
   socket.on('trial:start', (name) => {
     if (!isMod(socket)) return;
     const target = userByName(String(name || ''));
-    if (!target) return socket.emit('notice', 'That member is not online.');
+    if (!target) return socket.emit('notice', 'That player is not online.');
     if (target.id === moderatorId) return socket.emit('notice', 'The moderator cannot be put on trial.');
     if (trial && trial.open) return socket.emit('notice', 'A trial is already running.');
     trial = { accusedName: target.name, votes: new Map(), open: true, result: null };
@@ -306,12 +418,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('trial:vote', (vote) => {
-    const u = requireUser();
-    if (!u || !trial || !trial.open) return;
-    if (vote !== 'guilty' && vote !== 'innocent') return;
-    if (!eligibleVoters().some((v) => v.id === u.id)) {
-      return socket.emit('notice', 'You cannot vote in this trial.');
-    }
+    const u = me();
+    if (!u || !trial || !trial.open || (vote !== 'guilty' && vote !== 'innocent')) return;
+    if (!eligibleVoters().some((v) => v.id === u.id)) return socket.emit('notice', 'You cannot vote in this trial.');
     trial.votes.set(u.name, vote);
     maybeAutoFinishTrial();
     broadcastState();
@@ -335,8 +444,7 @@ io.on('connection', (socket) => {
 
   // ---- Wipe votes ----
   socket.on('wipe:vote', (kind) => {
-    const u = requireUser();
-    if (!u || (kind !== 'main' && kind !== 'mod')) return;
+    if (!me() || (kind !== 'main' && kind !== 'mod')) return;
     const set = wipeVotes[kind];
     if (set.has(socket.id)) set.delete(socket.id);
     else set.add(socket.id);
@@ -344,75 +452,12 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  // ---- Groups ----
-  socket.on('group:create', (rawName) => {
-    const u = requireUser();
-    const name = cleanText(rawName).slice(0, 30);
-    if (!u || !name) return;
-    if (groups.size >= 30) return socket.emit('notice', 'Too many groups.');
-    const g = { id: String(nextGroupId++), name, members: new Set([socket.id]), messages: [] };
-    groups.set(g.id, g);
-    socket.join('group:' + g.id);
-    socket.emit('group:history', { id: g.id, messages: [] });
-    socket.emit('group:opened', g.id);
-    broadcastState();
-  });
-
-  socket.on('group:join', (id) => {
-    const u = requireUser();
-    const g = groups.get(String(id));
-    if (!u || !g) return;
-    if (!g.members.has(socket.id)) {
-      g.members.add(socket.id);
-      socket.join('group:' + g.id);
-      const m = msg(null, `${u.name} joined the group.`, { system: true });
-      push(g.messages, m);
-      socket.emit('group:history', { id: g.id, messages: g.messages });
-      socket.to('group:' + g.id).emit('group:message', { id: g.id, message: m });
-    }
-    broadcastState();
-  });
-
-  socket.on('group:leave', (id) => {
-    const u = requireUser();
-    const g = groups.get(String(id));
-    if (!u || !g) return;
-    g.members.delete(socket.id);
-    socket.leave('group:' + g.id);
-    if (g.members.size === 0) {
-      groups.delete(g.id);
-    } else {
-      const m = msg(null, `${u.name} left the group.`, { system: true });
-      push(g.messages, m);
-      io.to('group:' + g.id).emit('group:message', { id: g.id, message: m });
-    }
-    broadcastState();
-  });
-
-  socket.on('group:send', ({ id, text } = {}) => {
-    const u = requireUser();
-    const g = groups.get(String(id));
-    const t = cleanText(text);
-    if (!u || !g || !t) return;
-    if (!g.members.has(socket.id)) return socket.emit('notice', 'Join the group first.');
-    if (mutedNames.has(key(u.name))) {
-      return socket.emit('notice', 'You are muted. You can only talk to the moderator until the main chat is wiped.');
-    }
-    const m = msg(u.name, t, { moderator: u.id === moderatorId });
-    push(g.messages, m);
-    io.to('group:' + g.id).emit('group:message', { id: g.id, message: m });
-  });
-
   socket.on('disconnect', () => {
-    const u = users.get(socket.id);
+    const u = me();
     if (!u) return;
     users.delete(socket.id);
     wipeVotes.main.delete(socket.id);
     wipeVotes.mod.delete(socket.id);
-    for (const g of groups.values()) {
-      g.members.delete(socket.id);
-      if (g.members.size === 0) groups.delete(g.id);
-    }
     if (moderatorId === socket.id) {
       moderatorId = null;
       systemLobby(`${u.name} (moderator) left. Someone can take over as moderator.`);
