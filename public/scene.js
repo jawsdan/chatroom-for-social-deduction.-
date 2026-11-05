@@ -1,6 +1,8 @@
 // Background videos behind the chat: a campfire by day, a haunted house by night.
 // Both load once; switching phase cross-fades them, and the hidden one is paused.
 (function () {
+  // Bump this when a video file changes so browsers fetch the new one.
+  const VERSION = 2;
   let videos = null;
   function build(root) {
     videos = {};
@@ -13,10 +15,10 @@
       v.preload = 'auto';
       v.setAttribute('muted', '');
       v.setAttribute('playsinline', '');
-      v.poster = `video/${phase}-poster.jpg`;
+      v.poster = `video/${phase}-poster.jpg?v=${VERSION}`;
       for (const [ext, type] of [['webm', 'video/webm'], ['mp4', 'video/mp4']]) {
         const src = document.createElement('source');
-        src.src = `video/${phase}.${ext}`;
+        src.src = `video/${phase}.${ext}?v=${VERSION}`;
         src.type = type;
         v.append(src);
       }
