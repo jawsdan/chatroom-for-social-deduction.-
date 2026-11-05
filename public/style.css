@@ -703,70 +703,21 @@ body[class*="fx-role-"] .empty-state b { color: #111; }
 .check-hint .ri { width: 16px; height: 16px; vertical-align: -3px; }
 
 /* =========================================================
-   Phase scenes behind the chat: campfire (day), sinister house (night)
+   Phase videos behind the chat: campfire (day), haunted house (night)
    ========================================================= */
-.scene { position: absolute; left: 0; right: 0; bottom: 74px; height: 300px; pointer-events: none; z-index: 0; overflow: hidden; }
-.messages { position: relative; z-index: 1; }
-.composer { position: relative; z-index: 1; }
-.scene-layer { position: absolute; inset: 0; opacity: 0; transition: opacity 0.9s ease; }
-.scene-layer.on { opacity: 0.8; }
-body.night .scene-layer.night.on { opacity: 0.95; }
-/* Pause whatever isn't showing so it costs nothing. */
-.scene-layer:not(.on) * { animation-play-state: paused !important; }
-.scene-svg { position: absolute; left: 50%; bottom: 0; width: min(760px, 100%); height: 100%; transform: translateX(-50%); }
-.scene-svg .sway, .scene-svg .flame, .scene-svg .spark, .scene-svg .win, .scene-svg .fire-glow { transform-box: fill-box; }
-
-/* Campfire */
-.flame { transform-origin: 50% 100%; animation: flicker 1.1s ease-in-out infinite alternate; }
-.flame.f2 { animation-duration: 0.8s; animation-delay: -0.3s; }
-.flame.f3 { animation-duration: 0.6s; animation-delay: -0.1s; }
-@keyframes flicker { 0% { transform: scale(1, 1) skewX(0deg); } 35% { transform: scale(0.95, 1.07) skewX(3deg); } 70% { transform: scale(1.03, 0.95) skewX(-3deg); } 100% { transform: scale(0.97, 1.04) skewX(2deg); } }
-.fire-glow { transform-origin: 50% 50%; animation: glow 2.2s ease-in-out infinite alternate; }
-@keyframes glow { from { opacity: 0.75; transform: scale(0.96); } to { opacity: 1; transform: scale(1.04); } }
-.spark { animation: spark 2.4s ease-out infinite; opacity: 0; }
-.spark.k2 { animation-delay: 0.4s; } .spark.k3 { animation-delay: 0.8s; } .spark.k4 { animation-delay: 1.2s; } .spark.k5 { animation-delay: 1.6s; } .spark.k6 { animation-delay: 2s; }
-@keyframes spark { 0% { transform: translate(0, 0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(14px, -120px); opacity: 0; } }
-.sway { transform-origin: 50% 100%; animation: sway 4.5s ease-in-out infinite alternate; }
-.sway.s2 { animation-duration: 5.5s; animation-delay: -2s; }
-.sway.s3 { animation: swayHard 3.2s ease-in-out infinite alternate; }
-@keyframes sway { from { transform: rotate(-1.5deg); } to { transform: rotate(1.5deg); } }
-@keyframes swayHard { 0% { transform: rotate(-1deg); } 60% { transform: rotate(3deg); } 100% { transform: rotate(1deg); } }
-
-/* Wind: leaves blowing across */
-.leaf {
-  position: absolute; left: -30px; width: 12px; height: 7px; border-radius: 0 100% 0 100%; background: #84a94a;
-  opacity: 0; animation: blow 9s linear infinite; will-change: transform, opacity;
+.scene { position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; background: #0b0d1a; }
+.messages, .composer, .trial-banner, .thread-tabs, .role-bar { position: relative; z-index: 1; }
+.chat-header { z-index: 2; }
+.scene-video {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center bottom;
+  image-rendering: pixelated; opacity: 0; transition: opacity 0.9s ease;
 }
-.leaf.l1 { top: 30%; } .leaf.l2 { top: 55%; animation-delay: 2.5s; background: #c9a227; animation-duration: 11s; }
-.leaf.l3 { top: 40%; animation-delay: 5s; animation-duration: 10s; } .leaf.l4 { top: 70%; animation-delay: 7s; background: #d97706; }
-.leaf.dead { background: #4b3621; }
-@keyframes blow {
-  0% { transform: translate(0, 0) rotate(0); opacity: 0; } 8% { opacity: 0.85; }
-  50% { transform: translate(50vw, -26px) rotate(360deg); }
-  92% { opacity: 0.85; } 100% { transform: translate(100vw, 12px) rotate(720deg); opacity: 0; }
-}
-
-/* Sinister house */
-.win { animation: winFlicker 5s steps(1) infinite; }
-.win.w2 { animation-duration: 7s; animation-delay: -2s; }
-.win.w3 { animation: redPulse 3s ease-in-out infinite alternate; }
-@keyframes winFlicker { 0%, 100% { opacity: 0.85; } 40% { opacity: 0.85; } 42% { opacity: 0.25; } 44% { opacity: 0.8; } 46% { opacity: 0.3; } 48% { opacity: 0.85; } 80% { opacity: 0.55; } }
-@keyframes redPulse { from { opacity: 0.35; } to { opacity: 1; } }
-.fog {
-  position: absolute; bottom: 0; width: 70%; height: 90px; border-radius: 50%;
-  background: radial-gradient(ellipse at center, rgba(160, 170, 200, 0.22), rgba(160, 170, 200, 0) 70%);
-  animation: fogDrift 22s ease-in-out infinite alternate; will-change: transform;
-}
-.fog.fg1 { left: -20%; } .fog.fg2 { right: -20%; bottom: 20px; animation-duration: 28s; animation-direction: alternate-reverse; }
-@keyframes fogDrift { from { transform: translateX(-10%); } to { transform: translateX(30%); } }
-.bat { position: absolute; left: -50px; top: 18%; width: 34px; height: 14px; animation: batFly 14s linear infinite; will-change: transform; }
-.bat svg { width: 100%; height: 100%; animation: flap 0.25s ease-in-out infinite alternate; transform-origin: center; }
-.bat.b2 { top: 8%; width: 24px; animation-delay: 6s; animation-duration: 17s; }
-@keyframes batFly { 0% { transform: translate(0, 0); } 25% { transform: translate(25vw, -14px); } 50% { transform: translate(50vw, 10px); } 75% { transform: translate(75vw, -8px); } 100% { transform: translate(110vw, 4px); } }
-@keyframes flap { from { transform: scaleY(1); } to { transform: scaleY(0.4); } }
-body:not(.night) .scene-layer.night .bat { display: none; }
-
-@media (max-width: 760px) {
-  .scene { height: 200px; bottom: 64px; }
-}
-.scene-svg .haze { transform-box: fill-box; transform-origin: 50% 50%; animation: glow 6s ease-in-out infinite alternate; }
+.scene-video.on { opacity: 1; }
+/* A soft wash on top so the chat stays readable over the picture. */
+.scene::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05) 60%, rgba(0, 0, 0, 0.15)); transition: background 0.9s ease; }
+body.night .scene::after { background: linear-gradient(180deg, rgba(5, 6, 15, 0.35), rgba(5, 6, 15, 0.1) 60%, rgba(5, 6, 15, 0.35)); }
+/* Chat sits on the video, so let it show through. */
+.chat, .composer { background: transparent; }
+.msg-meta { align-self: flex-start; background: color-mix(in srgb, var(--surface) 88%, transparent); padding: 1px 8px; border-radius: 999px; }
+.msg-row.me .msg-meta { align-self: flex-end; }
+.empty-state { background: color-mix(in srgb, var(--surface) 90%, transparent); padding: 16px 20px; border-radius: 16px; }

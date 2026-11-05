@@ -25,7 +25,7 @@ Then open http://localhost:3000 (set `PORT` to change it). Everyone who wants to
 - **Test bots** — the moderator can add 1–10 bots. Bots count as players, get roles and vote at random in trials. They don't count for wipe votes. *Remove bots* takes them out again.
 - **Wolf den** — a secret chat for the werewolves (when there are two or more). Wolves can only write in it at night. The moderator can always read it.
 - **Day / Night** — the moderator switches the phase. A big sun or moon pops up in the middle of everyone's screen, then moves to the corner of the chat.
-- **Phase scenes** — behind the chat there's a campfire during the day (flickering flames, sparks, swaying trees, leaves in the wind) and a sinister house on a hill at night (flickering windows, a dead tree in the wind, fog and bats).
+- **Phase videos** — the chat background is an animated campfire scene during the day and a haunted house at night. They cross-fade when the phase changes (videos in `public/video`).
 - **Phase timer** — a timer next to the sun/moon in the top corner counts up from 00:00 each time day or night starts. Everyone sees the same time.
 - **Trial** — the moderator clicks *Put someone on trial* and picks a player. Everyone votes *Guilty* or *Innocent*. When everyone has voted (or the moderator clicks *End voting*), a pop-up shows who voted what. If guilty wins, that player is muted and can only talk to the moderator until the next wipe.
 - **Start fresh** — one *Vote to wipe everything* button. When **every player** has voted, all chats (main lobby, private moderator chats and the wolf den), roles, protections and mutes are cleared and it becomes day. The moderator doesn't vote (and can wipe straight away when no players are left). Bots don't vote either.
