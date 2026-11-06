@@ -410,6 +410,18 @@ function scheduleBotActions() {
   }
 }
 
+// Night kills rotate at random between the killer's own animation and the "body found" one.
+// The same animation never plays three times in a row. Add names to the list to grow the rotation.
+let recentNightAnimations = [];
+function pickNightAnimation(own) {
+  let options = [own, 'found'];
+  const [a, b] = recentNightAnimations.slice(-2);
+  if (a && a === b) options = options.filter((o) => o !== a);
+  const pick = options[Math.floor(Math.random() * options.length)];
+  recentNightAnimations = [...recentNightAnimations, pick].slice(-2);
+  return pick;
+}
+
 // True if this player is a werewolf (not a lone Serial Killer).
 function isWerewolf(name) {
   return displayRole(name) === 'werewolf';
@@ -865,7 +877,7 @@ io.on('connection', (socket) => {
         for (const r of list) r.line = deathLine(r.victim);
         // Which animation to show: a lone Serial Killer or the wolf pack.
         // A werewolf among the dead gets the silver-bullet animation instead.
-        const killer = list.some((r) => isWerewolf(r.victim)) ? 'wolfdeath' : wolfCount() === 1 ? 'killer' : 'night';
+        const killer = list.some((r) => isWerewolf(r.victim)) ? 'wolfdeath' : pickNightAnimation(wolfCount() === 1 ? 'killer' : 'night');
         io.emit('night:result', { victims: list.map((r) => r.victim), lines: list.map((r) => r.line), killer });
         if (!list.length) systemLobby('🌅 Nobody died last night.');
         for (const r of list) revealDeath(r);

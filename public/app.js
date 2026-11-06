@@ -1637,7 +1637,7 @@ function renderEndGame() {
 
 // ---------- Death animations ----------
 // 'night' = the werewolf attack, 'killer' = the Serial Killer, 'vote' = the village's verdict,
-// 'wolfdeath' = a werewolf shot with a silver bullet. Plays once and stops on the last frame.
+// 'wolfdeath' = a werewolf shot with a silver bullet, 'found' = an officer finds the body. Plays once and stops on the last frame.
 const KILL_VIDEO_VERSION = 1;
 function killVideo(kind) {
   const wrap = el('div', 'kill-video');
@@ -1668,7 +1668,7 @@ function killVideo(kind) {
   return wrap;
 }
 // Preload both so they start right away.
-for (const k of ['night', 'killer', 'vote', 'wolfdeath']) {
+for (const k of ['night', 'killer', 'vote', 'wolfdeath', 'found']) {
   const l = document.createElement('link');
   l.rel = 'preload';
   l.as = 'video';
