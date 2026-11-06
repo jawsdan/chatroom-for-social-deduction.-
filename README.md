@@ -37,4 +37,8 @@ Then open http://localhost:3000 (set `PORT` to change it). Everyone who wants to
 - **Trial** — the moderator clicks *Put someone on trial* and picks a player. Everyone votes *Guilty* or *Innocent*. When everyone has voted (or the moderator clicks *End voting*), a pop-up shows who voted what. If guilty wins, that player is muted and can only talk to the moderator until the next wipe.
 - **Start fresh** — one *Vote to wipe everything* button. When **every player** has voted, all chats (main lobby, private moderator chats and the wolf den), roles, protections and mutes are cleared and it becomes day. The moderator doesn't vote (and can wipe straight away when no players are left). Bots don't vote either.
 
+## Use it like an app (iPad / iPhone)
+
+Open the site in Safari, tap **Share → Add to Home Screen**. It gets its own icon and opens full screen without the browser bars. Swipe in from the left or right edge to open the side panels on smaller screens.
+
 Everything is kept in memory, so restarting the server clears it.
