@@ -1465,3 +1465,31 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
 /* Closed slide-in panels hide fully (no edge peeking out). */
 @media (min-width: 761px) and (max-width: 1180px) { .side-right:not(.open) { transform: translateX(calc(100% + 30px)); } }
 @media (min-width: 761px) and (max-width: 900px) { .side-left:not(.open) { transform: translateX(calc(-100% - 30px)); } }
+
+/* =========================================================
+   Computer & iPad: chats and notes as a compact box of tiles
+   ========================================================= */
+@media (min-width: 761px) {
+  .side-left .nav {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; border-radius: 16px;
+    background: color-mix(in srgb, var(--surface-2) 75%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border) 70%, rgba(255, 255, 255, 0.35));
+  }
+  .side-left .nav .nav-title { grid-column: 1 / -1; margin: 0 2px 2px; }
+  .side-left .nav .nav-item {
+    position: relative; flex-direction: column; justify-content: center; align-items: center; gap: 4px;
+    min-height: 74px; padding: 10px 6px; border-radius: 14px; text-align: center;
+    background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1.5px solid transparent;
+    box-shadow: 0 2px 6px rgba(10, 12, 30, 0.08); font-size: 0.86rem; font-weight: 600; color: var(--text);
+    transition: transform 0.12s ease, border-color 0.15s, background-color 0.15s;
+  }
+  .side-left .nav .nav-item:hover { border-color: var(--accent); background: var(--surface); }
+  .side-left .nav .nav-item:active { transform: scale(0.96); }
+  .side-left .nav .nav-item.selected { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .side-left .nav .nav-icon { width: 30px; height: 30px; font-size: 1.15rem; border-radius: 9px; background: var(--surface-2); }
+  .side-left .nav .nav-item.selected .nav-icon { background: var(--surface); }
+  .side-left .nav .nav-label { flex: none; white-space: normal; line-height: 1.15; overflow: visible; }
+  .side-left .nav .pill { position: absolute; top: 6px; right: 6px; margin: 0; }
+  .side-left .nav .nav-meta { position: absolute; top: 6px; left: 8px; font-size: 0.75rem; }
+  .side-left .nav .hidden { display: none !important; }
+}
