@@ -1287,3 +1287,7 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
   .dock-btn.long { padding: 0 5px; gap: 3px; }
   .dock-btn.long .dock-icon { width: 16px; font-size: 0.9rem; }
 }
+
+/* "Kill nobody tonight" option */
+.target-btn.nobody, .ap-pick.nobody { border-style: dashed; }
+.nobody-icon { width: 28px; text-align: center; font-size: 1.1rem; flex-shrink: 0; }

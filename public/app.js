@@ -1062,6 +1062,7 @@ function appendMessage(m, live = true) {
       if (m.action.locked) bubble.classList.add('locked');
       const line = el('div', 'check-line');
       if (m.action.target) line.append(el('b', '', m.from), document.createTextNode(` chose to ${ACTION_TEXT[m.action.kind].verb} `), el('b', 'action-target ' + m.action.kind, m.action.target));
+      else if (m.action.skip) line.append(el('b', '', m.from), document.createTextNode(' chose to kill '), el('b', 'action-target kill', 'nobody'), document.createTextNode(' tonight'));
       else line.append(el('b', '', m.from), document.createTextNode(m.action.locked ? ' chose nobody' : ' has not chosen yet'));
       txt.append(line);
       r.append(art, txt);
@@ -1278,7 +1279,7 @@ function renderActionCard() {
     return;
   }
   card.append(el('div', 'action-title', t.title));
-  card.append(el('p', 'hint', a.target ? `You chose ${a.target}. You can change it until morning.` : 'Only the moderator sees your choice.'));
+  card.append(el('p', 'hint', a.skip ? 'You chose to kill nobody tonight. You can change it until morning.' : a.target ? `You chose ${a.target}. You can change it until morning.` : 'Only the moderator sees your choice.'));
   const list = el('div', 'target-list');
   for (const name of a.targets) {
     const b = el('button', 'target-btn' + (a.target === name ? ' on ' + a.kind : ''));
@@ -1300,12 +1301,21 @@ function renderActionCard() {
     list.append(b);
   }
   if (!a.targets.length) list.append(el('p', 'hint', a.investigated?.length ? 'You have investigated everyone you can.' : 'There is nobody to choose.'));
+  // The killer can also decide not to kill anyone tonight.
+  if (a.kind === 'kill') {
+    const nb = el('button', 'target-btn nobody' + (a.skip ? ' on kill' : ''));
+    nb.type = 'button';
+    nb.append(el('span', 'nobody-icon', '🚫'), el('span', 'tname', 'Kill nobody tonight'));
+    if (a.skip) nb.append(el('span', 'tag picked', '✓ chosen'));
+    nb.onclick = () => socket.emit('night:choose', a.skip ? null : '__nobody__');
+    list.append(nb);
+  }
   card.append(list);
   if (a.pack?.length) {
     const pack = el('div', 'pack');
     pack.append(el('div', 'pack-title', 'Your pack — everyone must pick the same player'));
-    pack.append(el('div', 'pack-status ' + (a.agreed ? 'ok' : 'no'), a.agreed ? `✓ The pack agrees on ${a.agreed}` : '✗ Not agreed yet: nobody dies unless you all pick the same player'));
-    for (const p of a.pack) pack.append(el('div', 'pack-row', `${p.name} → ${p.target || 'not chosen yet'}`));
+    pack.append(el('div', 'pack-status ' + (a.agreed || a.agreedNobody ? 'ok' : 'no'), a.agreed ? `✓ The pack agrees on ${a.agreed}` : a.agreedNobody ? '✓ The pack agrees to kill nobody tonight' : '✗ Not agreed yet: nobody dies unless you all pick the same player'));
+    for (const p of a.pack) pack.append(el('div', 'pack-row', `${p.name} → ${p.skip ? 'nobody' : p.target || 'not chosen yet'}`));
     card.append(pack);
   }
 }
@@ -1322,11 +1332,11 @@ function renderNightCard() {
   if (night && state.modView?.outcome) card.append(el('div', 'outcome', `At sunrise: ${state.modView.outcome}`));
   const order = { kill: 0, heal: 1, investigate: 2 };
   for (const a of [...list].sort((x, y) => order[x.kind] - order[y.kind])) {
-    const row = el('div', 'night-row' + (a.target ? '' : ' waiting'));
+    const row = el('div', 'night-row' + (a.target || a.skip ? '' : ' waiting'));
     row.append(avatar(a.actor, 'sm'));
     const txt = el('div', 'night-text');
     txt.append(el('b', '', a.actor));
-    txt.append(document.createTextNode(a.muted ? ' · muted' : a.target ? ` → ${ACTION_TEXT[a.kind].verb} ` : ` · ${night ? 'choosing…' : 'chose nobody'}`));
+    txt.append(document.createTextNode(a.muted ? ' · muted' : a.skip ? ' → kills nobody tonight' : a.target ? ` → ${ACTION_TEXT[a.kind].verb} ` : ` · ${night ? 'choosing…' : 'chose nobody'}`));
     if (a.target && !a.muted) txt.append(el('b', 'action-target ' + a.kind, a.target));
     row.append(txt);
     card.append(row);
@@ -1867,7 +1877,7 @@ function renderModAbilityBox(box) {
     t.append(el('div', 'ap-name', name + (dead ? ' 💀' : '')));
     t.append(roleLabel('ap-role', r, ROLE[r].label));
     const act = actions.find((a) => key(a.actor) === k);
-    if (act?.target) t.append(el('div', 'ap-pick', `${state.phase === 'night' ? 'Tonight' : 'Last night'}: ${ACTION_WORD[act.kind]} ${act.target}`));
+    if (act?.target || act?.skip) t.append(el('div', 'ap-pick', `${state.phase === 'night' ? 'Tonight' : 'Last night'}: ${ACTION_WORD[act.kind]} ${act.skip ? 'nobody' : act.target}`));
     b.append(t);
     if (unreadThreads.has(k)) b.append(el('span', 'new'));
     b.onclick = () => {
@@ -2067,7 +2077,7 @@ function renderPhoneDock() {
     const a = state.me.action;
     if (a && state.gameState === 'running' && !amMuted()) {
       const [icon, label] = PHONE_ACT[a.kind];
-      const waiting = state.phase === 'night' && !a.target;
+      const waiting = state.phase === 'night' && !a.target && !a.skip;
       items.push({ id: 'act', icon, label, on: actionOpen, badge: waiting ? '!' : '', go: toggleActionPop });
     }
     // Vote to reset (wipe everything), with a counter.
@@ -2264,7 +2274,7 @@ function renderActionPop() {
     return;
   }
   const hint = { kill: 'Who do you want to kill?', heal: 'Who do you want to protect?', investigate: 'Who do you want to investigate?' }[a.kind];
-  pop.append(el('div', 'rp-empty', a.target ? `You chose ${a.target}. Tap someone else to change.` : hint));
+  pop.append(el('div', 'rp-empty', a.skip ? 'You chose to kill nobody tonight. Tap someone to change.' : a.target ? `You chose ${a.target}. Tap someone else to change.` : hint));
   const list = el('div', 'rp-list');
   for (const name of a.targets) {
     const on = a.target === name;
@@ -2281,7 +2291,15 @@ function renderActionPop() {
     list.append(b);
   }
   if (!a.targets.length && !a.investigated?.length) list.append(el('div', 'rp-empty', 'There is nobody to choose.'));
+  if (a.kind === 'kill') {
+    const nb = el('button', 'ap-pick nobody' + (a.skip ? ' on kill' : ''));
+    nb.type = 'button';
+    nb.append(el('span', 'nobody-icon', '🚫'), el('span', 'ap-pick-name', 'Kill nobody tonight'));
+    if (a.skip) nb.append(el('span', 'ap-pick-tick', '✓'));
+    nb.onclick = () => socket.emit('night:choose', a.skip ? null : '__nobody__');
+    list.append(nb);
+  }
   pop.append(list);
   // Wolves: show whether the pack agrees.
-  if (a.pack?.length) pop.append(el('div', 'ap-pack ' + (a.agreed ? 'ok' : 'no'), a.agreed ? `✓ Pack agrees: ${a.agreed}` : '✗ The pack must all pick the same player'));
+  if (a.pack?.length) pop.append(el('div', 'ap-pack ' + (a.agreed || a.agreedNobody ? 'ok' : 'no'), a.agreed ? `✓ Pack agrees: ${a.agreed}` : a.agreedNobody ? '✓ Pack agrees: nobody tonight' : '✗ The pack must all pick the same player'));
 }

@@ -189,7 +189,8 @@ function broadcastState() {
     };
     const kind = id === moderatorId ? null : actionKindFor(u.name);
     if (kind) {
-      s.me.action = { kind, target: nightActions.get(key(u.name))?.target || null, targets: validTargets(u.name) };
+      const mine = nightActions.get(key(u.name));
+      s.me.action = { kind, target: mine?.target || null, skip: !!mine?.skip, targets: validTargets(u.name) };
       if (kind === 'investigate') {
         s.me.action.investigated = [...investigatedBy(u.name)]
           .map(([k, label]) => ({ name: userByName(k)?.name || k, label }))
@@ -199,7 +200,8 @@ function broadcastState() {
       if (kind === 'kill' && myRole === 'werewolf') {
         const o = nightOutcome();
         s.me.action.agreed = o.reason === 'killed' || o.reason === 'saved' ? o.victim || o.target : null;
-        s.me.action.pack = wolfNames().filter((n) => key(n) !== key(u.name)).map((n) => ({ name: n, target: nightActions.get(key(n))?.target || null }));
+        s.me.action.agreedNobody = o.reason === 'skipped';
+        s.me.action.pack = wolfNames().filter((n) => key(n) !== key(u.name)).map((n) => ({ name: n, target: nightActions.get(key(n))?.target || null, skip: !!nightActions.get(key(n))?.skip }));
       }
     }
     if (id === moderatorId) {
@@ -392,6 +394,7 @@ function validTargets(actorName) {
     return true;
   }).map((u) => u.name);
 }
+const NO_KILL = '__nobody__';
 function setNightAction(actorName, targetName) {
   const k = key(actorName);
   const kind = actionKindFor(actorName);
@@ -404,6 +407,11 @@ function setNightAction(actorName, targetName) {
   }
   if (!targetName) {
     nightActions.delete(k);
+  } else if (targetName === NO_KILL) {
+    // The killer decides not to kill anyone tonight.
+    if (kind !== 'kill') return 'You cannot choose that.';
+    if (nightActions.get(k)?.skip) return null;
+    nightActions.set(k, { kind, target: null, skip: true });
   } else {
     const target = validTargets(actorName).find((n) => key(n) === key(targetName));
     if (!target) return 'You cannot choose that player.';
@@ -416,15 +424,15 @@ function setNightAction(actorName, targetName) {
   }
   const actor = userByName(k)?.name || actorName;
   const act = nightActions.get(k);
-  const text = act ? `chose to ${ACTION_VERB[kind]} ${act.target}` : 'has not chosen yet';
+  const text = act?.skip ? 'chose to kill nobody tonight' : act ? `chose to ${ACTION_VERB[kind]} ${act.target}` : 'has not chosen yet';
   const existing = actionMsgs.get(k);
   if (existing && modThreads.get(k)?.includes(existing)) {
     existing.text = text;
-    existing.action = { kind, target: act?.target || null, changes: (existing.action.changes || 0) + 1 };
+    existing.action = { kind, target: act?.target || null, skip: !!act?.skip, changes: (existing.action.changes || 0) + 1 };
     existing.edited = now();
     updateModThread(k, existing);
   } else {
-    const m = msg(actor, text, { action: { kind, target: act?.target || null, changes: 0 } });
+    const m = msg(actor, text, { action: { kind, target: act?.target || null, skip: !!act?.skip, changes: 0 } });
     actionMsgs.set(k, m);
     pushModThread(k, m);
   }
@@ -435,7 +443,8 @@ function nightActionList() {
   for (const [k, r] of roles) {
     const kind = ACTION_FOR_ROLE[r];
     if (!kind) continue;
-    out.push({ actor: userByName(k)?.name || k, role: displayRole(k), kind, target: nightActions.get(k)?.target || null, muted: mutedNames.has(k) });
+    const a = nightActions.get(k);
+    out.push({ actor: userByName(k)?.name || k, role: displayRole(k), kind, target: a?.target || null, skip: !!a?.skip, muted: mutedNames.has(k) });
   }
   return out;
 }
@@ -481,7 +490,11 @@ function livingWolves() {
 function nightOutcome() {
   const wolves = livingWolves();
   if (!wolves.length) return { victim: null, reason: 'nokiller' };
-  const picks = wolves.map((k) => nightActions.get(k)?.target || null);
+  const acts = wolves.map((k) => nightActions.get(k));
+  // Everyone chose "nobody": an agreed night without a kill.
+  if (acts.every((a) => a?.skip)) return { victim: null, reason: 'skipped' };
+  if (acts.some((a) => a?.skip)) return { victim: null, reason: 'disagree' };
+  const picks = acts.map((a) => a?.target || null);
   if (picks.some((t) => !t)) return { victim: null, reason: wolves.length > 1 ? 'disagree' : 'nopick', picks };
   if (new Set(picks.map(key)).size > 1) return { victim: null, reason: 'disagree', picks };
   const target = picks[0];
@@ -495,6 +508,7 @@ const OUTCOME_TEXT = {
   saved: (o) => `${o.target} was attacked but the Doctor saved them`,
   disagree: () => 'The wolves did not agree on one victim',
   nopick: () => 'The killer did not choose anyone',
+  skipped: () => 'The killer chose not to kill anyone',
   nokiller: () => 'There is no killer alive',
 };
 function killPlayer(name) {
@@ -534,6 +548,7 @@ function abilityResults(outcome) {
       if (outcome.reason === 'killed') [text, tone] = [`You killed ${outcome.victim}.`, 'bad'];
       else if (outcome.reason === 'saved') [text, tone] = [`You attacked ${outcome.target}, but they survived. Someone protected them.`, 'neutral'];
       else if (outcome.reason === 'disagree') [text, tone] = ['The pack did not agree on one victim, so nobody was killed.', 'neutral'];
+      else if (outcome.reason === 'skipped') [text, tone] = [single ? 'You chose not to kill anyone last night.' : 'The pack chose not to kill anyone last night.', 'neutral'];
       else [text, tone] = [single ? 'You did not choose anyone, so nobody was killed.' : 'Nobody was chosen, so nobody was killed.', 'neutral'];
       out.push([k, { kind: 'kill', text, tone, target: outcome.victim || outcome.target || pick }]);
     } else if (r === 'doctor') {
