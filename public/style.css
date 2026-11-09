@@ -1413,3 +1413,10 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
   body.start-open .start-card { max-height: 100%; }
   .assign-list { max-height: 40vh; }
 }
+
+/* Phone: the minimized start button sits in the middle of the screen, not hidden behind the menus. */
+@media (max-width: 760px) {
+  .start-screen.minimized { place-items: center; padding-top: 0; inset: 64px 0 76px 0; }
+  .start-screen.minimized > .btn { padding: 14px 20px; font-size: 1rem; border-radius: 999px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35); animation: startPulse 2.4s ease-in-out infinite; }
+}
+@keyframes startPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
