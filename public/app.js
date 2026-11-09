@@ -517,6 +517,7 @@ function renderAll(redrawMessages = true) {
   document.body.classList.toggle('is-mod', amMod());
   renderPhoneDock();
   renderPhonePlayers();
+  renderResultsPop();
   renderCluesBar();
   renderStartScreen();
   renderModOverview();
@@ -1443,7 +1444,9 @@ try {
 function renderCluesBar() {
   const box = $('clueTiles');
   // Public clues plus this player's private investigation results, newest first.
-  const list = [...(state.clues || []), ...(state.me.privateClues || [])].sort((a, b) => b.ts - a.ts);
+  // On phones the private investigation results live in the Results window instead.
+  const mine = isPhone() ? [] : state.me.privateClues || [];
+  const list = [...(state.clues || []), ...mine].sort((a, b) => b.ts - a.ts);
   const show = (channel === 'lobby' || (channel === 'mod' && !amMod())) && list.length > 0;
   box.classList.toggle('hidden', !show);
   if (!show) return;
@@ -2053,7 +2056,7 @@ function renderPhoneDock() {
   if (state.me.wolfAccess) items.push({ id: 'wolf', img: 'werewolf', label: 'Wolves', on: channel === 'wolf', badge: pill(wolfUnread), lock: state.phase !== 'night', go: () => switchChannel('wolf') });
   if (state.me.canCard) items.push({ id: 'card', icon: '🃏', label: 'Card', go: () => openNoteEditor('card') });
   if (!amMod()) items.push({ id: 'manifesto', icon: '📜', label: 'Will', go: () => openNoteEditor('manifesto') });
-  if (!amMod() && (state.me.action || state.me.abilityLog?.length)) items.push({ id: 'results', icon: '🔮', label: 'Results', go: () => openPanel('left') });
+  if (!amMod() && (state.me.action || state.me.abilityLog?.length)) items.push({ id: 'results', icon: '🔮', label: 'Results', on: resultsOpen, go: toggleResultsPop });
   if (amMod()) items.push({ id: 'abilities', icon: '🎭', label: 'Roles', go: () => openPanel('left') });
   // The game panel: day/night, trials, your night action, roles, wipe.
   const actNow = !amMod() && state.me.action && state.phase === 'night' && !state.me.action.target && !amMuted();
@@ -2146,3 +2149,50 @@ function renderPhonePlayers() {
   }
   box.append(rows);
 }
+
+// ---------- Phone: small results window ----------
+let resultsOpen = false;
+function toggleResultsPop() {
+  resultsOpen = !resultsOpen;
+  renderResultsPop();
+  $('phoneDock').dataset.sig = '';
+  renderPhoneDock();
+}
+function renderResultsPop() {
+  const pop = $('resultsPop');
+  if (!state) return;
+  const show = resultsOpen && isPhone() && !amMod();
+  pop.classList.toggle('hidden', !show);
+  if (!show) return;
+  const dock = $('phoneDock');
+  pop.style.top = dock.offsetTop + dock.offsetHeight + 6 + 'px';
+  const log = state.me.abilityLog || [];
+  const sig = JSON.stringify(log.map((e) => [e.id, e.text, e.pending]));
+  if (pop.dataset.sig === sig) return;
+  pop.dataset.sig = sig;
+  pop.innerHTML = '';
+  const head = el('div', 'rp-head');
+  head.append(el('span', '', '🔮 Your results'));
+  const x = el('button', 'rp-close', '✕');
+  x.type = 'button';
+  x.setAttribute('aria-label', 'Close');
+  x.onclick = toggleResultsPop;
+  head.append(x);
+  pop.append(head);
+  if (!log.length) {
+    pop.append(el('div', 'rp-empty', 'Nothing yet. Your result shows up here in the morning.'));
+    return;
+  }
+  const list = el('div', 'rp-list');
+  for (const e of [...log].reverse()) {
+    const row = el('div', 'rp-row ' + (e.pending ? 'pending' : e.tone || 'neutral'));
+    row.append(el('span', 'rp-night', `N${e.night}`), el('span', 'rp-text', e.pending ? 'Waiting for the moderator…' : e.text));
+    list.append(row);
+  }
+  pop.append(list);
+}
+// Tap anywhere else to close it.
+document.addEventListener('pointerdown', (e) => {
+  if (!resultsOpen || e.target.closest('#resultsPop, .dock-btn')) return;
+  toggleResultsPop();
+});
