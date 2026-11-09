@@ -1121,3 +1121,6 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
   font-size: 0.82rem; font-weight: 800; font-variant-numeric: tabular-nums; text-align: center;
 }
 .wipe-btn.voted .wipe-count { background: var(--accent); color: #fff; }
+
+.btn.kick-all { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
+.btn.kick-all:hover:not(:disabled) { background: var(--danger-soft); }

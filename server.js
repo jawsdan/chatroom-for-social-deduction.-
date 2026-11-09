@@ -867,6 +867,27 @@ io.on('connection', (socket) => {
   });
 
   // The moderator removes a player from the game. Their role and protection are cleared.
+  // Kick everyone and reset: all players (and bots) go back to the join screen,
+  // everything is wiped and character picks are cleared.
+  socket.on('mod:kickAll', () => {
+    if (!isMod(socket)) return;
+    for (const u of [...users.values()]) {
+      if (u.id === socket.id) continue;
+      users.delete(u.id);
+      if (u.bot) continue;
+      const sock = io.sockets.sockets.get(u.id);
+      sock?.emit('kicked', { reset: true });
+      sock?.disconnect(true);
+    }
+    me().character = null;
+    wipeEverything('The moderator reset the game.');
+    lobby = [];
+    io.emit('lobby:history', []);
+    systemLobby('🔄 The game was reset. Waiting for players to join.');
+    socket.emit('game:reset');
+    broadcastState();
+  });
+
   socket.on('mod:kick', (name) => {
     if (!isMod(socket)) return;
     const target = userByName(String(name || ''));

@@ -187,17 +187,18 @@ socket.on('state', (s) => {
 
 socket.on('notice', toast);
 // Kicked by the moderator: go back to the join screen with a message.
-socket.on('kicked', () => {
+socket.on('kicked', (info) => {
   try {
-    sessionStorage.setItem('kicked', '1');
+    sessionStorage.setItem('kicked', info?.reset ? 'reset' : '1');
   } catch {}
   me = null;
   location.reload();
 });
 try {
-  if (sessionStorage.getItem('kicked')) {
+  const why = sessionStorage.getItem('kicked');
+  if (why) {
     sessionStorage.removeItem('kicked');
-    $('joinError').textContent = 'You were removed from the game by the moderator.';
+    $('joinError').textContent = why === 'reset' ? '🔄 The moderator reset the game. Join again and pick your character!' : 'You were removed from the game by the moderator.';
   }
 } catch {}
 
@@ -1689,6 +1690,26 @@ function renderEndGame() {
     $('modTools').append(b);
   }
   b.classList.toggle('hidden', state.gameState !== 'running');
+  if (!$('kickAllBtn')) {
+    const k = btn('btn-ghost btn-block kick-all', '🔄 Kick all & reset', () =>
+      openModal((card) => {
+        card.append(el('div', 'note-icon', '🔄'));
+        card.append(el('h2', '', 'Kick everyone and reset?'));
+        card.append(el('p', '', 'Every player and bot is sent back to the join screen. All chats, roles, clues and character picks are cleared. Everyone joins again and picks a character.'));
+        const actions = el('div', 'actions');
+        actions.append(
+          btn('btn-ghost', 'Cancel', closeModal),
+          btn('btn-danger', 'Kick all & reset', () => {
+            socket.emit('mod:kickAll');
+            closeModal();
+          })
+        );
+        card.append(actions);
+      })
+    );
+    k.id = 'kickAllBtn';
+    $('modTools').append(k);
+  }
 }
 
 // ---------- Death animations ----------
@@ -1932,3 +1953,9 @@ $('charDone').onclick = () => {
   $('charSelect').classList.add('hidden');
   if (!$('msgInput').disabled) $('msgInput').focus();
 };
+
+// After a reset the moderator picks a character again too.
+socket.on('game:reset', () => {
+  toast('🔄 Everyone was kicked and the game was reset.');
+  openCharSelect();
+});
