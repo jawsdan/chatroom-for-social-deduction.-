@@ -37,7 +37,10 @@
       root.style.setProperty('--kb', '0px');
       root.classList.remove('kb-open');
     }
-    if (window.scrollY) window.scrollTo(0, 0);
+    // Undo stray page scrolling, but never while typing on an iPad: in the Home Screen app iPadOS
+    // scrolls the page to keep the text box above the keyboard, and scrolling it back closed the
+    // keyboard (you couldn't type your name). Phones handle the keyboard themselves above.
+    if (window.scrollY && (isPhone() || !typing)) window.scrollTo(0, 0);
   }
   fit();
   (vv || window).addEventListener('resize', fit);
