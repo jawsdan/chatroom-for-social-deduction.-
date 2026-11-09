@@ -489,9 +489,49 @@ $('addBotsBtn').onclick = () => socket.emit('bots:add', Number($('botCount').val
 $('removeBotsBtn').onclick = () => socket.emit('bots:remove');
 
 // ---------- Roles ----------
-document.querySelectorAll('#roleBar button').forEach((b) => {
-  b.onclick = () => selectedThread && socket.emit('mod:role', { to: displayName(selectedThread), role: b.dataset.role || null });
-});
+// The role picker: a small box with the roles in two columns, village side and wolf side.
+const PICK_VILLAGE = ['civilian', 'doctor', 'detective', 'officer', 'mother', 'father', 'son'];
+const PICK_WOLF = ['werewolf'];
+const PICK_LATER = ['vigilante', 'batman', 'joker'];
+$('rolePickBtn').onclick = () => selectedThread && openRolePicker(displayName(selectedThread));
+function openRolePicker(name) {
+  const cur = state.modView?.roles[key(name)] || null;
+  const give = (r) => {
+    socket.emit('mod:role', { to: name, role: r });
+    closeModal();
+  };
+  const opt = (r) => {
+    const on = cur === r || (r === 'werewolf' && cur === 'serialkiller');
+    const b = el('button', 'rp-role' + (on ? ' on' : ''));
+    b.type = 'button';
+    b.append(roleIcon(r), el('span', '', ROLE[r].label));
+    if (on) b.append(el('span', 'rp-tick', '✓'));
+    b.onclick = () => give(r);
+    return b;
+  };
+  openModal((card) => {
+    card.classList.add('role-picker');
+    card.append(el('h2', '', `Role for ${name}`));
+    const grid = el('div', 'rp-grid');
+    const col = (title, cls, list) => {
+      const c = el('div', 'rp-col ' + cls);
+      c.append(el('div', 'rp-col-title', title));
+      for (const r of list) c.append(opt(r));
+      return c;
+    };
+    grid.append(col('🧑‍🌾 Village', 'rp-village', PICK_VILLAGE), col('🐺 Wolves', 'rp-wolf', PICK_WOLF));
+    card.append(grid);
+    const later = el('details', 'rp-later');
+    later.append(el('summary', '', 'Family transformations'));
+    const row = el('div', 'rp-later-row');
+    for (const r of PICK_LATER) row.append(opt(r));
+    later.append(row);
+    card.append(later);
+    const actions = el('div', 'actions');
+    actions.append(btn('btn-ghost', 'Clear role', () => give(null)), btn('btn-primary', 'Close', closeModal));
+    card.append(actions);
+  });
+}
 
 // ---------- Channels ----------
 function switchChannel(c) {
@@ -667,10 +707,10 @@ function renderThreadTabs() {
   renderCheckBar(show);
   $('roleTarget').textContent = selectedThread ? displayName(selectedThread) : '';
   const cur = selectedThread && state.modView?.roles[selectedThread];
-  document.querySelectorAll('#roleBar button').forEach((b) => {
-    const r = b.dataset.role;
-    b.classList.toggle('current', !!r && (r === cur || (r === 'werewolf' && cur === 'serialkiller')));
-  });
+  const pb = $('rolePickBtn');
+  pb.innerHTML = '';
+  if (cur) pb.append(roleIcon(cur), document.createTextNode(` ${ROLE[cur].label} · change ▾`));
+  else pb.append(document.createTextNode('🎭 Choose a role ▾'));
 }
 
 // The moderator answers an Detective's question: is this player a wolf or a civilian?

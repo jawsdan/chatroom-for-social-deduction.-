@@ -1302,3 +1302,22 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
 /* Batman's interrogation clue */
 .clue-card.interrogate, .tile.interrogate { background: #14161f; color: #f2f3f7; border-color: #e5484d; }
 .clue-chip.interrogate { background: #14161f; color: #f2f3f7; border-color: #e5484d; }
+
+/* Role picker box */
+.role-pick-btn { gap: 8px; }
+.modal-card.role-picker { width: min(420px, 100%); padding: 22px; }
+.rp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; text-align: left; }
+.rp-col { border: 1.5px solid var(--border); border-radius: 14px; padding: 8px; display: flex; flex-direction: column; gap: 5px; }
+.rp-col.rp-village { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
+.rp-col.rp-wolf { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.rp-col-title { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 2px 4px 4px; }
+.rp-role { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border-radius: 10px; border: 1.5px solid transparent; background: var(--surface-2); color: var(--text); font-weight: 600; font-size: 0.9rem; text-align: left; }
+.rp-role .ri { width: 26px; height: 26px; vertical-align: middle; }
+.rp-role:hover { border-color: var(--accent); }
+.rp-role.on { border-color: var(--accent); background: var(--accent-soft); }
+.rp-tick { margin-left: auto; font-weight: 800; color: var(--accent); }
+.rp-later { margin-top: 10px; text-align: left; font-size: 0.85rem; color: var(--muted); }
+.rp-later summary { cursor: pointer; font-weight: 700; }
+.rp-later-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 6px; }
+.rp-later-row .rp-role { font-size: 0.8rem; padding: 5px 6px; }
+@media (max-width: 400px) { .rp-later-row { grid-template-columns: 1fr 1fr; } }
