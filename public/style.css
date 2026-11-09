@@ -1326,7 +1326,7 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
    Batman: dark Gotham with a bat signal and bats
    ========================================================= */
 body.fx-role-batman { --fx-top: 14px; --fx-bottom: 40px;
-  --bg: #07080f; --surface: #0e1120; --surface-2: #161a2e; --surface-3: #1f2440; --border: #232846;
+  --bg: #10131f; --surface: #171b2c; --surface-2: #20253b; --surface-3: #2a3050; --border: #323a5c;
   --accent: #facc15; --accent-2: #eab308; --accent-soft: #2a2610; --bubble: #161a2e; --muted: #7c829f; --text: #e8e9f2; --text-2: #b9bdd4; }
 .gotham-top { height: 14px; background: #04050b; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6); }
 .gotham {
@@ -1344,9 +1344,9 @@ body.fx-role-batman { --fx-top: 14px; --fx-bottom: 40px;
    Vigilante: dark and violent — scope, bullet holes, red
    ========================================================= */
 body.fx-role-vigilante { --fx-top: 10px; --fx-bottom: 10px;
-  --bg: #0c0809; --surface: #161011; --surface-2: #211617; --surface-3: #2d1d1f; --border: #3a2224;
+  --bg: #171112; --surface: #201819; --surface-2: #2b2021; --surface-3: #382a2c; --border: #4a3436;
   --accent: #dc2626; --accent-2: #ef4444; --accent-soft: #3a1214; --bubble: #211617; --muted: #9a7d7f; --text: #f1e7e7; --text-2: #d4bcbd; }
-.fx-role-vigilante .fx-vignette { background: radial-gradient(ellipse at center, transparent 50%, rgba(140, 0, 0, 0.5) 100%); animation: vigFlash 4s ease-in-out infinite; }
+.fx-role-vigilante .fx-vignette { background: radial-gradient(ellipse at center, transparent 62%, rgba(140, 0, 0, 0.28) 100%); animation: vigFlash 4s ease-in-out infinite; }
 @keyframes vigFlash { 0%, 80%, 100% { opacity: 0.7; } 84% { opacity: 1; } 88% { opacity: 0.6; } 92% { opacity: 1; } }
 .vig-bar { height: 10px; background: repeating-linear-gradient(-45deg, #7f1d1d 0 14px, #0c0809 14px 28px); }
 .scope { position: absolute; top: 30%; left: 35%; width: 240px; height: 240px; opacity: 0.35; animation: scopeDrift 14s ease-in-out infinite alternate; will-change: transform; }
@@ -1367,8 +1367,16 @@ body.fx-role-joker { --fx-top: 12px; --fx-bottom: 12px;
 
 /* Layer for role effects over the chat background (above the video, below messages). */
 .chat-fx { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; contain: strict; }
-.chat-fx.batman { background: linear-gradient(180deg, rgba(3, 4, 12, 0.88), rgba(6, 8, 22, 0.72) 50%, rgba(3, 4, 12, 0.9)); }
-.chat-fx.vigilante { background: linear-gradient(180deg, rgba(14, 3, 4, 0.85), rgba(40, 4, 6, 0.65) 50%, rgba(14, 3, 4, 0.88)); }
+.chat-fx.batman { background: linear-gradient(180deg, rgba(3, 4, 12, 0.72), rgba(6, 8, 22, 0.55) 50%, rgba(3, 4, 12, 0.72)); }
+.chat-fx.vigilante { background: linear-gradient(180deg, rgba(14, 3, 4, 0.7), rgba(40, 4, 6, 0.5) 50%, rgba(14, 3, 4, 0.72)); }
 .chat-fx.joker { background: linear-gradient(160deg, rgba(76, 20, 110, 0.55), rgba(40, 90, 20, 0.3) 55%, rgba(76, 20, 110, 0.6)); }
 
 @media (max-width: 760px) { .bat-signal, .scope { width: 150px; height: 150px; } .haha { opacity: 0.45; } }
+
+/* Ability results stay easy to read on the dark themes: a light card with dark text. */
+body.fx-role-batman .side-box, body.fx-role-vigilante .side-box, body.fx-role-joker .side-box { background: rgba(255, 255, 255, 0.94); border-color: var(--accent); }
+body.fx-role-batman .side-box .side-box-title, body.fx-role-vigilante .side-box .side-box-title, body.fx-role-joker .side-box .side-box-title { color: #3a3f55; }
+body.fx-role-batman .ab-row, body.fx-role-vigilante .ab-row, body.fx-role-joker .ab-row { background: #f1f2f7; }
+body.fx-role-batman .ab-text, body.fx-role-vigilante .ab-text, body.fx-role-joker .ab-text,
+body.fx-role-batman .side-box-empty, body.fx-role-vigilante .side-box-empty, body.fx-role-joker .side-box-empty { color: #171a2b; }
+body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-joker .ab-night { color: #5a6078; }
