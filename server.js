@@ -114,6 +114,7 @@ function displayRoleMap() {
 function hasWolfAccess(socketId) {
   if (socketId === moderatorId) return true;
   const u = users.get(socketId);
+  if (gameState === 'assigning') return false; // nothing is revealed until the game starts
   return !!u && isWolfRole(roles.get(key(u.name))) && wolfCount() >= 2;
 }
 function wolfNames() {
@@ -182,7 +183,8 @@ function broadcastState() {
     const u = users.get(id);
     if (!u) continue;
     const s = { ...base };
-    const myRole = displayRole(u.name);
+    // Roles stay secret from players until the game starts.
+    const myRole = gameState === 'assigning' && id !== moderatorId ? null : displayRole(u.name);
     s.me = {
       name: u.name,
       moderator: id === moderatorId,
@@ -201,10 +203,10 @@ function broadcastState() {
     };
     s.me.arrestedToday = !!dayArrest && key(dayArrest.target) === key(u.name);
     s.me.arrestedTonight = arrestedTonight === key(u.name);
-    if (id !== moderatorId && roles.get(key(u.name)) === 'officer' && !killedNames.has(key(u.name))) {
+    if (id !== moderatorId && myRole === 'officer' && !killedNames.has(key(u.name))) {
       s.me.action = { kind: 'arrest', target: dayArrest && dayArrest.by === key(u.name) ? dayArrest.target : null, targets: arrestTargets(u.name), done: !!dayArrest };
     }
-    const kind = id === moderatorId ? null : actionKindFor(u.name);
+    const kind = id === moderatorId || !myRole ? null : actionKindFor(u.name);
     if (kind) {
       const mine = nightActions.get(key(u.name));
       s.me.action = { kind, target: mine?.target || null, skip: !!mine?.skip, targets: validTargets(u.name) };
@@ -954,7 +956,9 @@ io.on('connection', (socket) => {
     if (role) roles.set(key(target.name), role);
     else roles.delete(key(target.name));
     syncFamily();
-    announceRoleChanges(before);
+    // While the moderator is still handing out roles, players aren't told yet:
+    // everyone gets their final role when the game starts.
+    if (gameState !== 'assigning') announceRoleChanges(before);
     if (gameState === 'running' && FAMILY.includes(role)) {
       const fam = familyProblem();
       if (fam) socket.emit('notice', fam);
@@ -1025,7 +1029,7 @@ io.on('connection', (socket) => {
 
   socket.on('roles:randomize', () => {
     if (!isMod(socket)) return;
-    const err = randomizeRoles();
+    const err = randomizeRoles(gameState === 'assigning');
     if (err) return socket.emit('notice', err);
     broadcastState();
   });
@@ -1072,10 +1076,10 @@ io.on('connection', (socket) => {
     phaseStartedAt = Date.now();
     io.emit('game:started');
     systemLobby('🎮 A new game has started! It is day.');
-    if (dealt) {
-      announceRoleChanges(new Map(), true);
-      systemLobby('The moderator handed out secret roles. Check your pop-up!');
-    }
+    // Players without a role are Civilians; then everyone gets their final role at once.
+    for (const u of users.values()) if (u.id !== moderatorId && !roles.has(key(u.name))) roles.set(key(u.name), 'civilian');
+    announceRoleChanges(new Map(), true);
+    systemLobby('Everyone has a secret role now. Check your pop-up!');
     io.emit('phase:changed', { phase, silent: true });
     broadcastState();
   }
