@@ -76,10 +76,6 @@
           <span class="pill hidden" id="modUnread"></span>
         </button>
 
-        <button class="nav-item" data-channel="ai" id="aiNav" title="Ask the AI about the rules, your role or what happened">
-          <span class="nav-icon">🤖</span><span class="nav-label">Ask the AI</span>
-          <span class="pill hidden" id="aiUnread"></span>
-        </button>
         <button class="nav-item hidden" data-channel="wolf" id="wolfNav">
           <span class="nav-icon"><img class="ri" src="img/roles/sm/werewolf.webp" alt=""></span><span class="nav-label">Wolf den</span>
           <span class="nav-meta" id="wolfMeta"></span>
@@ -117,6 +113,7 @@
           <div class="chat-sub" id="chatSub"></div>
         </div>
         <div class="header-actions" id="headerActions"></div>
+        <div class="day-count hidden" id="dayCount" title="Which day of the game it is"></div>
         <div class="phase-timer" id="phaseTimer" title="How long this phase has lasted">
           <span class="pt-label" id="phaseTimerLabel">Day</span>
           <span class="pt-time" id="phaseTimerTime">00:00</span>
@@ -156,6 +153,7 @@
 
       <form id="composer" class="composer">
         <div class="composer-box">
+          <button type="button" id="aiToggle" class="ai-toggle hidden" aria-pressed="false" title="Ask the AI instead of the moderator">🤖 AI</button>
           <input id="msgInput" maxlength="500" autocomplete="off" placeholder="Type a message…" />
           <button type="submit" class="send-btn" aria-label="Send">
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>

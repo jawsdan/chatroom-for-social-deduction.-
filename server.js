@@ -175,6 +175,7 @@ function broadcastState() {
     moderator: moderatorId && users.get(moderatorId) ? users.get(moderatorId).name : null,
     phase,
     phaseStartedAt,
+    nightNumber,
     gameState,
     serverNow: Date.now(),
     trial: trialPublic,

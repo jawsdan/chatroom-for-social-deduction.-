@@ -13,7 +13,7 @@ Then open http://localhost:3000 (set `PORT` to change it). Everyone who wants to
 
 ## AI helper (optional)
 
-Every player has an **Ask the AI** chat (separate from *Talk to moderator*). They can ask things like *what does my role do?*, *can I use my ability now?*, *what happened last night?* or *how do trials work?*. Answers stream in word by word.
+The AI helper lives in each player's **Talk to moderator** chat: switch on **🤖 AI** next to the message box and messages go to the AI instead of the moderator (the moderator never sees them). Players can ask things like *what does my role do?*, *can I use my ability now?*, *what happened last night?* or *how do trials work?*. Answers stream in word by word.
 
 - **It only answers questions.** It never runs the game or decides anything; all game logic is plain code in `server.js`.
 - **No leaks.** For each question the server builds the AI's context from only what that player is allowed to know: their own role and its rules, their own ability results, private clues and moderator chat, public events (deaths, trials, revealed calling cards / manifestos, announcements), the current phase and the general rules. Other players' roles, night picks, the wolf den and other private chats are never sent. Wolves also get their pack and the pack's picks. Dead players only get what they knew before they died. The moderator's AI only knows the rules. Bots never use the AI. See `playerView` in `ai.js`.
@@ -24,7 +24,7 @@ Settings (environment variables):
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `OLLAMA_URL` | *(empty)* | Address of the Ollama server, e.g. `http://ollama:11434`. **Empty or unset = AI off**: the chat says *The AI is offline* (the *My role* button and fixed answers still work) and the rest of the game works normally. |
+| `OLLAMA_URL` | *(empty)* | Address of the Ollama server, e.g. `http://ollama:11434`. **Empty or unset = AI off**: the AI switch says *The AI is offline* (the *My role* button and fixed answers still work) and the rest of the game works normally. |
 | `AI_MODEL` | `qwen2.5:3b` | The Ollama model to use. It must already be pulled on the Ollama server. |
 | `PORT` | `3000` | The port the website runs on. |
 
@@ -42,7 +42,7 @@ npm test
 - **Main lobby** — everyone who joins is here and can type. Players only have the main lobby and their private chat with the moderator.
 - **Moderator** — anyone can click *Become moderator* when the seat is empty. The moderator can step down or hand the role to someone else. The moderator can read and write in every chat.
 - **Talk to moderator** — every player has a private chat with the moderator. Nobody else sees it. The moderator sees one tab per player.
-- **Ask the AI** — a private chat with the AI helper (see *AI helper* above). Off when `OLLAMA_URL` is empty.
+- **🤖 AI switch** — in *Talk to moderator*, players can ask the AI helper instead (see *AI helper* above). Off when `OLLAMA_URL` is empty.
 - **Roles** — Civilian, Werewolf, Doctor, Detective (investigates at night) and Officer (arrests by day). If there is only **one** werewolf, they are shown as the **Serial Killer** instead. Each player gets a pop-up card with their role that only they can see.
   - Give roles one at a time from a player's tab in the moderator inbox, or
   - pick how many of each role to play with in *Roles in this game* and click *Hand out random roles*. Everyone left over is a Civilian.

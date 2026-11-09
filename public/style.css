@@ -1594,3 +1594,35 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
 .ai-dots { width: 22px; height: 6px; background: radial-gradient(circle, currentColor 2.5px, transparent 3px) 0 50% / 8px 6px repeat-x; animation: aiDots 1s steps(3) infinite; }
 @keyframes aiDots { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 .ai-role-btn { min-height: 34px; padding: 6px 12px; font-size: 0.85rem; white-space: nowrap; }
+
+/* Day counter next to the phase timer */
+.day-count {
+  padding: 6px 12px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border);
+  font-weight: 800; font-size: 0.9rem; white-space: nowrap; flex-shrink: 0; font-variant-numeric: tabular-nums;
+}
+@media (max-width: 760px) { .day-count { padding: 4px 9px; font-size: 0.8rem; } }
+
+@media (min-width: 761px) {
+  /* Chats: three per row */
+  .side-left .nav { grid-template-columns: repeat(3, 1fr); gap: 7px; }
+  .side-left .nav .nav-item { min-height: 66px; padding: 8px 4px; font-size: 0.78rem; gap: 3px; }
+  .side-left .nav .nav-icon { width: 28px; height: 28px; font-size: 1.05rem; }
+}
+/* Big screens: no outer box around the right-side cards, just the cards */
+@media (min-width: 1181px) {
+  .side.side-right, body[class*="fx-role-"] .side.side-right { background: transparent; border: none; box-shadow: none; padding: 0; border-radius: 0; }
+}
+/* iPad / smaller laptops: the moon or sun already shows the phase, so the timer drops its label to make room. */
+@media (min-width: 761px) and (max-width: 1300px) {
+  .phase-timer .pt-label { display: none; }
+  .phase-timer .pt-time { min-width: 0; }
+}
+
+/* Talk to moderator: the 🤖 AI switch */
+.ai-toggle {
+  flex-shrink: 0; align-self: center; margin-left: 6px; padding: 6px 11px; min-height: 0; border-radius: 999px; cursor: pointer;
+  border: 1.5px solid var(--border); background: var(--surface-2); color: var(--text-2); font-weight: 700; font-size: 0.82rem; white-space: nowrap;
+}
+.ai-toggle.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.composer.ai-mode .composer-box { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.bubble.ai-question::before { content: '🤖 '; }
