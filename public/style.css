@@ -1092,3 +1092,10 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
 .firekeeper.flip .fk-img { transform: translateX(-50%) scaleX(-1); }
 .firekeeper.flip.spawn .fk-img { animation-name: fkSpawnFlip; }
 @keyframes fkSpawnFlip { 0%, 30% { opacity: 0; transform: translateX(-50%) scaleX(-1) scale(0.4); } 100% { opacity: 1; transform: translateX(-50%) scaleX(-1) scale(1); } }
+
+/* Officer: already investigated */
+.target-btn.done { opacity: 0.6; cursor: not-allowed; background: var(--surface-2); }
+.target-btn.done:hover { border-color: var(--border); }
+.tag.done-tag { text-transform: none; letter-spacing: 0; background: var(--surface-3); color: var(--text-2); white-space: nowrap; }
+.tag.done-tag.good { background: var(--success-soft); color: var(--success); }
+.tag.done-tag.bad { background: var(--danger-soft); color: var(--danger); }

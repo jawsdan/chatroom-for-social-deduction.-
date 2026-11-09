@@ -1273,7 +1273,18 @@ function renderActionCard() {
     b.onclick = () => socket.emit('night:choose', a.target === name ? null : name);
     list.append(b);
   }
-  if (!a.targets.length) list.append(el('p', 'hint', 'There is nobody to choose.'));
+  // Officer: players already investigated are shown but can't be picked again.
+  for (const x of a.investigated || []) {
+    const b = el('button', 'target-btn done');
+    b.type = 'button';
+    b.disabled = true;
+    b.title = `You already investigated ${x.name}`;
+    b.append(avatar(x.name, 'sm'), el('span', 'tname', x.name));
+    const tone = x.label === 'Civilian' ? 'good' : x.label ? 'bad' : '';
+    b.append(el('span', 'tag done-tag ' + tone, x.label ? `Already investigated: ${x.label}` : 'Already investigated (waiting)'));
+    list.append(b);
+  }
+  if (!a.targets.length) list.append(el('p', 'hint', a.investigated?.length ? 'You have investigated everyone you can.' : 'There is nobody to choose.'));
   card.append(list);
   if (a.pack?.length) {
     const pack = el('div', 'pack');

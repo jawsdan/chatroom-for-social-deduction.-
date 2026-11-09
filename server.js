@@ -176,6 +176,11 @@ function broadcastState() {
     const kind = id === moderatorId ? null : actionKindFor(u.name);
     if (kind) {
       s.me.action = { kind, target: nightActions.get(key(u.name))?.target || null, targets: validTargets(u.name) };
+      if (kind === 'investigate') {
+        s.me.action.investigated = [...investigatedBy(u.name)]
+          .map(([k, label]) => ({ name: userByName(k)?.name || k, label }))
+          .filter((x) => userByName(x.name) && !mutedNames.has(key(x.name)));
+      }
       // Wolves see what the rest of the pack picked.
       if (kind === 'kill' && myRole === 'werewolf') {
         const o = nightOutcome();
@@ -347,10 +352,24 @@ function actionKindFor(name) {
   return ACTION_FOR_ROLE[roles.get(key(name))] || null;
 }
 // Players this actor may pick tonight.
+// Players this Officer already investigated (result known or waiting on the moderator).
+// lowercase name -> 'Wolf' | 'Killer' | 'Civilian' | null (still waiting)
+function investigatedBy(actorName) {
+  const out = new Map();
+  for (const e of abilityLog.get(key(actorName)) || []) {
+    if (e.kind !== 'investigate' || !e.target) continue;
+    const label = e.pending ? null : e.clue?.label || (e.tone === 'bad' ? (/Killer/.test(e.text) ? 'Killer' : 'Wolf') : 'Civilian');
+    out.set(key(e.target), label);
+  }
+  return out;
+}
 function validTargets(actorName) {
   const kind = actionKindFor(actorName);
   if (!kind) return [];
+  // An Officer can't waste a night on someone they already investigated.
+  const done = kind === 'investigate' ? investigatedBy(actorName) : new Map();
   return [...users.values()].filter((u) => {
+    if (done.has(key(u.name))) return false;
     if (u.id === moderatorId || mutedNames.has(key(u.name))) return false;
     const self = key(u.name) === key(actorName);
     if (kind === 'heal') return true; // the doctor may protect themselves
