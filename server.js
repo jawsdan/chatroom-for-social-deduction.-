@@ -776,29 +776,54 @@ io.on('connection', (socket) => {
   });
 
   // Start a new game from the start menu.
+  // New game from the start menu. With random roles it starts right away;
+  // otherwise it waits while the moderator hands out roles by hand.
   socket.on('game:start', ({ randomize } = {}) => {
-    if (!isMod(socket) || gameState === 'running') return;
+    if (!isMod(socket) || gameState !== 'waiting') return;
     if (randomize) {
+      if (roleConfig.werewolf < 1) return socket.emit('notice', 'Add at least one killer (Werewolf) to the roles first.');
       const err = randomizeRoles(true);
       if (err) return socket.emit('notice', err);
+      return beginGame(true);
     }
+    gameState = 'assigning';
+    systemLobby('🎭 The moderator is handing out roles. The game starts soon…');
+    broadcastState();
+  });
+
+  // Manual roles: start once at least one killer has a role.
+  socket.on('game:begin', () => {
+    if (!isMod(socket) || gameState !== 'assigning') return;
+    if (wolfCount() < 1) return socket.emit('notice', 'Give at least one player the Werewolf role first (one Werewolf plays as the Serial Killer).');
+    beginGame(false);
+  });
+
+  // Back from handing out roles to the start menu.
+  socket.on('game:cancel', () => {
+    if (!isMod(socket) || gameState !== 'assigning') return;
+    gameState = 'waiting';
+    systemLobby('The moderator went back to the start menu.');
+    broadcastState();
+  });
+
+  function beginGame(dealt) {
     gameState = 'running';
     nightNumber = 0;
     phase = 'day';
     phaseStartedAt = Date.now();
     io.emit('game:started');
     systemLobby('🎮 A new game has started! It is day.');
-    if (randomize) {
+    if (dealt) {
       announceRoleChanges(new Map(), true);
       systemLobby('The moderator handed out secret roles. Check your pop-up!');
     }
     io.emit('phase:changed', { phase, silent: true });
     broadcastState();
-  });
+  }
 
   // End the game: wipe everything and go back to the start menu.
   socket.on('game:end', () => {
-    if (!isMod(socket) || gameState !== 'running') return;
+    if (!isMod(socket) || gameState === 'waiting') return;
     wipeEverything('The moderator ended the game.');
     broadcastState();
   });

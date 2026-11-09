@@ -1043,3 +1043,19 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
 .ap-role { display: inline-flex; align-items: center; gap: 2px; font-size: 0.76rem; font-weight: 600; color: var(--text-2); }
 .ap-role .ri { width: 14px; height: 14px; }
 .ap-pick { font-size: 0.74rem; color: var(--muted); }
+
+/* Manual role assignment in the start menu */
+.assign-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; text-align: left; margin-bottom: 8px; }
+.assign-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 8px; border-radius: 12px; background: var(--surface-2); }
+.assign-who { display: flex; align-items: center; gap: 8px; font-weight: 600; min-width: 0; }
+.assign-who span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.assign-btns { display: flex; gap: 4px; flex-shrink: 0; }
+.assign-btn { width: 38px; height: 38px; border-radius: 10px; border: 2px solid transparent; background: var(--surface); display: grid; place-items: center; opacity: 0.55; transition: opacity 0.15s, border-color 0.15s, transform 0.1s; }
+.assign-btn:hover { opacity: 1; }
+.assign-btn:active { transform: scale(0.94); }
+.assign-btn .ri { width: 26px; height: 26px; }
+.assign-btn.on { opacity: 1; border-color: var(--accent); }
+.assign-btn.on.werewolf { border-color: var(--danger); }
+.assign-btn.on.doctor { border-color: #0ea5e9; }
+.assign-btn.on.officer { border-color: #3b82f6; }
+.assign-btn.on.civilian { border-color: var(--success); }

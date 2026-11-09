@@ -380,7 +380,7 @@ function renderPhaseDisplay() {
   const txt = el('div');
   if (state && state.gameState !== 'running') {
     art.innerHTML = ART.night;
-    txt.append(el('div', 'p-name', 'Not started'), el('div', 'p-sub', 'Waiting for players to join.'));
+    txt.append(el('div', 'p-name', 'Not started'), el('div', 'p-sub', state.gameState === 'assigning' ? 'Roles are being handed out.' : 'Waiting for players to join.'));
     return d.append(art, txt);
   }
   txt.append(el('div', 'p-name', currentPhase === 'night' ? 'Night' : 'Day'));
@@ -1283,7 +1283,7 @@ function renderActionCard() {
 // The moderator's summary of tonight's choices.
 function renderNightCard() {
   const card = $('nightCard');
-  const list = amMod() ? state.modView?.nightActions || [] : [];
+  const list = amMod() && state.gameState === 'running' ? state.modView?.nightActions || [] : [];
   card.classList.toggle('hidden', !list.length);
   if (!list.length) return;
   card.innerHTML = '';
@@ -1565,13 +1565,15 @@ function renderStartScreen() {
   if (!show) return;
   const players = state.users.filter((u) => !u.moderator);
   const cfg = state.modView?.roleConfig;
-  const sig = JSON.stringify([startMinimized, randomizeOnStart, state.users, state.moderator, amMod(), cfg]);
+  const assigning = state.gameState === 'assigning';
+  const sig = JSON.stringify([startMinimized, randomizeOnStart, state.users, state.moderator, amMod(), cfg, state.gameState, assigning && state.modView?.roles]);
   if (box.dataset.sig === sig) return;
   box.dataset.sig = sig;
   box.innerHTML = '';
   box.classList.toggle('minimized', startMinimized);
   if (startMinimized) {
-    const b = btn('btn-primary', `🎮 ${amMod() ? 'Start menu' : 'Waiting for the game'} (${players.length} joined) ▸`, () => {
+    const label = assigning ? (amMod() ? 'Hand out roles' : 'Waiting for roles') : amMod() ? 'Start menu' : 'Waiting for the game';
+    const b = btn('btn-primary', `🎮 ${label} (${players.length} joined) ▸`, () => {
       startMinimized = false;
       renderStartScreen();
     });
@@ -1589,6 +1591,11 @@ function renderStartScreen() {
   const logo = el('div', 'start-logo');
   logo.innerHTML = ART.night;
   card.append(min, logo, el('h2', '', 'Village Chat'));
+  if (assigning) {
+    renderAssigning(card, players);
+    box.append(card);
+    return;
+  }
   card.append(el('p', 'start-sub', amMod() ? 'Wait for everyone to join, then start a new game.' : state.moderator ? `Waiting for ${state.moderator} to start the game…` : 'Waiting for someone to become the moderator…'));
   const who = el('div', 'start-players');
   who.append(el('div', 'start-label', `Players joined (${players.length})`));
@@ -1626,9 +1633,12 @@ function renderStartScreen() {
     setup.append(lab);
     card.append(setup);
     const tooMany = randomizeOnStart && special > players.length;
+    const noKiller = randomizeOnStart && cfg.werewolf < 1;
     if (tooMany) card.append(el('p', 'start-warn', `You picked ${special} special roles but only ${players.length} player${players.length === 1 ? ' has' : 's have'} joined.`));
-    const go = btn('btn-primary btn-lg btn-block', '🎮 New game', () => socket.emit('game:start', { randomize: randomizeOnStart }));
-    go.disabled = players.length === 0 || tooMany;
+    if (noKiller) card.append(el('p', 'start-warn', 'There needs to be at least one killer. Add a Werewolf in the right panel.'));
+    if (!randomizeOnStart) card.append(el('p', 'hint', 'Next you give each player a role yourself. The game starts when you are done.'));
+    const go = btn('btn-primary btn-lg btn-block', randomizeOnStart ? '🎮 New game' : '🎮 New game: hand out roles', () => socket.emit('game:start', { randomize: randomizeOnStart }));
+    go.disabled = players.length === 0 || tooMany || noKiller;
     card.append(go);
   } else if (!state.moderator) {
     card.append(btn('btn-primary btn-block', '🛡️ Become moderator', () => socket.emit('mod:claim')));
@@ -1814,4 +1824,47 @@ function renderModAbilityBox(box) {
     list.append(b);
   }
   box.append(list);
+}
+
+// Manual roles: the moderator gives each player a role, then starts the game.
+const ASSIGN_ROLES = ['civilian', 'werewolf', 'doctor', 'officer'];
+function renderAssigning(card, players) {
+  const roles = state.modView?.roles || {};
+  if (!amMod()) {
+    card.append(el('p', 'start-sub', `⏳ Waiting for ${state.moderator || 'the moderator'} to assign roles…`));
+    card.append(el('p', 'hint', 'You get a pop-up with your secret role. The game starts right after.'));
+    return;
+  }
+  const given = players.filter((u) => roles[key(u.name)]).length;
+  const killers = Object.values(roles).filter((r) => r === 'werewolf' || r === 'serialkiller').length;
+  card.append(el('p', 'start-sub', 'Give every player a role, then start the game.'));
+  card.append(el('div', 'start-label', `Roles given (${given} / ${players.length})`));
+  const list = el('div', 'assign-list');
+  for (const u of players) {
+    const row = el('div', 'assign-row');
+    const who = el('div', 'assign-who');
+    who.append(avatar(u.name, 'sm'), el('span', '', u.name + (u.bot ? ' 🤖' : '')));
+    row.append(who);
+    const btns = el('div', 'assign-btns');
+    const cur = roles[key(u.name)];
+    for (const r of ASSIGN_ROLES) {
+      const on = cur === r || (r === 'werewolf' && cur === 'serialkiller');
+      const b = el('button', 'assign-btn' + (on ? ' on ' + r : ''));
+      b.type = 'button';
+      b.title = ROLE[r].label;
+      b.append(roleIcon(r === 'werewolf' && killers <= 1 && (on || !killers) ? 'serialkiller' : r));
+      b.onclick = () => socket.emit('mod:role', { to: u.name, role: on ? null : r });
+      btns.append(b);
+    }
+    row.append(btns);
+    list.append(row);
+  }
+  card.append(list);
+  if (!killers) card.append(el('p', 'start-warn', 'There needs to be at least one killer: give someone the Werewolf role.'));
+  else card.append(el('p', 'hint', killers === 1 ? 'One killer: they play as the Serial Killer.' : `${killers} werewolves share the wolf den.`));
+  if (given < players.length && killers) card.append(el('p', 'hint', `${players.length - given} player${players.length - given === 1 ? ' has' : 's have'} no role yet.`));
+  const go = btn('btn-primary btn-lg btn-block', '▶ Start game', () => socket.emit('game:begin'));
+  go.disabled = !killers;
+  card.append(go);
+  card.append(btn('btn-ghost btn-block', '← Back', () => socket.emit('game:cancel')));
 }
