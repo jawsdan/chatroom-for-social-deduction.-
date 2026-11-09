@@ -1932,7 +1932,7 @@ function killVideo(kind) {
   return wrap;
 }
 // Preload both so they start right away.
-for (const k of ['night', 'killer', 'vote', 'wolfdeath', 'found']) {
+for (const k of ['night', 'killer', 'vote', 'wolfdeath', 'found', 'batman']) {
   const l = document.createElement('link');
   l.rel = 'preload';
   l.as = 'video';
@@ -2568,6 +2568,22 @@ socket.on('arrested', () => {
       card.append(el('p', '', 'You cannot vote today, and you cannot use your ability tonight.'));
       const actions = el('div', 'actions');
       actions.append(btn('btn-primary', 'OK', closeModal));
+      card.append(actions);
+    });
+  if ($('modal').classList.contains('hidden')) show();
+  else clueQueue.push({ __result: show });
+});
+
+// ---------- The Son becomes Batman ----------
+socket.on('batman:rise', ({ you, name, secret }) => {
+  const show = () =>
+    openModal((card) => {
+      card.append(el('div', 'note-icon', '🦇'));
+      card.append(el('h2', '', you ? 'You have become Batman' : name ? `${name} has become Batman` : 'Batman has risen'));
+      card.append(killVideo('batman'));
+      card.append(el('p', 'hint', you ? 'Your parents are gone. Every morning you get a clue about the night.' : secret ? 'Hard mode: only you (the moderator) and Batman see this.' : name ? 'Other players see this without the name.' : 'The Son has become Batman. Nobody knows who he is.'));
+      const actions = el('div', 'actions');
+      actions.append(btn('btn-primary', 'Close', closeModal));
       card.append(actions);
     });
   if ($('modal').classList.contains('hidden')) show();

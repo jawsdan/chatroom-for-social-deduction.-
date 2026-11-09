@@ -727,9 +727,19 @@ function checkFamily() {
     familyFlags.batman = true;
     const before = displayRoleMap();
     roles.set(son, 'batman');
-    announceRoleChanges(before);
     if (moderatorId) io.to(moderatorId).emit('notice', '🦇 Both parents died: the Son is now Batman.');
     if (!hardMode()) systemLobby('🦇 Both parents are gone. Their Son has become Batman, and he is watching the village.');
+    // The Batman reveal video: everyone on Normal, only Batman and the moderator on Hard.
+    // Other players never learn who he is, only that Batman exists.
+    const b = userByName(son);
+    for (const [id, sock] of io.sockets.sockets) {
+      if (!users.has(id)) continue;
+      if (b && id === b.id) sock.emit('batman:rise', { you: true });
+      else if (id === moderatorId) sock.emit('batman:rise', { name: b?.name || son, secret: hardMode() });
+      else if (!hardMode()) sock.emit('batman:rise', {});
+    }
+    // Then Batman's role card (after the video).
+    announceRoleChanges(before);
   }
 }
 // Batman's clue each morning: someone who used an ability, or someone an ability was used on.
