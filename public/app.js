@@ -514,6 +514,7 @@ function renderAll(redrawMessages = true) {
   renderNav();
   renderHeader();
   renderTrialBanner();
+  document.body.classList.toggle('is-mod', amMod());
   renderPhoneDock();
   renderPhonePlayers();
   renderCluesBar();
@@ -1923,6 +1924,8 @@ function myCharacter() {
   return state?.users.find((u) => key(u.name) === key(me))?.character || null;
 }
 function openCharSelect() {
+  // On phones the character is picked before the game, not in the middle of it.
+  if (isPhone() && state?.gameState === 'running') return;
   closeDrawers();
   $('charError').textContent = '';
   $('charSelect').classList.remove('hidden');
@@ -1930,6 +1933,7 @@ function openCharSelect() {
 }
 // On phones the screen shows one character at a time; arrows (or a swipe) browse.
 let charIdx = null;
+let charBrowsed = false; // true once the player used the arrows
 function charOptions() {
   return [...(window.CHARACTERS || []).map((c) => ({ id: c.id, name: c.name, desc: c.desc, img: c.img })), { id: null, name: 'No character', desc: 'Just play with your name.' }];
 }
@@ -1938,9 +1942,11 @@ function renderCharGrid() {
   const mine = myCharacter();
   const opts = charOptions();
   const phone = isPhone();
-  // Start on your current character, or on the first one if you have none yet.
-  if (charIdx === null || charIdx >= opts.length) charIdx = mine ? Math.max(0, opts.findIndex((o) => o.id === mine)) : 0;
   const takenBy = new Map((state?.users || []).filter((u) => u.character && key(u.name) !== key(me)).map((u) => [u.character, u.name]));
+  // Start on your current character, or on the first free one if you have none yet.
+  if (charIdx === null || charIdx >= opts.length || !charBrowsed) {
+    charIdx = mine ? Math.max(0, opts.findIndex((o) => o.id === mine)) : Math.max(0, opts.findIndex((o) => !o.id || !takenBy.has(o.id)));
+  }
   const sig = JSON.stringify([mine, [...takenBy], phone, phone && charIdx]);
   if (grid.dataset.sig === sig) return;
   grid.dataset.sig = sig;
@@ -1968,6 +1974,7 @@ function renderCharGrid() {
   const done = $('charDone');
   if (phone) {
     const go = (d) => {
+      charBrowsed = true;
       charIdx = (charIdx + d + opts.length) % opts.length;
       renderCharGrid();
     };
@@ -1984,6 +1991,7 @@ function renderCharGrid() {
       d.type = 'button';
       d.setAttribute('aria-label', `Character ${i + 1}`);
       d.onclick = () => {
+        charBrowsed = true;
         charIdx = i;
         renderCharGrid();
       };
@@ -2011,6 +2019,7 @@ function renderCharGrid() {
 function closeCharSelect() {
   $('charSelect').classList.add('hidden');
   charIdx = null;
+  charBrowsed = false;
   focusComposer();
 }
 
@@ -2049,7 +2058,8 @@ function renderPhoneDock() {
   // The game panel: day/night, trials, your night action, roles, wipe.
   const actNow = !amMod() && state.me.action && state.phase === 'night' && !state.me.action.target && !amMuted();
   items.push({ id: 'game', icon: amMod() ? '⚙️' : '🎲', label: amMod() ? 'Game' : 'Game', badge: actNow ? '!' : '', go: () => openPanel('right') });
-  items.push({ id: 'char', icon: '👤', label: 'Me', go: openCharSelect });
+  // Characters are picked before a game, not during one.
+  if (state.gameState !== 'running') items.push({ id: 'char', icon: '👤', label: 'Me', go: openCharSelect });
   const sig = JSON.stringify(items.map((i) => [i.id, i.on, i.badge, i.lock, i.label]));
   // Leave room so the newest messages aren't hidden under the menu at first,
   // and keep the moderator's inbox bars below the panels.
@@ -2090,11 +2100,11 @@ function renderPhonePlayers() {
   const head = el('div', 'pp-head');
   head.append(el('span', 'pp-title', `👥 Players ${list.length}`));
   const ctr = el('div', 'pp-ctr');
-  const minus = el('button', 'pp-btn', '−');
-  const plus = el('button', 'pp-btn', '+');
-  minus.type = plus.type = 'button';
-  minus.disabled = !playersExpanded;
-  plus.disabled = playersExpanded || list.length <= 1;
+  // One button in the same place: + opens the list, − closes it.
+  const toggle = el('button', 'pp-btn', playersExpanded ? '−' : '+');
+  toggle.type = 'button';
+  toggle.setAttribute('aria-label', playersExpanded ? 'Show fewer players' : 'Show all players');
+  toggle.disabled = !playersExpanded && list.length <= 1;
   const setExp = (v) => {
     playersExpanded = v;
     try {
@@ -2103,9 +2113,8 @@ function renderPhonePlayers() {
     renderPhonePlayers();
     renderCluesBar();
   };
-  minus.onclick = () => setExp(false);
-  plus.onclick = () => setExp(true);
-  ctr.append(minus, plus);
+  toggle.onclick = () => setExp(!playersExpanded);
+  ctr.append(toggle);
   head.append(ctr);
   box.append(head);
   const rows = el('div', 'pp-list');
