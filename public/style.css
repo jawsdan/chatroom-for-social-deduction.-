@@ -1470,28 +1470,28 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
    Computer & iPad: chats and notes as a compact box of tiles
    ========================================================= */
 @media (min-width: 761px) {
-  .side-left .nav {
+  .side-left :is(.nav, .ability-box) {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; border-radius: 16px;
     background: color-mix(in srgb, var(--surface-2) 75%, transparent);
     border: 1px solid color-mix(in srgb, var(--border) 70%, rgba(255, 255, 255, 0.35));
   }
-  .side-left .nav .nav-title { grid-column: 1 / -1; margin: 0 2px 2px; }
-  .side-left .nav .nav-item {
+  .side-left :is(.nav, .ability-box) .nav-title { grid-column: 1 / -1; margin: 0 2px 2px; }
+  .side-left :is(.nav, .ability-box) .nav-item {
     position: relative; flex-direction: column; justify-content: center; align-items: center; gap: 4px;
     min-height: 74px; padding: 10px 6px; border-radius: 14px; text-align: center;
     background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1.5px solid transparent;
     box-shadow: 0 2px 6px rgba(10, 12, 30, 0.08); font-size: 0.86rem; font-weight: 600; color: var(--text);
     transition: transform 0.12s ease, border-color 0.15s, background-color 0.15s;
   }
-  .side-left .nav .nav-item:hover { border-color: var(--accent); background: var(--surface); }
-  .side-left .nav .nav-item:active { transform: scale(0.96); }
-  .side-left .nav .nav-item.selected { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
-  .side-left .nav .nav-icon { width: 30px; height: 30px; font-size: 1.15rem; border-radius: 9px; background: var(--surface-2); }
-  .side-left .nav .nav-item.selected .nav-icon { background: var(--surface); }
-  .side-left .nav .nav-label { flex: none; white-space: normal; line-height: 1.15; overflow: visible; }
-  .side-left .nav .pill { position: absolute; top: 6px; right: 6px; margin: 0; }
-  .side-left .nav .nav-meta { position: absolute; top: 6px; left: 8px; font-size: 0.75rem; }
-  .side-left .nav .hidden { display: none !important; }
+  .side-left :is(.nav, .ability-box) .nav-item:hover { border-color: var(--accent); background: var(--surface); }
+  .side-left :is(.nav, .ability-box) .nav-item:active { transform: scale(0.96); }
+  .side-left :is(.nav, .ability-box) .nav-item.selected { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .side-left :is(.nav, .ability-box) .nav-icon { width: 30px; height: 30px; font-size: 1.15rem; border-radius: 9px; background: var(--surface-2); }
+  .side-left :is(.nav, .ability-box) .nav-item.selected .nav-icon { background: var(--surface); }
+  .side-left :is(.nav, .ability-box) .nav-label { flex: none; white-space: normal; line-height: 1.15; overflow: visible; }
+  .side-left :is(.nav, .ability-box) .pill { position: absolute; top: 6px; right: 6px; margin: 0; }
+  .side-left :is(.nav, .ability-box) .nav-meta { position: absolute; top: 6px; left: 8px; font-size: 0.75rem; }
+  .side-left :is(.nav, .ability-box) .hidden { display: none !important; }
 }
 
 /* Night action pick list: who picked whom (wolves) */
@@ -1508,7 +1508,7 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
    ========================================================= */
 @media (min-width: 761px) {
   #actionCard { display: none !important; }
-  .side-left .nav .nav-action .pill { min-width: 18px; text-align: center; }
+  .side-left .ability-box .nav-action .pill { min-width: 18px; text-align: center; }
   #actionPop:not(.hidden) {
     display: block; position: fixed; z-index: 40; width: 290px; max-width: calc(100vw - 32px); padding: 12px;
     border-radius: 16px; background: #fff; color: #171a2b; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
@@ -1542,17 +1542,17 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
    ========================================================= */
 @media (min-width: 901px) {
   .side.side-left { background: transparent; border: none; box-shadow: none; padding: 0; gap: 12px; border-radius: 0; }
-  .side-left > .brand, .side-left > .me-card, .side-left .nav, .side-left > .card, .side-left > .side-box {
+  .side-left > .profile-box, .side-left .nav, .side-left > .ability-box, .side-left > .card, .side-left > .side-box {
     flex-shrink: 0; margin: 0; border-radius: 18px;
     background: color-mix(in srgb, var(--surface) 86%, transparent);
     border: 1px solid color-mix(in srgb, var(--border) 70%, rgba(255, 255, 255, 0.4));
     box-shadow: 0 8px 22px rgba(10, 12, 30, 0.18);
   }
-  .side-left > .brand { padding: 12px 14px; }
-  .side-left > .me-card { padding: 10px 12px; }
+  .side-left > .brand { display: none; }
+  .side-left > .profile-box { padding: 6px; }
   .side-left > .card { padding: 14px; }
   .side-left > .side-box { margin-top: auto; }
-  .side-left .nav .nav-item { background: color-mix(in srgb, var(--surface-2) 80%, transparent); }
+  .side-left :is(.nav, .ability-box) .nav-item { background: color-mix(in srgb, var(--surface-2) 80%, transparent); }
 }
 /* Players list on the left is narrower: tighter rows so names and roles fit next to the moderator's buttons. */
 @media (min-width: 761px) {
@@ -1560,4 +1560,28 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
   .side-left .players li .avatar.sm { width: 32px; height: 32px; }
   .side-left .players .protect-btn, .side-left .players .kill-btn, .side-left .players .kick-btn { width: 26px; height: 26px; flex-shrink: 0; font-size: 0.75rem; }
   .side-left .players li .tag { padding: 2px 6px; }
+}
+
+/* =========================================================
+   Computer & iPad: profile box with your abilities, players on the right
+   ========================================================= */
+@media (min-width: 761px) {
+  .side-left .ability-box:not(.hidden) { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px; }
+  .side-left .ability-box .nav-item { min-height: 66px; font-size: 0.8rem; padding: 8px 4px; }
+  .side-left .ability-box .nav-icon { width: 28px; height: 28px; font-size: 1.05rem; }
+  /* Computer: the abilities sit inside the profile box, under your name. */
+  .profile-box .me-card { background: transparent; padding: 10px; gap: 12px; }
+  .profile-box .me-card:hover { background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
+  .profile-box .me-card .avatar { width: 54px !important; height: 54px !important; font-size: 1.1rem; }
+  .profile-box .me-card .name { font-size: 1.15rem; }
+  .profile-box .me-card .status { font-size: 0.85rem; }
+  .profile-box .ability-box { padding: 4px 4px 4px; }
+  .profile-box .ability-box .nav-title { display: none; }
+  /* Players (not the moderator): the right side is just the players list (and a trial when there is one).
+     The Moderator box and wipe vote only show while nobody runs the game, so someone can still step up. */
+  body:not(.is-mod) #gameCard { display: none; }
+  body.has-mod:not(.is-mod) #modCard, body.has-mod:not(.is-mod) #wipeBox { display: none; }
+}
+@media (min-width: 761px) {
+  .profile-box .ability-box { background: none; border: none; border-radius: 0; }
 }

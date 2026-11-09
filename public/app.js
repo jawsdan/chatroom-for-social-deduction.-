@@ -583,6 +583,8 @@ function renderAll(redrawMessages = true) {
   renderThreadTabs();
   renderComposer();
   renderPanel();
+  updateAbilityBox();
+  document.body.classList.toggle('has-mod', !!state.moderator);
   renderRoleFx();
   if (redrawMessages || !renderAll._ch || renderAll._ch !== channelKey()) renderMessages();
   renderAll._ch = channelKey();
@@ -916,15 +918,23 @@ function renderRolesCard() {
   }
 }
 
-// Computer & iPad: the players list sits on the left under the chats. Phones keep it in the game panel.
-function placePlayersCard() {
-  const pc = $('playersCard');
-  if (matchMedia('(max-width: 760px)').matches) {
-    if (pc.parentElement !== $('sideRight')) $('sideRight').insertBefore(pc, $('rolesCard'));
-  } else if (pc.parentElement !== $('sideLeft')) $('sideLeft').insertBefore(pc, $('sideBox'));
+// Your abilities (Kill, Manifesto, Calling card). On a computer they sit in the profile box under your name;
+// on iPad and other touch screens they get their own box under the chats.
+function placeAbilityBox() {
+  const box = $('abilityBox');
+  const touch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 1;
+  if (touch) {
+    if (box.previousElementSibling !== document.querySelector('.side-left .nav')) document.querySelector('.side-left .nav').after(box);
+  } else if (box.parentElement !== $('profileBox')) $('profileBox').append(box);
+  $('profileBox').classList.toggle('with-abilities', !touch);
 }
-placePlayersCard();
-window.addEventListener('resize', placePlayersCard);
+placeAbilityBox();
+function updateAbilityBox() {
+  const box = $('abilityBox');
+  const any = [...box.querySelectorAll('.nav-item')].some((b) => !b.classList.contains('hidden'));
+  box.classList.toggle('hidden', !any);
+  $('profileBox').classList.toggle('has-abilities', any && box.parentElement === $('profileBox'));
+}
 
 // Computer & iPad: the night action is a tile in the chats box that opens a small pick list.
 function renderActionNav() {
