@@ -125,7 +125,21 @@ function announceRoleChanges(before, force = false) {
 }
 
 // ---- State broadcast ----
+// During a game, everyone without a role is a Civilian (late joiners, skipped players, new bots…).
+let fillingCivilians = false;
+function fillCivilians() {
+  if (gameState !== 'running' || fillingCivilians) return;
+  const missing = [...users.values()].filter((u) => u.id !== moderatorId && !roles.has(key(u.name)));
+  if (!missing.length) return;
+  fillingCivilians = true;
+  const before = displayRoleMap();
+  for (const u of missing) roles.set(key(u.name), 'civilian');
+  announceRoleChanges(before);
+  fillingCivilians = false;
+}
+
 function broadcastState() {
+  fillCivilians();
   const trialPublic = trial
     ? {
         accused: trial.accusedName,

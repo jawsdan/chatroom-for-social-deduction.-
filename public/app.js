@@ -1915,7 +1915,7 @@ function renderAssigning(card, players) {
   card.append(list);
   if (!killers) card.append(el('p', 'start-warn', 'There needs to be at least one killer: give someone the Werewolf role.'));
   else card.append(el('p', 'hint', killers === 1 ? 'One killer: they play as the Serial Killer.' : `${killers} werewolves share the wolf den.`));
-  if (given < players.length && killers) card.append(el('p', 'hint', `${players.length - given} player${players.length - given === 1 ? ' has' : 's have'} no role yet.`));
+  if (given < players.length) card.append(el('p', 'hint', `${players.length - given} player${players.length - given === 1 ? ' has' : 's have'} no role yet and will be ${players.length - given === 1 ? 'a Civilian' : 'Civilians'}.`));
   const go = btn('btn-primary btn-lg btn-block', '▶ Start game', () => socket.emit('game:begin'));
   go.disabled = !killers;
   card.append(go);
