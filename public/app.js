@@ -1928,41 +1928,91 @@ function openCharSelect() {
   $('charSelect').classList.remove('hidden');
   renderCharGrid();
 }
+// On phones the screen shows one character at a time; arrows (or a swipe) browse.
+let charIdx = null;
+function charOptions() {
+  return [...(window.CHARACTERS || []).map((c) => ({ id: c.id, name: c.name, desc: c.desc, img: c.img })), { id: null, name: 'No character', desc: 'Just play with your name.' }];
+}
 function renderCharGrid() {
   const grid = $('charGrid');
   const mine = myCharacter();
+  const opts = charOptions();
+  const phone = isPhone();
+  // Start on your current character, or on the first one if you have none yet.
+  if (charIdx === null || charIdx >= opts.length) charIdx = mine ? Math.max(0, opts.findIndex((o) => o.id === mine)) : 0;
   const takenBy = new Map((state?.users || []).filter((u) => u.character && key(u.name) !== key(me)).map((u) => [u.character, u.name]));
-  const sig = JSON.stringify([mine, [...takenBy]]);
+  const sig = JSON.stringify([mine, [...takenBy], phone, phone && charIdx]);
   if (grid.dataset.sig === sig) return;
   grid.dataset.sig = sig;
   grid.innerHTML = '';
-  const tile = (id, title, desc, imgHtml) => {
-    const holder = id && takenBy.get(id);
-    const b = el('button', 'char-tile' + (mine === id ? ' on' : '') + (holder ? ' taken' : ''));
+  grid.classList.toggle('carousel', phone);
+  const pick = (id, then) => {
+    $('charError').textContent = '';
+    socket.emit('character:pick', id, (res) => {
+      if (!res?.ok) $('charError').textContent = res?.error || 'Could not pick that character.';
+      else then?.();
+    });
+  };
+  opts.forEach((o, i) => {
+    const holder = o.id && takenBy.get(o.id);
+    const b = el('button', 'char-tile' + (mine === o.id ? ' on' : '') + (holder ? ' taken' : '') + (i === charIdx ? ' shown' : ''));
     b.type = 'button';
     b.disabled = !!holder;
     const pic = el('div', 'char-pic');
-    pic.innerHTML = imgHtml;
-    b.append(pic, el('div', 'char-name', title), el('div', 'char-desc', holder ? `Taken by ${holder}` : desc));
-    if (mine === id) b.append(el('span', 'char-check', '✓'));
-    b.onclick = () => {
-      $('charError').textContent = '';
-      socket.emit('character:pick', id, (res) => {
-        if (!res?.ok) $('charError').textContent = res?.error || 'Could not pick that character.';
-      });
+    pic.innerHTML = o.img ? `<img src="${o.img}" alt="" draggable="false">` : '<div class="char-none">🙂</div>';
+    b.append(pic, el('div', 'char-name', o.name), el('div', 'char-desc', holder ? `Taken by ${holder}` : o.desc));
+    if (mine === o.id) b.append(el('span', 'char-check', '✓'));
+    b.onclick = () => pick(o.id);
+    grid.append(b);
+  });
+  const done = $('charDone');
+  if (phone) {
+    const go = (d) => {
+      charIdx = (charIdx + d + opts.length) % opts.length;
+      renderCharGrid();
     };
-    return b;
-  };
-  for (const c of window.CHARACTERS || []) {
-    grid.append(tile(c.id, c.name, c.desc, `<img src="${c.img}" alt="" draggable="false">`));
+    const prev = el('button', 'char-arrow prev', '‹');
+    const next = el('button', 'char-arrow next', '›');
+    prev.type = next.type = 'button';
+    prev.setAttribute('aria-label', 'Previous character');
+    next.setAttribute('aria-label', 'Next character');
+    prev.onclick = () => go(-1);
+    next.onclick = () => go(1);
+    const dots = el('div', 'char-dots');
+    opts.forEach((_, i) => {
+      const d = el('button', 'char-dot' + (i === charIdx ? ' on' : ''));
+      d.type = 'button';
+      d.setAttribute('aria-label', `Character ${i + 1}`);
+      d.onclick = () => {
+        charIdx = i;
+        renderCharGrid();
+      };
+      dots.append(d);
+    });
+    grid.append(prev, next, dots);
+    // Swipe left/right to browse.
+    grid.ontouchstart = (e) => (grid._sx = e.touches[0].clientX);
+    grid.ontouchend = (e) => {
+      const dx = e.changedTouches[0].clientX - (grid._sx ?? 0);
+      if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1);
+    };
+    const shown = opts[charIdx];
+    const holder = shown.id && takenBy.get(shown.id);
+    done.disabled = !!holder;
+    done.textContent = holder ? `Taken by ${holder}` : shown.id ? `Play as ${shown.name} →` : 'Continue without a character →';
+    done.onclick = () => pick(shown.id, closeCharSelect);
+  } else {
+    grid.ontouchstart = grid.ontouchend = null;
+    done.disabled = false;
+    done.textContent = mine ? 'Play as this character →' : 'Continue without a character →';
+    done.onclick = closeCharSelect;
   }
-  grid.append(tile(null, 'No character', 'Just play with your name.', '<div class="char-none">🙂</div>'));
-  $('charDone').textContent = mine ? 'Play as this character →' : 'Continue without a character →';
 }
-$('charDone').onclick = () => {
+function closeCharSelect() {
   $('charSelect').classList.add('hidden');
+  charIdx = null;
   focusComposer();
-};
+}
 
 // After a reset the moderator picks a character again too.
 socket.on('game:reset', () => {
