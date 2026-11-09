@@ -68,14 +68,21 @@
     // Then they stand in front of it instead: lower down, a bit smaller, kept off the message box.
     const wantX = offX + spot.x * scale;
     let y = offY + spot.y * scale;
+    // Keep them inside the chat area (the side panels float over the scene on bigger screens).
+    const chat = document.querySelector('.chat');
+    const sr = root.getBoundingClientRect();
+    const cr = chat ? chat.getBoundingClientRect() : sr;
+    const minX = cr.left - sr.left;
+    const maxX = cr.right - sr.left;
     const half = h * 0.3 + 12;
-    let x = Math.min(Math.max(wantX, half), cw - half);
+    let x = Math.min(Math.max(wantX, minX + half), maxX - half);
     if (Math.abs(x - wantX) > h * 0.15) {
-      h = Math.min(h, Math.max(80, cw * 0.26));
+      h = Math.min(h, Math.max(80, (maxX - minX) * 0.26));
       const halfSmall = h * 0.3 + 8;
-      x = c.spot.day.x < VIDEO_W / 2 ? halfSmall : cw - halfSmall;
+      x = c.spot.day.x < VIDEO_W / 2 ? minX + halfSmall : maxX - halfSmall;
       const composer = document.getElementById('composer');
-      y = ch - (composer ? composer.offsetHeight : 70) - 6;
+      const cb = composer ? composer.getBoundingClientRect().top - sr.top : ch - 70;
+      y = cb - 6;
     }
     el.style.left = x + 'px';
     el.style.top = y + 'px';
@@ -96,6 +103,8 @@
       root.dataset.fkInit = '1';
       window.addEventListener('resize', placeAll);
       new ResizeObserver(placeAll).observe(root);
+      const chatEl = document.querySelector('.chat');
+      if (chatEl) new ResizeObserver(placeAll).observe(chatEl);
     }
     phase = newPhase === 'night' ? 'night' : 'day';
     const wanted = new Map(list.filter((p) => p.character).map((p) => [p.character, p]));
