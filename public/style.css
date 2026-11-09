@@ -1380,3 +1380,11 @@ body.fx-role-batman .ab-row, body.fx-role-vigilante .ab-row, body.fx-role-joker 
 body.fx-role-batman .ab-text, body.fx-role-vigilante .ab-text, body.fx-role-joker .ab-text,
 body.fx-role-batman .side-box-empty, body.fx-role-vigilante .side-box-empty, body.fx-role-joker .side-box-empty { color: #171a2b; }
 body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-joker .ab-night { color: #5a6078; }
+
+/* Phone: when the keyboard is open, only the message bar moves up (it sits on top of the keyboard). */
+@media (max-width: 760px) {
+  .composer { transition: transform 0.18s ease-out; }
+  .kb-open .composer { position: relative; z-index: 5; transform: translateY(calc(-1 * var(--kb, 0px))); padding-bottom: 8px; }
+  /* Keep the newest messages above the raised bar. */
+  .kb-open .messages { padding-bottom: calc(var(--kb, 0px) + 10px); }
+}

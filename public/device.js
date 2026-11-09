@@ -11,18 +11,40 @@
     addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }
 
-  // Keep the layout exactly the size of the visible screen, so the on-screen keyboard
-  // pushes the message box up instead of sliding the whole page around.
+  // On phones the page keeps its full size when the keyboard opens; only the message bar
+  // slides up to sit on top of the keyboard. On bigger screens the layout fits the visible area.
   const vv = window.visualViewport;
+  const isPhone = () => window.matchMedia('(max-width: 760px)').matches;
+  let fullH = window.innerHeight;
   function fit() {
-    const h = vv ? vv.height : window.innerHeight;
-    root.style.setProperty('--app-h', h + 'px');
+    const visible = vv ? vv.height : window.innerHeight;
+    const typing = document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
+    if (isPhone()) {
+      // Remember the full height while the keyboard is closed.
+      if (!typing || window.innerHeight > fullH) fullH = Math.max(window.innerHeight, visible);
+      const kb = typing ? Math.max(0, fullH - visible - (vv ? vv.offsetTop : 0)) : 0;
+      root.style.setProperty('--app-h', fullH + 'px');
+      root.style.setProperty('--kb', kb + 'px');
+      const was = root.classList.contains('kb-open');
+      root.classList.toggle('kb-open', kb > 60);
+      // When the keyboard opens, keep the newest message in view.
+      if (kb > 60 && !was) {
+        const box = document.getElementById('messages');
+        if (box) requestAnimationFrame(() => (box.scrollTop = box.scrollHeight));
+      }
+    } else {
+      root.style.setProperty('--app-h', visible + 'px');
+      root.style.setProperty('--kb', '0px');
+      root.classList.remove('kb-open');
+    }
     if (window.scrollY) window.scrollTo(0, 0);
   }
   fit();
   (vv || window).addEventListener('resize', fit);
   if (vv) vv.addEventListener('scroll', fit);
-  addEventListener('orientationchange', () => setTimeout(fit, 300));
+  document.addEventListener('focusin', () => setTimeout(fit, 50));
+  document.addEventListener('focusout', () => setTimeout(fit, 50));
+  addEventListener('orientationchange', () => setTimeout(() => { fullH = window.innerHeight; fit(); }, 300));
 
   // No pinch-zoom or double-tap zoom: it should feel like an app, not a web page.
   for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) {
