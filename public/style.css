@@ -1493,3 +1493,71 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
   .side-left .nav .nav-meta { position: absolute; top: 6px; left: 8px; font-size: 0.75rem; }
   .side-left .nav .hidden { display: none !important; }
 }
+
+/* Night action pick list: who picked whom (wolves) */
+.ap-pick-who, .ap-pick-by { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-pick-by { font-size: 0.68rem; font-weight: 600; color: #6b7189; }
+.ap-votes {
+  flex-shrink: 0; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-variant-numeric: tabular-nums;
+  background: #fdecec; color: #b42323; border: 1px solid #f5c2c2;
+}
+.ap-votes.full { background: #e3f6ef; color: #12805c; border-color: #b6e6d2; }
+
+/* =========================================================
+   Computer & iPad: night action opens from its tile as a small window
+   ========================================================= */
+@media (min-width: 761px) {
+  #actionCard { display: none !important; }
+  .side-left .nav .nav-action .pill { min-width: 18px; text-align: center; }
+  #actionPop:not(.hidden) {
+    display: block; position: fixed; z-index: 40; width: 290px; max-width: calc(100vw - 32px); padding: 12px;
+    border-radius: 16px; background: #fff; color: #171a2b; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+    animation: popIn 0.2s var(--ease);
+  }
+  #actionPop .rp-head { display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; font-weight: 800; margin-bottom: 6px; }
+  #actionPop .rp-close { width: 28px; height: 28px; min-height: 0; padding: 0; border: none; border-radius: 8px; background: #eef0f7; color: #4a5068; font-size: 0.8rem; cursor: pointer; }
+  #actionPop .rp-empty { font-size: 0.82rem; color: #5a6078; margin-bottom: 8px; line-height: 1.35; }
+  #actionPop .rp-list { display: flex; flex-direction: column; gap: 5px; max-height: 55vh; overflow-y: auto; }
+  #actionPop .ap-pick {
+    display: flex; align-items: center; gap: 9px; width: 100%; min-height: 44px; padding: 5px 9px; border-radius: 11px;
+    border: 1.5px solid transparent; background: #f3f4f8; color: #171a2b; text-align: left; font-weight: 600; font-size: 0.9rem; cursor: pointer;
+  }
+  #actionPop button.ap-pick:hover { border-color: #c9cde0; }
+  #actionPop .ap-pick .avatar.sm { width: 28px !important; height: 28px !important; font-size: 0.7rem; }
+  #actionPop .ap-pick-name { flex: 1; min-width: 0; }
+  #actionPop .ap-pick.on.kill, #actionPop .ap-pick.on.vigil { border-color: var(--danger); background: #fdecec; }
+  #actionPop .ap-pick.on.heal { border-color: var(--success); background: #e3f6ef; }
+  #actionPop .ap-pick.on.investigate, #actionPop .ap-pick.on.interrogate { border-color: #3b82f6; background: #e6efff; }
+  #actionPop .ap-pick.voted:not(.on) { border-color: #f5c2c2; }
+  #actionPop .ap-pick-tick { font-weight: 800; }
+  #actionPop .ap-pick.done { opacity: 0.55; cursor: default; }
+  #actionPop .ap-pick-note { font-size: 0.72rem; color: #5a6078; }
+  #actionPop .ap-pack { margin-top: 8px; font-size: 0.78rem; font-weight: 700; line-height: 1.35; }
+  #actionPop .ap-pack.ok { color: var(--success); }
+  #actionPop .ap-pack.no { color: var(--danger); }
+}
+
+/* =========================================================
+   Computer & iPad landscape: no left bar, just floating boxes
+   ========================================================= */
+@media (min-width: 901px) {
+  .side.side-left { background: transparent; border: none; box-shadow: none; padding: 0; gap: 12px; border-radius: 0; }
+  .side-left > .brand, .side-left > .me-card, .side-left .nav, .side-left > .card, .side-left > .side-box {
+    flex-shrink: 0; margin: 0; border-radius: 18px;
+    background: color-mix(in srgb, var(--surface) 86%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border) 70%, rgba(255, 255, 255, 0.4));
+    box-shadow: 0 8px 22px rgba(10, 12, 30, 0.18);
+  }
+  .side-left > .brand { padding: 12px 14px; }
+  .side-left > .me-card { padding: 10px 12px; }
+  .side-left > .card { padding: 14px; }
+  .side-left > .side-box { margin-top: auto; }
+  .side-left .nav .nav-item { background: color-mix(in srgb, var(--surface-2) 80%, transparent); }
+}
+/* Players list on the left is narrower: tighter rows so names and roles fit next to the moderator's buttons. */
+@media (min-width: 761px) {
+  .side-left .players li { gap: 8px; padding: 6px 4px; font-size: 0.98rem; }
+  .side-left .players li .avatar.sm { width: 32px; height: 32px; }
+  .side-left .players .protect-btn, .side-left .players .kill-btn, .side-left .players .kick-btn { width: 26px; height: 26px; flex-shrink: 0; font-size: 0.75rem; }
+  .side-left .players li .tag { padding: 2px 6px; }
+}

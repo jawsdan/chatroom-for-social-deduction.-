@@ -916,9 +916,39 @@ function renderRolesCard() {
   }
 }
 
+// Computer & iPad: the players list sits on the left under the chats. Phones keep it in the game panel.
+function placePlayersCard() {
+  const pc = $('playersCard');
+  if (matchMedia('(max-width: 760px)').matches) {
+    if (pc.parentElement !== $('sideRight')) $('sideRight').insertBefore(pc, $('rolesCard'));
+  } else if (pc.parentElement !== $('sideLeft')) $('sideLeft').insertBefore(pc, $('sideBox'));
+}
+placePlayersCard();
+window.addEventListener('resize', placePlayersCard);
+
+// Computer & iPad: the night action is a tile in the chats box that opens a small pick list.
+function renderActionNav() {
+  const a = state.me.action;
+  const show = !!a && !amMod() && !amMuted() && state.gameState === 'running';
+  $('actionNav').classList.toggle('hidden', !show);
+  if (!show) return;
+  const [icon, label] = PHONE_ACT[a.kind];
+  $('actionNavIcon').textContent = icon;
+  $('actionNavLabel').textContent = label;
+  $('actionNav').classList.toggle('selected', actionOpen);
+  // A red dot while there's still a choice to make tonight.
+  const waiting = state.phase === 'night' && a.kind !== 'arrest' && !a.target && !a.skip && !state.me.arrestedTonight && a.targets?.length;
+  $('actionNavPill').classList.toggle('hidden', !waiting);
+}
+$('actionNav').onclick = () => {
+  if (!isPhone() && getComputedStyle($('sideLeft')).position === 'fixed') closeDrawers();
+  toggleActionPop();
+};
+
 function renderPanel() {
   renderPhaseDisplay();
   renderActionCard();
+  renderActionNav();
   renderNightCard();
 
   // Moderator tools
@@ -2432,7 +2462,7 @@ function renderResultsPop() {
 }
 // Tap anywhere else to close it.
 document.addEventListener('pointerdown', (e) => {
-  if (e.target.closest('#resultsPop, #actionPop, .dock-btn')) return;
+  if (e.target.closest('#resultsPop, #actionPop, .dock-btn, #actionNav')) return;
   if (resultsOpen) toggleResultsPop();
   if (actionOpen) toggleActionPop();
 });
@@ -2447,23 +2477,40 @@ function toggleActionPop() {
     renderResultsPop();
   }
   renderActionPop();
+  if (state) renderActionNav();
   $('phoneDock').dataset.sig = '';
   renderPhoneDock();
+}
+// Where the pick list opens: under the menu on phones, beside the left box on bigger screens.
+function placeActionPop(pop) {
+  if (isPhone()) {
+    const dock = $('phoneDock');
+    pop.style.top = dock.offsetTop + dock.offsetHeight + 6 + 'px';
+    pop.style.left = '';
+    return;
+  }
+  const side = $('sideLeft');
+  const docked = getComputedStyle(side).position !== 'fixed';
+  const tile = $('actionNav').getBoundingClientRect();
+  const left = docked ? side.getBoundingClientRect().right + 12 : 16;
+  let top = docked && tile.height ? tile.top - 8 : 80;
+  top = Math.max(12, Math.min(top, innerHeight - pop.offsetHeight - 12));
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
 }
 function renderActionPop() {
   const pop = $('actionPop');
   if (!state) return;
   const a = state.me.action;
   if (!a || amMod() || amMuted() || state.gameState !== 'running') actionOpen = false;
-  const show = actionOpen && isPhone();
+  const show = actionOpen;
   pop.classList.toggle('hidden', !show);
   if (!show) return;
-  const dock = $('phoneDock');
-  pop.style.top = dock.offsetTop + dock.offsetHeight + 6 + 'px';
   const night = state.phase === 'night';
   const sig = JSON.stringify([a, night, state.me.arrestedTonight]);
-  if (pop.dataset.sig === sig) return;
+  if (pop.dataset.sig === sig) return placeActionPop(pop);
   pop.dataset.sig = sig;
+  requestAnimationFrame(() => placeActionPop(pop));
   pop.innerHTML = '';
   const [icon, label] = PHONE_ACT[a.kind];
   if (a.kind === 'arrest' || (state.me.arrestedTonight && night)) {
@@ -2492,12 +2539,31 @@ function renderActionPop() {
   const hint = { interrogate: 'Who do you want to interrogate? If they are innocent, you lose this ability.', vigil: 'Who do you want to kill?', kill: 'Who do you want to kill?', heal: 'Who do you want to protect?', investigate: 'Who do you want to investigate?' }[a.kind];
   pop.append(el('div', 'rp-empty', a.skip ? 'You chose to kill nobody tonight. Tap someone to change.' : a.target ? `You chose ${a.target}. Tap someone else to change.` : hint));
   const list = el('div', 'rp-list');
+  // Wolves: who in the pack picked whom, and how many votes each player has.
+  const packSize = a.pack?.length ? a.pack.length + 1 : 0;
+  const votersFor = (name) => {
+    if (!packSize) return [];
+    const v = a.pack.filter((p) => (name === null ? p.skip : !p.skip && p.target === name)).map((p) => p.name);
+    if (name === null ? a.skip : !a.skip && a.target === name) v.unshift('you');
+    return v;
+  };
+  const voteTag = (voters) => {
+    const t = el('span', 'ap-votes' + (voters.length === packSize ? ' full' : ''));
+    t.append(el('b', '', `${voters.length}/${packSize}`));
+    t.title = voters.join(', ');
+    return t;
+  };
   for (const name of a.targets) {
     const on = a.target === name;
-    const b = el('button', 'ap-pick' + (on ? ' on ' + a.kind : ''));
+    const voters = votersFor(name);
+    const b = el('button', 'ap-pick' + (on ? ' on ' + a.kind : '') + (voters.length ? ' voted' : ''));
     b.type = 'button';
-    b.append(avatar(name, 'sm'), el('span', 'ap-pick-name', name + (key(name) === key(me) ? ' (you)' : '')));
-    if (on) b.append(el('span', 'ap-pick-tick', '✓'));
+    const nm = el('span', 'ap-pick-name');
+    nm.append(el('span', 'ap-pick-who', name + (key(name) === key(me) ? ' (you)' : '')));
+    if (voters.length) nm.append(el('span', 'ap-pick-by', 'Picked by ' + voters.join(', ')));
+    b.append(avatar(name, 'sm'), nm);
+    if (packSize && voters.length) b.append(voteTag(voters));
+    else if (on) b.append(el('span', 'ap-pick-tick', '✓'));
     b.onclick = () => socket.emit('night:choose', on ? null : name);
     list.append(b);
   }
@@ -2511,13 +2577,30 @@ function renderActionPop() {
     const nb = el('button', 'ap-pick nobody' + (a.skip ? ' on kill' : ''));
     nb.type = 'button';
     nb.append(el('span', 'nobody-icon', '🚫'), el('span', 'ap-pick-name', 'Kill nobody tonight'));
-    if (a.skip) nb.append(el('span', 'ap-pick-tick', '✓'));
+    const nv = votersFor(null);
+    if (packSize && nv.length) nb.append(voteTag(nv));
+    else if (a.skip) nb.append(el('span', 'ap-pick-tick', '✓'));
     nb.onclick = () => socket.emit('night:choose', a.skip ? null : '__nobody__');
     list.append(nb);
   }
   pop.append(list);
   // Wolves: show whether the pack agrees.
-  if (a.pack?.length) pop.append(el('div', 'ap-pack ' + (a.agreed || a.agreedNobody ? 'ok' : 'no'), a.agreed ? `✓ Pack agrees: ${a.agreed}` : a.agreedNobody ? '✓ Pack agrees: nobody tonight' : '✗ The pack must all pick the same player'));
+  if (packSize) {
+    let status = '✗ The pack must all pick the same player';
+    if (!a.agreed && !a.agreedNobody) {
+      // Point out the player closest to being agreed on.
+      let best = null, most = 0;
+      for (const n of a.targets) {
+        const c = votersFor(n).length;
+        if (c > most) [best, most] = [n, c];
+      }
+      if (best && most > 0) {
+        const need = packSize - most;
+        status = `${best} has ${most}/${packSize}: ${need} more ${need === 1 ? 'wolf needs' : 'wolves need'} to pick them`;
+      }
+    }
+    pop.append(el('div', 'ap-pack ' + (a.agreed || a.agreedNobody ? 'ok' : 'no'), a.agreed ? `✓ Pack agrees: ${a.agreed}` : a.agreedNobody ? '✓ Pack agrees: nobody tonight' : status));
+  }
 }
 
 // ---------- Officer: arrest one player by day ----------
