@@ -793,7 +793,8 @@ function threadKeys() {
 function renderThreadTabs() {
   const tabs = $('threadTabs');
   const show = amMod() && channel === 'mod';
-  tabs.classList.toggle('hidden', !show);
+  // Phones use the players box on the left instead of the row of tabs and the role bar.
+  tabs.classList.toggle('hidden', !show || isPhone());
   if (show) {
     const keys = threadKeys();
     if (selectedThread && !keys.has(selectedThread)) selectedThread = null;
@@ -815,7 +816,8 @@ function renderThreadTabs() {
       tabs.append(b);
     }
   }
-  $('roleBar').classList.toggle('hidden', !show || !selectedThread);
+  $('roleBar').classList.toggle('hidden', !show || !selectedThread || isPhone());
+  renderPhoneThreads(show && isPhone());
   renderCheckBar(show);
   $('roleTarget').textContent = selectedThread ? displayName(selectedThread) : '';
   const cur = selectedThread && state.modView?.roles[selectedThread];
@@ -823,6 +825,66 @@ function renderThreadTabs() {
   pb.innerHTML = '';
   if (cur) pb.append(roleIcon(cur), document.createTextNode(` ${ROLE[cur].label} · change ▾`));
   else pb.append(document.createTextNode('🎭 Choose a role ▾'));
+}
+
+// Phone, moderator inbox: a box on the left with every player. Scroll, tap one to open their chat,
+// and change the chosen player's role with the button at the top.
+function renderPhoneThreads(show) {
+  const box = $('phoneThreads');
+  box.classList.toggle('hidden', !show);
+  if (!show) return;
+  const dock = $('phoneDock');
+  const top = phoneTop() + dock.offsetHeight + 8;
+  box.style.top = top + 'px';
+  box.style.maxHeight = Math.max(160, $('composer').offsetTop - top - 10) + 'px';
+  const keys = [...threadKeys()];
+  const roles = state.modView?.roles || {};
+  const sig = JSON.stringify([keys, selectedThread, roles, [...unreadThreads], state.dead, state.users.map((u) => u.name)]);
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  const oldList = box.querySelector('.pt-list');
+  const scroll = oldList ? oldList.scrollTop : 0;
+  box.innerHTML = '';
+  const head = el('div', 'pt-head');
+  head.append(el('span', 'pt-title', `👥 Players ${keys.length}`));
+  box.append(head);
+  if (selectedThread) {
+    const cur = roles[selectedThread];
+    const rb = el('button', 'pt-role' + (cur ? ' has' : ''));
+    rb.type = 'button';
+    rb.title = `Change ${displayName(selectedThread)}'s role`;
+    if (cur) rb.append(roleIcon(cur), el('span', 'pt-role-label', ROLE[cur].label));
+    else rb.append(el('span', 'pt-role-label', '🎭 Pick role'));
+    rb.append(el('span', 'pt-caret', '▾'));
+    rb.onclick = () => openRolePicker(displayName(selectedThread));
+    box.append(rb);
+  }
+  const list = el('div', 'pt-list');
+  if (!keys.length) list.append(el('div', 'pt-empty', 'Players who join show up here.'));
+  for (const k of keys) {
+    const online = state.users.some((u) => key(u.name) === k);
+    const dead = state.dead?.includes(k);
+    const row = el('button', 'pt-row' + (k === selectedThread ? ' on' : '') + (online ? '' : ' offline') + (dead ? ' dead' : ''));
+    row.type = 'button';
+    const txt = el('div', 'pt-text');
+    txt.append(el('div', 'pt-name', displayName(k) + (online ? '' : ' (left)')));
+    if (roles[k]) {
+      const sub = el('div', 'pt-sub');
+      sub.append(roleIcon(roles[k]), document.createTextNode(' ' + ROLE[roles[k]].label + (dead ? ' · dead' : '')));
+      txt.append(sub);
+    }
+    row.append(avatar(displayName(k), 'sm'), txt);
+    if (unreadThreads.has(k)) row.append(el('span', 'pt-new'));
+    row.onclick = () => {
+      selectedThread = k;
+      renderAll();
+    };
+    list.append(row);
+  }
+  box.append(list);
+  list.scrollTop = scroll;
+  // Keep the chosen player in view.
+  if (!scroll) list.querySelector('.pt-row.on')?.scrollIntoView({ block: 'nearest' });
 }
 
 // The moderator answers an Detective's question: is this player a wolf or a civilian?
@@ -2424,10 +2486,15 @@ function openPanel(side) {
   $('scrim').classList.add('on');
 }
 
+// Phone: the menu and panels stay pinned just under the top bar, whatever bars the chat shows.
+function phoneTop() {
+  const h = document.querySelector('.chat-header');
+  return h.offsetTop + h.offsetHeight + 8;
+}
 function renderPhoneDock() {
   const dock = $('phoneDock');
   if (!state) return;
-  dock.style.top = $('messages').offsetTop + 8 + 'px';
+  dock.style.top = phoneTop() + 'px';
   const items = [];
   const pill = (n) => (n ? (n > 9 ? '9+' : String(n)) : '');
   // Nobody runs the game: anyone can step up (shown first so it's easy to find).
@@ -2469,10 +2536,16 @@ function renderPhoneDock() {
   // and keep the moderator's inbox bars below the panels.
   requestAnimationFrame(() => {
     const phone = isPhone();
-    $('messages').style.paddingTop = phone ? dock.offsetHeight + 16 + 'px' : '';
-    const top = $('threadTabs');
-    if (top) top.style.marginTop = phone && !top.classList.contains('hidden') ? dock.offsetHeight + 16 + 'px' : '';
-    if (phone && !top.classList.contains('hidden')) $('messages').style.paddingTop = '12px';
+    const gap = dock.offsetHeight + 16;
+    // A bar above the chat (like a trial) goes below the menu; otherwise the messages start below it.
+    const bars = ['trialBanner', 'threadTabs', 'roleBar'].map($);
+    for (const b of bars) b.style.marginTop = '';
+    const first = bars.find((b) => !b.classList.contains('hidden'));
+    if (phone && first) first.style.marginTop = gap + 'px';
+    $('messages').style.paddingTop = phone ? (first ? '12px' : gap + 'px') : '';
+    // Moderator inbox: the players box sits on the left, so the messages move right.
+    const threads = $('phoneThreads');
+    $('messages').style.paddingLeft = phone && !threads.classList.contains('hidden') ? threads.offsetWidth + 16 + 'px' : '';
   });
   if (dock.dataset.sig === sig) return;
   dock.dataset.sig = sig;
@@ -2495,7 +2568,9 @@ function renderPhoneDock() {
 function renderPhonePlayers() {
   const box = $('phonePlayers');
   if (!state) return;
-  box.style.top = $('messages').offsetTop + 8 + 'px';
+  box.style.top = phoneTop() + 'px';
+  // In the moderator's inbox the players box on the left takes over.
+  box.classList.toggle('in-inbox', amMod() && channel === 'mod');
   const roles = state.modView?.roles;
   const list = [...state.users].sort((a, b) => b.moderator - a.moderator);
   const sig = JSON.stringify([list, playersExpanded, roles, state.dead, me]);
