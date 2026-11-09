@@ -2265,6 +2265,8 @@ function renderPhoneDock() {
   dock.style.top = $('messages').offsetTop + 8 + 'px';
   const items = [];
   const pill = (n) => (n ? (n > 9 ? '9+' : String(n)) : '');
+  // Nobody runs the game: anyone can step up (shown first so it's easy to find).
+  if (!state.moderator && !amMuted()) items.push({ id: 'claim', icon: '🛡️', label: 'Be mod', badge: '!', go: () => socket.emit('mod:claim') });
   items.push({ id: 'lobby', icon: '#', label: 'Lobby', on: channel === 'lobby', badge: pill(lobbyUnread), go: () => switchChannel('lobby') });
   items.push({ id: 'mod', icon: '🛡️', label: amMod() ? 'Inbox' : 'Mod', on: channel === 'mod', badge: pill(modUnread), go: () => switchChannel('mod') });
   if (state.me.wolfAccess) items.push({ id: 'wolf', img: 'werewolf', label: 'Wolves', on: channel === 'wolf', badge: pill(wolfUnread), lock: state.phase !== 'night', go: () => switchChannel('wolf') });
