@@ -68,7 +68,7 @@ function knownRole(name) {
 // Small round role picture to use next to text.
 function roleIcon(role) {
   const img = el('img', 'ri');
-  img.src = `img/roles/sm/${role}.webp`;
+  img.src = `img/roles/sm/${role}.webp?v=${window.ROLE_IMG_VERSION}`;
   img.alt = '';
   return img;
 }
@@ -1356,7 +1356,9 @@ function renderActionCard() {
 // The moderator's summary of tonight's choices.
 function renderNightCard() {
   const card = $('nightCard');
-  const list = amMod() && state.gameState === 'running' ? state.modView?.nightActions || [] : [];
+  let list = amMod() && state.gameState === 'running' ? state.modView?.nightActions || [] : [];
+  // By day, only show it if something actually happened last night.
+  if (state.phase !== 'night' && !list.some((a) => a.target || a.skip)) list = [];
   card.classList.toggle('hidden', !list.length);
   if (!list.length) return;
   card.innerHTML = '';
