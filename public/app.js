@@ -31,7 +31,7 @@ const ROLE = {
   son: { label: 'Son', icon: '👦', color: '#4d7c0f', desc: 'You are part of the family, on the village side. If both your parents die, you become Batman.' },
   joker: { label: 'Joker', icon: '🃏', color: '#7e22ce', desc: 'Your Son is gone. You now hunt with the wolves: join the wolf den and pick a victim with the pack at night.' },
   vigilante: { label: 'Vigilante', icon: '🎯', color: '#c2410c', desc: 'You are still on the village side, but each night you may kill one player. You can also choose to kill nobody.' },
-  batman: { label: 'Batman', icon: '🦇', color: '#1f2335', desc: 'Your parents are gone. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
+  batman: { label: 'Batman', icon: '🦇', color: '#eab308', desc: 'Your parents are gone. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
 };
 
 $('joinLogo').innerHTML = ART.night;
@@ -1216,7 +1216,7 @@ function rnd(a, b) {
   return a + Math.random() * (b - a);
 }
 // The new family roles borrow the closest existing screen theme.
-const THEME_FOR = { officer: 'detective',  mother: 'civilian', father: 'civilian', son: 'civilian', joker: 'werewolf', vigilante: 'civilian', batman: 'detective' };
+const THEME_FOR = { officer: 'detective', mother: 'civilian', father: 'civilian', son: 'civilian' };
 function renderRoleFx() {
   const raw = !state || amMod() ? null : state.me.role || null;
   const role = THEME_FOR[raw] || raw;
@@ -1225,6 +1225,8 @@ function renderRoleFx() {
   const fx = $('roleFx');
   const back = $('roleFxBack');
   back.innerHTML = '';
+  $('chatFx').innerHTML = '';
+  $('chatFx').className = 'chat-fx';
   document.body.className = document.body.className.replace(/\bfx-role-\S+/g, '').trim();
   fx.innerHTML = '';
   if (!role) return;
@@ -1238,6 +1240,11 @@ function renderRoleFx() {
     return d;
   };
   const addBack = (cls, style, html) => add(cls, style, html, back);
+  // Over the chat's background video, below the messages.
+  const chatFx = $('chatFx');
+  chatFx.innerHTML = '';
+  chatFx.className = 'chat-fx ' + role;
+  const addChat = (cls, style, html) => add(cls, style, html, chatFx);
   if (role === 'werewolf') {
     add('fx-vignette');
     add('fx-edge fx-top fangs');
@@ -1277,6 +1284,37 @@ function renderRoleFx() {
     add('fx-sirenglow');
     add('fx-edge fx-top sirens', '', '<div class="siren red"></div><div class="siren blue"></div>');
     add('fx-edge fx-bottom tape', '', `<div class="tape-text">${'POLICE LINE · DO NOT CROSS · '.repeat(16)}</div>`);
+  } else if (role === 'batman') {
+    // Dark Gotham: a bat signal in the sky, bats flying past, a gothic skyline.
+    add('fx-edge fx-top gotham-top');
+    add('fx-edge fx-bottom gotham');
+    addChat('bat-signal', '', ART_FX.batSignal);
+    for (let i = 0; i < 9; i++) {
+      addChat('fx-bat', `top:${rnd(6, 70).toFixed(1)}%;--s:${rnd(0.5, 1.3).toFixed(2)};--d:-${rnd(0, 20).toFixed(1)}s;--t:${rnd(9, 18).toFixed(1)}s;--dir:${Math.random() < 0.5 ? 1 : -1}`, ART_FX.bat);
+    }
+  } else if (role === 'vigilante') {
+    // Dark and violent: a drifting scope, bullet holes, slashes of red.
+    add('fx-vignette');
+    add('fx-edge fx-top vig-bar');
+    add('fx-edge fx-bottom vig-bar');
+    addChat('scope', '', ART_FX.scope);
+    for (let i = 0; i < 7; i++) {
+      addChat('bullet-hole', `top:${rnd(8, 88).toFixed(1)}%;left:${rnd(3, 95).toFixed(1)}%;--s:${rnd(0.6, 1.3).toFixed(2)};--r:${rnd(0, 360).toFixed(0)}deg`, ART_FX.bulletHole);
+    }
+    addChat('slashes', 'top:18%;right:4%', ART_FX.slashes);
+    addChat('slashes', 'bottom:20%;left:3%;transform:rotate(180deg) scale(0.8)', ART_FX.slashes);
+  } else if (role === 'joker') {
+    // Colorful madness: HA HA everywhere, card suits, purple-and-green stripes.
+    add('fx-edge fx-top joker-stripes');
+    add('fx-edge fx-bottom joker-stripes');
+    const colors = ['#a3e635', '#c026d3', '#22c55e', '#f43f5e', '#8b5cf6', '#facc15'];
+    for (let i = 0; i < 14; i++) {
+      const word = ['HA', 'HA HA', 'HAHA', 'HA!', 'HEHE'][i % 5];
+      addChat('haha', `top:${rnd(5, 90).toFixed(1)}%;left:${rnd(2, 90).toFixed(1)}%;color:${colors[i % colors.length]};font-size:${(isPhone() ? rnd(14, 26) : rnd(18, 44)).toFixed(0)}px;--r:${rnd(-25, 25).toFixed(0)}deg;--d:-${rnd(0, 4).toFixed(1)}s;--t:${rnd(2.4, 4.5).toFixed(1)}s`, word);
+    }
+    for (let i = 0; i < 8; i++) {
+      addChat('suit', `left:${rnd(2, 98).toFixed(1)}%;color:${colors[(i + 2) % colors.length]};font-size:${rnd(16, 34).toFixed(0)}px;--d:-${rnd(0, 14).toFixed(1)}s;--t:${rnd(10, 16).toFixed(1)}s`, '♠♥♦♣'[i % 4]);
+    }
   } else if (role === 'civilian') {
     add('fx-edge fx-bottom village');
     for (let i = 0; i < 5; i++) {
@@ -1289,6 +1327,10 @@ function renderRoleFx() {
 }
 
 const ART_FX = {
+  bat: `<svg viewBox="0 0 40 16" xmlns="http://www.w3.org/2000/svg"><path d="M20 6 C16 0 10 2 0 4 C6 6 8 10 10 14 C13 10 17 10 20 12 C23 10 27 10 30 14 C32 10 34 6 40 4 C30 2 24 0 20 6Z" fill="#05060c"/></svg>`,
+  batSignal: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="bsg" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fde68a" stop-opacity="0.95"/><stop offset="70%" stop-color="#facc15" stop-opacity="0.55"/><stop offset="100%" stop-color="#facc15" stop-opacity="0"/></radialGradient></defs><ellipse cx="100" cy="100" rx="92" ry="70" fill="url(#bsg)"/><path transform="translate(40 72) scale(3)" d="M20 6 C16 0 10 2 0 4 C6 6 8 10 10 14 C13 10 17 10 20 12 C23 10 27 10 30 14 C32 10 34 6 40 4 C30 2 24 0 20 6Z" fill="#0b0d1a"/></svg>`,
+  scope: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke="#ef4444" stroke-width="3"><circle cx="100" cy="100" r="80"/><circle cx="100" cy="100" r="40" stroke-width="2"/><path d="M100 4 V70 M100 130 V196 M4 100 H70 M130 100 H196"/></g><circle cx="100" cy="100" r="4" fill="#ef4444"/></svg>`,
+  bulletHole: `<svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"><g stroke="#d4d4d8" stroke-width="1.5" opacity="0.8"><path d="M30 30 L8 14 M30 30 L52 10 M30 30 L56 38 M30 30 L36 58 M30 30 L6 44 M30 30 L22 4"/></g><circle cx="30" cy="30" r="9" fill="#0a0a0a" stroke="#52525b" stroke-width="2"/><circle cx="30" cy="30" r="4" fill="#000"/></svg>`,
   splat: `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><g fill="#8a0b12">
 <path d="M100 40 C120 42 125 70 145 65 C165 60 170 85 150 98 C135 108 160 125 140 140 C122 152 110 132 96 150 C82 168 62 150 70 132 C76 118 48 120 50 100 C52 80 72 86 76 70 C80 52 84 38 100 40Z"/>
 <circle cx="170" cy="40" r="9"/><circle cx="35" cy="60" r="7"/><circle cx="160" cy="165" r="11"/><circle cx="40" cy="170" r="6"/><circle cx="185" cy="110" r="5"/><circle cx="20" cy="115" r="4"/><circle cx="120" cy="185" r="5"/>

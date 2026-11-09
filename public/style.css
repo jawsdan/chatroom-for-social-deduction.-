@@ -1321,3 +1321,54 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
 .rp-later-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 6px; }
 .rp-later-row .rp-role { font-size: 0.8rem; padding: 5px 6px; }
 @media (max-width: 400px) { .rp-later-row { grid-template-columns: 1fr 1fr; } }
+
+/* =========================================================
+   Batman: dark Gotham with a bat signal and bats
+   ========================================================= */
+body.fx-role-batman { --fx-top: 14px; --fx-bottom: 40px;
+  --bg: #07080f; --surface: #0e1120; --surface-2: #161a2e; --surface-3: #1f2440; --border: #232846;
+  --accent: #facc15; --accent-2: #eab308; --accent-soft: #2a2610; --bubble: #161a2e; --muted: #7c829f; --text: #e8e9f2; --text-2: #b9bdd4; }
+.gotham-top { height: 14px; background: #04050b; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6); }
+.gotham {
+  height: 40px; background-repeat: repeat-x; background-position: bottom; background-size: 220px 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='40'%3E%3Cg fill='%2304050b'%3E%3Crect y='30' width='220' height='10'/%3E%3Cpath d='M6 40V14h6V4l4-4 4 4v10h6v26z'/%3E%3Cpath d='M34 40V20h14v20z'/%3E%3Cpath d='M54 40V10l8-8 8 8v30z'/%3E%3Cpath d='M78 40V22h20v18z'/%3E%3Cpath d='M104 40V6h4V0h4v6h4v34z'/%3E%3Cpath d='M124 40V18l10-8 10 8v22z'/%3E%3Cpath d='M150 40V24h16v16z'/%3E%3Cpath d='M172 40V12h4V6l6-6 6 6v6h4v28z'/%3E%3Cpath d='M198 40V26h18v14z'/%3E%3C/g%3E%3Cg fill='%23facc15' opacity='.7'%3E%3Crect x='11' y='18' width='2' height='3'/%3E%3Crect x='60' y='16' width='2' height='3'/%3E%3Crect x='109' y='12' width='2' height='3'/%3E%3Crect x='181' y='16' width='2' height='3'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bat-signal { position: absolute; top: 6%; right: 6%; width: 230px; height: 230px; opacity: 0.55; animation: signalPulse 6s ease-in-out infinite; will-change: opacity; }
+.bat-signal svg, .scope svg, .bullet-hole svg, .fx-bat svg { width: 100%; height: 100%; display: block; }
+@keyframes signalPulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.7; } }
+.fx-bat { position: absolute; left: -60px; width: 46px; height: 18px; animation: batCross var(--t) linear var(--d) infinite; will-change: transform; }
+.fx-bat svg { animation: flap 0.22s ease-in-out infinite alternate; filter: drop-shadow(0 0 2px rgba(250, 204, 21, 0.25)); }
+@keyframes batCross { from { transform: translateX(0) scale(var(--s)); } 50% { transform: translate(30vw, -18px) scale(var(--s)); } to { transform: translateX(calc(60vw + 120px)) scale(var(--s)); } }
+
+/* =========================================================
+   Vigilante: dark and violent — scope, bullet holes, red
+   ========================================================= */
+body.fx-role-vigilante { --fx-top: 10px; --fx-bottom: 10px;
+  --bg: #0c0809; --surface: #161011; --surface-2: #211617; --surface-3: #2d1d1f; --border: #3a2224;
+  --accent: #dc2626; --accent-2: #ef4444; --accent-soft: #3a1214; --bubble: #211617; --muted: #9a7d7f; --text: #f1e7e7; --text-2: #d4bcbd; }
+.fx-role-vigilante .fx-vignette { background: radial-gradient(ellipse at center, transparent 50%, rgba(140, 0, 0, 0.5) 100%); animation: vigFlash 4s ease-in-out infinite; }
+@keyframes vigFlash { 0%, 80%, 100% { opacity: 0.7; } 84% { opacity: 1; } 88% { opacity: 0.6; } 92% { opacity: 1; } }
+.vig-bar { height: 10px; background: repeating-linear-gradient(-45deg, #7f1d1d 0 14px, #0c0809 14px 28px); }
+.scope { position: absolute; top: 30%; left: 35%; width: 240px; height: 240px; opacity: 0.35; animation: scopeDrift 14s ease-in-out infinite alternate; will-change: transform; }
+@keyframes scopeDrift { 0% { transform: translate(-20vw, -10vh); } 35% { transform: translate(10vw, 8vh); } 70% { transform: translate(-6vw, 18vh); } 100% { transform: translate(18vw, -6vh); } }
+.bullet-hole { position: absolute; width: 54px; height: 54px; transform: rotate(var(--r)) scale(var(--s)); opacity: 0.75; }
+
+/* =========================================================
+   Joker: colorful madness — HA HA, card suits, stripes
+   ========================================================= */
+body.fx-role-joker { --fx-top: 12px; --fx-bottom: 12px;
+  --bg: #1a0b26; --surface: #241133; --surface-2: #301843; --surface-3: #3d2054; --border: #4c2a66;
+  --accent: #84cc16; --accent-2: #a3e635; --accent-soft: #2a3d12; --bubble: #301843; --muted: #b394c9; --text: #f5eefb; --text-2: #dccbe9; }
+.joker-stripes { height: 12px; background: repeating-linear-gradient(90deg, #7e22ce 0 18px, #84cc16 18px 36px); animation: stripeSlide 3s linear infinite; }
+@keyframes stripeSlide { from { background-position-x: 0; } to { background-position-x: 36px; } }
+.haha { position: absolute; font-weight: 900; font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', cursive; letter-spacing: 0.04em; opacity: 0.55; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35); transform: rotate(var(--r)); animation: hahaBob var(--t) ease-in-out var(--d) infinite; will-change: transform, opacity; }
+@keyframes hahaBob { 0%, 100% { transform: rotate(var(--r)) scale(1); opacity: 0.35; } 50% { transform: rotate(calc(var(--r) * -1)) scale(1.18); opacity: 0.7; } }
+.suit { position: absolute; bottom: -50px; font-weight: 900; opacity: 0; animation: floatUp var(--t) linear var(--d) infinite; will-change: transform, opacity; }
+
+/* Layer for role effects over the chat background (above the video, below messages). */
+.chat-fx { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; contain: strict; }
+.chat-fx.batman { background: linear-gradient(180deg, rgba(3, 4, 12, 0.88), rgba(6, 8, 22, 0.72) 50%, rgba(3, 4, 12, 0.9)); }
+.chat-fx.vigilante { background: linear-gradient(180deg, rgba(14, 3, 4, 0.85), rgba(40, 4, 6, 0.65) 50%, rgba(14, 3, 4, 0.88)); }
+.chat-fx.joker { background: linear-gradient(160deg, rgba(76, 20, 110, 0.55), rgba(40, 90, 20, 0.3) 55%, rgba(76, 20, 110, 0.6)); }
+
+@media (max-width: 760px) { .bat-signal, .scope { width: 150px; height: 150px; } .haha { opacity: 0.45; } }
