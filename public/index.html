@@ -40,6 +40,18 @@
     </form>
   </div>
 
+  <!-- Character select (after entering a name, or by tapping your name card) -->
+  <div id="charSelect" class="char-select hidden">
+    <div class="join-bg"></div>
+    <div class="char-card">
+      <h1>Choose your character</h1>
+      <p class="char-sub">Your character stands by the campfire for everyone to see. Each one can only be picked by one player.</p>
+      <div id="charGrid" class="char-grid"></div>
+      <div id="charError" class="error" role="alert"></div>
+      <button type="button" id="charDone" class="btn btn-primary btn-lg btn-block">Continue →</button>
+    </div>
+  </div>
+
   <!-- App -->
   <div id="app" class="app hidden">
     <!-- Left: chats & groups -->
@@ -206,6 +218,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="art.js"></script>
+  <script src="characters.js"></script>
   <script src="scene.js"></script>
   <script src="app.js"></script>
   <script src="device.js"></script>

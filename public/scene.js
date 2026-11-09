@@ -44,62 +44,78 @@
   });
 })();
 
-// ---------- Firekeeper: a character standing by the fire ----------
-// He belongs to the first player who joined. Positions are in the videos' own pixels (864x576),
-// mapped onto the screen the same way the video is cropped (object-fit: cover).
+// ---------- Characters standing by the fire ----------
+// Players who picked a character on the character select screen stand around the fire.
+// Spots are in the videos' own pixels (864x576), mapped onto the screen the same way
+// the video is cropped (object-fit: cover, anchored at the bottom).
 (function () {
   const VIDEO_W = 864;
   const VIDEO_H = 576;
-  // Where his feet go (left of the fire ring), how tall he is, and how the video is anchored.
-  const SPOT = {
-    day: { x: 250, y: 452, h: 138, posX: 0.5 },
-    night: { x: 236, y: 478, h: 138, posX: 0.55 },
-  };
-  let el = null;
-  let current = { name: null, dead: false, phase: 'day' };
+  const POS_X = { day: 0.5, night: 0.55 }; // matches the videos' object-position
+  const els = new Map(); // character id -> element
+  let phase = 'day';
+  let root = null;
 
-  function build(root) {
-    el = document.createElement('div');
-    el.className = 'firekeeper hidden';
-    el.innerHTML = '<div class="fk-poof"></div><img class="fk-img" alt="" draggable="false" src="img/characters/firekeeper.webp"><div class="fk-name"></div>';
-    root.append(el);
-    window.addEventListener('resize', place);
-    new ResizeObserver(place).observe(root);
-  }
-
-  function place() {
-    if (!el || !current.name) return;
-    const root = el.parentElement;
+  function place(el, c) {
     const cw = root.clientWidth;
     const ch = root.clientHeight;
-    const s = SPOT[current.phase] || SPOT.day;
+    const spot = c.spot[phase] || c.spot.day;
     const scale = Math.max(cw / VIDEO_W, ch / VIDEO_H);
-    const offX = (cw - VIDEO_W * scale) * s.posX;
-    const offY = ch - VIDEO_H * scale; // anchored at the bottom
-    const h = Math.max(80, Math.min(260, s.h * scale));
-    // On narrow screens the video's sides are cropped off; keep him (and his name) fully in view.
+    const offX = (cw - VIDEO_W * scale) * POS_X[phase];
+    const offY = ch - VIDEO_H * scale;
+    const h = Math.max(80, Math.min(260, (c.height || 138) * scale));
+    // On narrow screens the video's sides are cropped off; keep them (and their name) fully in view.
     const half = h * 0.3 + 12;
-    const x = Math.min(Math.max(offX + s.x * scale, half), cw - half);
-    el.style.left = x + 'px';
-    el.style.top = offY + s.y * scale + 'px';
+    el.style.left = Math.min(Math.max(offX + spot.x * scale, half), cw - half) + 'px';
+    el.style.top = offY + spot.y * scale + 'px';
     el.style.setProperty('--fk-h', h + 'px');
   }
-
-  window.setFirekeeper = function (name, dead, phase) {
-    const root = document.getElementById('scene');
-    if (!root) return;
-    if (!el) build(root);
-    const changed = name !== current.name;
-    current = { name, dead: !!dead, phase: phase === 'night' ? 'night' : 'day' };
-    el.classList.toggle('hidden', !name);
-    el.classList.toggle('dead', !!dead);
-    el.querySelector('.fk-name').textContent = name || '';
-    if (name && changed) {
-      // Spawn: a puff of smoke, then he pops in.
-      el.classList.remove('spawn');
-      void el.offsetWidth;
-      el.classList.add('spawn');
+  function placeAll() {
+    for (const [id, el] of els) {
+      const c = (window.CHARACTERS || []).find((x) => x.id === id);
+      if (c) place(el, c);
     }
-    place();
+  }
+
+  // list: [{ name, character, dead }]
+  window.setFireCharacters = function (list, newPhase) {
+    root = document.getElementById('scene');
+    if (!root) return;
+    if (!root.dataset.fkInit) {
+      root.dataset.fkInit = '1';
+      window.addEventListener('resize', placeAll);
+      new ResizeObserver(placeAll).observe(root);
+    }
+    phase = newPhase === 'night' ? 'night' : 'day';
+    const wanted = new Map(list.filter((p) => p.character).map((p) => [p.character, p]));
+    for (const [id, el] of els) {
+      if (!wanted.has(id)) {
+        el.remove();
+        els.delete(id);
+      }
+    }
+    for (const [id, p] of wanted) {
+      const c = (window.CHARACTERS || []).find((x) => x.id === id);
+      if (!c) continue;
+      let el = els.get(id);
+      const fresh = !el || el.dataset.owner !== p.name;
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'firekeeper';
+        el.innerHTML = `<div class="fk-poof"></div><img class="fk-img" alt="" draggable="false" src="${c.img}"><div class="fk-name"></div>`;
+        root.append(el);
+        els.set(id, el);
+      }
+      el.dataset.owner = p.name;
+      el.querySelector('.fk-name').textContent = p.name;
+      el.classList.toggle('dead', !!p.dead);
+      if (fresh) {
+        // Spawn: a puff of smoke, then they pop in.
+        el.classList.remove('spawn');
+        void el.offsetWidth;
+        el.classList.add('spawn');
+      }
+      place(el, c);
+    }
   };
 })();

@@ -3,6 +3,8 @@ const http = require('http');
 const express = require('express');
 const { Server } = require('socket.io');
 const DEATH_LINES = require('./deaths');
+// Characters players can pick on the character select screen (see public/characters.js).
+const CHARACTERS = ['firekeeper'];
 
 const app = express();
 const server = http.createServer(app);
@@ -139,6 +141,7 @@ function broadcastState() {
       moderator: u.id === moderatorId,
       muted: mutedNames.has(key(u.name)),
       bot: !!u.bot,
+      character: u.character || null,
     })),
     moderator: moderatorId && users.get(moderatorId) ? users.get(moderatorId).name : null,
     phase,
@@ -633,6 +636,22 @@ io.on('connection', (socket) => {
     socket.emit('wolf:history', hasWolfAccess(socket.id) ? wolfChat : null);
     socket.emit('phase:changed', { phase, silent: true });
     systemLobby(`${name} joined the lobby.`);
+    broadcastState();
+  });
+
+  // Character select: each character can be picked by one player at a time.
+  socket.on('character:pick', (id, ack) => {
+    const u = me();
+    if (!u) return;
+    if (id === null || id === undefined) {
+      u.character = null;
+    } else {
+      if (!CHARACTERS.includes(id)) return ack?.({ ok: false, error: 'Unknown character.' });
+      const holder = [...users.values()].find((o) => o !== u && o.character === id);
+      if (holder) return ack?.({ ok: false, error: `${holder.name} already picked that character.` });
+      u.character = id;
+    }
+    ack?.({ ok: true });
     broadcastState();
   });
 

@@ -157,7 +157,8 @@ $('joinForm').addEventListener('submit', (e) => {
     me = res.name;
     $('join').classList.add('hidden');
     $('app').classList.remove('hidden');
-    $('msgInput').focus();
+    // Pick a character before playing.
+    openCharSelect();
   });
 });
 
@@ -175,11 +176,12 @@ socket.on('state', (s) => {
   tickPhaseTimer();
   if (channel === 'wolf' && !s.me.wolfAccess) channel = 'lobby';
   renderAll(false);
-  // The character by the fire belongs to the first person who joined
-  // (the moderator only if nobody else is here). Bots don't count.
-  const humans = s.users.filter((u) => !u.bot);
-  const keeper = humans.find((u) => !u.moderator) || humans[0];
-  window.setFirekeeper?.(keeper?.name || null, keeper && (keeper.muted || s.dead?.includes(key(keeper.name))), s.phase);
+  // Players who picked a character stand by the fire.
+  window.setFireCharacters?.(
+    s.users.map((u) => ({ name: u.name, character: u.character, dead: u.muted || s.dead?.includes(key(u.name)) })),
+    s.phase
+  );
+  if (!$('charSelect').classList.contains('hidden')) renderCharGrid();
   maybeShowTrialPopup();
 });
 
@@ -521,6 +523,8 @@ function renderNav() {
   if (!state) return;
   const mc = $('meCard');
   mc.innerHTML = '';
+  mc.title = 'Change your character';
+  mc.onclick = openCharSelect;
   const a = avatar(me);
   a.append(el('span', 'dot'));
   const who = el('div', 'who');
@@ -1868,3 +1872,49 @@ function renderAssigning(card, players) {
   card.append(go);
   card.append(btn('btn-ghost btn-block', '← Back', () => socket.emit('game:cancel')));
 }
+
+// ---------- Character select ----------
+function myCharacter() {
+  return state?.users.find((u) => key(u.name) === key(me))?.character || null;
+}
+function openCharSelect() {
+  closeDrawers();
+  $('charError').textContent = '';
+  $('charSelect').classList.remove('hidden');
+  renderCharGrid();
+}
+function renderCharGrid() {
+  const grid = $('charGrid');
+  const mine = myCharacter();
+  const takenBy = new Map((state?.users || []).filter((u) => u.character && key(u.name) !== key(me)).map((u) => [u.character, u.name]));
+  const sig = JSON.stringify([mine, [...takenBy]]);
+  if (grid.dataset.sig === sig) return;
+  grid.dataset.sig = sig;
+  grid.innerHTML = '';
+  const tile = (id, title, desc, imgHtml) => {
+    const holder = id && takenBy.get(id);
+    const b = el('button', 'char-tile' + (mine === id ? ' on' : '') + (holder ? ' taken' : ''));
+    b.type = 'button';
+    b.disabled = !!holder;
+    const pic = el('div', 'char-pic');
+    pic.innerHTML = imgHtml;
+    b.append(pic, el('div', 'char-name', title), el('div', 'char-desc', holder ? `Taken by ${holder}` : desc));
+    if (mine === id) b.append(el('span', 'char-check', '✓'));
+    b.onclick = () => {
+      $('charError').textContent = '';
+      socket.emit('character:pick', id, (res) => {
+        if (!res?.ok) $('charError').textContent = res?.error || 'Could not pick that character.';
+      });
+    };
+    return b;
+  };
+  for (const c of window.CHARACTERS || []) {
+    grid.append(tile(c.id, c.name, c.desc, `<img src="${c.img}" alt="" draggable="false">`));
+  }
+  grid.append(tile(null, 'No character', 'Just play with your name.', '<div class="char-none">🙂</div>'));
+  $('charDone').textContent = mine ? 'Play as this character →' : 'Continue without a character →';
+}
+$('charDone').onclick = () => {
+  $('charSelect').classList.add('hidden');
+  if (!$('msgInput').disabled) $('msgInput').focus();
+};
