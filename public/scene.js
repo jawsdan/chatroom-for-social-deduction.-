@@ -101,7 +101,7 @@
       const fresh = !el || el.dataset.owner !== p.name;
       if (!el) {
         el = document.createElement('div');
-        el.className = 'firekeeper';
+        el.className = 'firekeeper' + (c.flip ? ' flip' : '');
         el.innerHTML = `<div class="fk-poof"></div><img class="fk-img" alt="" draggable="false" src="${c.img}"><div class="fk-name"></div>`;
         root.append(el);
         els.set(id, el);

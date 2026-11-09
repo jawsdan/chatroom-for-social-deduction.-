@@ -12,4 +12,15 @@ window.CHARACTERS = [
     height: 138,
     spot: { day: { x: 250, y: 452 }, night: { x: 236, y: 478 } },
   },
+  {
+    id: 'snout',
+    name: 'Sleepy Snout',
+    desc: 'Always half asleep. Somehow hears everything.',
+    img: 'img/characters/snout.webp',
+    still: 'img/characters/snout-still.png',
+    height: 138,
+    // Right of the fire, mirrored so he faces it.
+    spot: { day: { x: 625, y: 452 }, night: { x: 640, y: 482 } },
+    flip: true,
+  },
 ];
