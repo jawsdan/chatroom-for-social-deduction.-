@@ -1229,3 +1229,22 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
   .rp-text { font-weight: 600; }
   .rp-empty { font-size: 0.8rem; color: #5a6078; }
 }
+
+/* Phone menu: two per row, icon beside the name */
+@media (max-width: 760px) {
+  .phone-dock { grid-template-columns: repeat(2, 84px); gap: 5px; padding: 6px; }
+  .dock-btn {
+    width: 84px; height: 36px; flex-direction: row; justify-content: flex-start; gap: 6px; padding: 0 8px;
+    font-size: 0.72rem; border-radius: 10px;
+  }
+  .dock-icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
+  .dock-icon .ri { width: 18px; height: 18px; vertical-align: middle; }
+  .dock-label { text-align: left; }
+  .dock-badge { top: -5px; right: -5px; }
+  .dock-lock { top: auto; bottom: 1px; right: 3px; }
+}
+@media (max-width: 360px) {
+  .phone-dock { grid-template-columns: repeat(2, 70px); gap: 4px; }
+  .dock-btn { width: 70px; font-size: 0.64rem; padding: 0 5px; gap: 4px; }
+  .phone-players, .clue-tiles { width: 132px; }
+}
