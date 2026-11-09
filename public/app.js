@@ -607,6 +607,7 @@ function openRolePicker(name) {
   };
   openModal((card) => {
     card.classList.add('role-picker');
+    if (isPhone()) card.classList.add('rp-tiles'); // phones: role tiles, three per row
     card.append(el('h2', '', `Role for ${name}`));
     const grid = el('div', 'rp-grid');
     const col = (title, cls, list) => {
@@ -2259,31 +2260,16 @@ function renderAssigning(card, players) {
     row.append(who);
     const cur = roles[key(u.name)];
     if (isPhone()) {
-      // Phone: one compact row per player with ‹ role › arrows.
-      const order = [null, ...ASSIGN_ROLES];
-      const idx = Math.max(0, order.indexOf(cur === 'serialkiller' ? 'werewolf' : cur || null));
-      const step = (d) => {
-        // Skip family roles another player already has.
-        let i = idx;
-        for (let n = 0; n < order.length; n++) {
-          i = (i + d + order.length) % order.length;
-          if (!roleTakenByOther(order[i], u.name)) break;
-        }
-        socket.emit('mod:role', { to: u.name, role: order[i] });
-      };
-      const pick = el('div', 'assign-step' + (cur ? ' has ' + (cur === 'serialkiller' ? 'werewolf' : cur) : ''));
-      const prev = el('button', 'assign-arrow', '‹');
-      const next = el('button', 'assign-arrow', '›');
-      prev.type = next.type = 'button';
-      prev.setAttribute('aria-label', `Previous role for ${u.name}`);
-      next.setAttribute('aria-label', `Next role for ${u.name}`);
-      prev.onclick = () => step(-1);
-      next.onclick = () => step(1);
-      const mid = el('span', 'assign-cur');
-      if (cur) mid.append(roleIcon(cur), el('span', '', ROLE[cur].label));
-      else mid.append(el('span', 'assign-none', 'No role'));
-      pick.append(prev, mid, next);
-      row.append(pick);
+      // Phone: tap the role to pick from a box of role tiles, like the tiles on computers and iPads.
+      const shown = cur === 'serialkiller' ? 'werewolf' : cur;
+      const chip = el('button', 'assign-chip' + (cur ? ' has ' + shown : ''));
+      chip.type = 'button';
+      chip.setAttribute('aria-label', `Pick a role for ${u.name}`);
+      if (cur) chip.append(roleIcon(cur), el('span', 'assign-chip-label', ROLE[cur].label));
+      else chip.append(el('span', 'assign-none', 'Pick role'));
+      chip.append(el('span', 'assign-chip-caret', '▾'));
+      chip.onclick = () => openRolePicker(u.name);
+      row.append(chip);
       list.append(row);
       continue;
     }
