@@ -806,6 +806,28 @@ function renderRolesCard() {
   }
   famRow.append(famLab, seg);
   box.append(famRow);
+  // Difficulty and Batman's Interrogate.
+  const toggleRow = (label, field, opts, title) => {
+    const r = el('div', 'stepper-row');
+    r.append(el('span', 'stepper-label', label));
+    const sg = el('div', 'mini-seg');
+    for (const [v, t] of opts) {
+      const b = el('button', cfg[field] === v ? 'on' : '', t);
+      b.type = 'button';
+      b.title = title(v);
+      b.onclick = () => socket.emit('roles:config', { ...cfg, [field]: v });
+      sg.append(b);
+    }
+    r.append(sg);
+    box.append(r);
+  };
+  toggleRow('🎚️ Difficulty', 'difficulty', [['normal', 'Normal'], ['hard', 'Hard']], (v) =>
+    v === 'hard' ? 'Hard: nothing about roles is shown on death (no family announcements, no werewolf death animation)' : 'Normal: family changes are announced and werewolf deaths show their own animation'
+  );
+  toggleRow('🦇 Interrogate', 'interrogate', [[true, 'On'], [false, 'Off']], (v) =>
+    v ? "Batman can interrogate (only in games that start with 4+ wolves)" : 'Batman cannot interrogate'
+  );
+  box.lastChild.title = 'Batman gets Interrogate only in games that start with 4 or more wolves.';
   const civ = el('div', 'stepper-row');
   civ.append(roleLabel('stepper-label', 'civilian', 'Civilians'), el('b', 'civ-count', String(civilians)));
   box.append(civ);
@@ -1057,7 +1079,7 @@ function appendMessage(m, live = true) {
   if (m.clue) {
     // The note itself is pinned top right; the chat just says it was found.
     const c = m.clue;
-    node = el('div', 'msg-system clue-note', c.kind === 'card' ? `🃏 A calling card was found with ${c.about} — pinned top right` : `📜 ${c.about}'s manifesto was revealed — pinned top right`);
+    node = el('div', 'msg-system clue-note', c.kind === 'interrogate' ? `🦇 Batman exposed ${c.about} as a villain — pinned top right` : c.kind === 'card' ? `🃏 A calling card was found with ${c.about} — pinned top right` : `📜 ${c.about}'s manifesto was revealed — pinned top right`);
     node.onclick = () => showClue(c, false);
     lastRendered = null;
   } else if (m.system) {
@@ -1288,6 +1310,7 @@ const ACTION_TEXT = {
   heal: { verb: 'heal', noun: 'Heal', title: 'Choose who to protect', btn: 'btn-success' },
   investigate: { verb: 'investigate', noun: 'Investigate', title: 'Choose who to investigate', btn: 'btn-primary' },
   vigil: { verb: 'kill', noun: 'Vigilante', title: 'Choose who to kill', btn: 'btn-danger' },
+  interrogate: { verb: 'interrogate', noun: 'Interrogate', title: 'Interrogate someone (optional)', btn: 'btn-primary' },
 };
 
 // The player's own panel: pick a target at night.
@@ -1450,7 +1473,7 @@ function clueCard(clue, inChat) {
   }
   const isCard = clue.kind === 'card';
   const d = el('div', 'clue-card ' + clue.kind + (inChat ? ' in-chat' : ''));
-  d.append(el('div', 'clue-kicker', isCard ? `🃏 Calling card · found with ${clue.about}` : `📜 Manifesto of ${clue.about}`));
+  d.append(el('div', 'clue-kicker', clue.kind === 'interrogate' ? '🦇 Batman\'s interrogation' : isCard ? `🃏 Calling card · found with ${clue.about}` : `📜 Manifesto of ${clue.about}`));
   d.append(el('div', 'clue-text', clue.text));
   if (inChat) d.onclick = () => showClue(clue, false);
   return d;
@@ -1483,8 +1506,8 @@ function showClue(clue, fresh) {
   }
   openModal((card) => {
     card.classList.add('note-modal');
-    card.append(el('div', 'note-icon', clue.kind === 'card' ? '🃏' : '📜'));
-    card.append(el('h2', '', clue.kind === 'card' ? (fresh ? 'A calling card was found' : 'Calling card') : `${clue.about}'s manifesto`));
+    card.append(el('div', 'note-icon', clue.kind === 'interrogate' ? '🦇' : clue.kind === 'card' ? '🃏' : '📜'));
+    card.append(el('h2', '', clue.kind === 'interrogate' ? `${clue.about} is a villain!` : clue.kind === 'card' ? (fresh ? 'A calling card was found' : 'Calling card') : `${clue.about}'s manifesto`));
     if (clue.kind === 'card') card.append(el('p', '', `It was left next to ${clue.about}.`));
     card.append(clueCard(clue, false));
     const actions = el('div', 'actions');
@@ -1533,7 +1556,7 @@ function renderCluesBar() {
   for (const c of list) {
     const t = el('button', 'tile ' + c.kind + (c.kind === 'check' ? ' ' + c.result : '') + (known.has(String(c.id)) ? '' : ' new'));
     t.type = 'button';
-    const kicker = c.kind === 'card' ? `🃏 Calling card · ${c.about}` : c.kind === 'check' ? `🔒 Your investigation` : `📜 ${c.about}`;
+    const kicker = c.kind === 'interrogate' ? `🦇 Interrogation · ${c.about}` : c.kind === 'card' ? `🃏 Calling card · ${c.about}` : c.kind === 'check' ? `🔒 Your investigation` : `📜 ${c.about}`;
     t.append(el('div', 'tile-kicker', kicker), el('div', 'tile-text', c.text));
     t.title = 'Click to read';
     t.onclick = () => showClue(c, false);
@@ -1844,7 +1867,7 @@ socket.on('death:shown', ({ victim, wolf }) => {
 });
 
 // ---------- Ability results ----------
-const ABILITY_ICON = { arrest: '🚔', arrested: '🚔',  kill: '🗡️', heal: '🩺', investigate: '🔍', vigil: '🎯', clue: '🦇' };
+const ABILITY_ICON = { interrogate: '🦇', arrest: '🚔', arrested: '🚔',  kill: '🗡️', heal: '🩺', investigate: '🔍', vigil: '🎯', clue: '🦇' };
 socket.on('ability:result', (e) => {
   freshAbilityId = e.id;
   // Show it as a pop-up after the morning news.
@@ -1868,7 +1891,7 @@ socket.on('ability:result', (e) => {
 // Players with an ability see their own results; the moderator sees every ability player.
 let freshAbilityId = null;
 const ABILITY_ROLES = ['werewolf', 'serialkiller', 'joker', 'doctor', 'detective', 'officer', 'vigilante', 'batman', 'mother', 'father', 'son'];
-const ACTION_WORD = { kill: 'kill', heal: 'heal', investigate: 'check', vigil: 'kill' };
+const ACTION_WORD = { interrogate: 'interrogate', kill: 'kill', heal: 'heal', investigate: 'check', vigil: 'kill' };
 function renderSideBox() {
   const box = $('sideBox');
   if (!state) return;
@@ -2282,7 +2305,7 @@ document.addEventListener('pointerdown', (e) => {
 });
 
 // ---------- Phone: night action window (Kill / Protect / Investigate) ----------
-const PHONE_ACT = { arrest: ['🚔', 'Arrest'], kill: ['🗡️', 'Kill'], heal: ['🛡️', 'Protect'], investigate: ['🔍', 'Investigate'], vigil: ['🎯', 'Kill'] };
+const PHONE_ACT = { interrogate: ['🦇', 'Interrogate'], arrest: ['🚔', 'Arrest'], kill: ['🗡️', 'Kill'], heal: ['🛡️', 'Protect'], investigate: ['🔍', 'Investigate'], vigil: ['🎯', 'Kill'] };
 let actionOpen = false;
 function toggleActionPop() {
   actionOpen = !actionOpen;
@@ -2333,7 +2356,7 @@ function renderActionPop() {
     pop.append(el('div', 'rp-empty', a.target ? `Last night you chose ${a.target}. You can choose again at night.` : 'You can choose at night.'));
     return;
   }
-  const hint = { kill: 'Who do you want to kill?', heal: 'Who do you want to protect?', investigate: 'Who do you want to investigate?' }[a.kind];
+  const hint = { interrogate: 'Who do you want to interrogate? If they are innocent, you lose this ability.', vigil: 'Who do you want to kill?', kill: 'Who do you want to kill?', heal: 'Who do you want to protect?', investigate: 'Who do you want to investigate?' }[a.kind];
   pop.append(el('div', 'rp-empty', a.skip ? 'You chose to kill nobody tonight. Tap someone to change.' : a.target ? `You chose ${a.target}. Tap someone else to change.` : hint));
   const list = el('div', 'rp-list');
   for (const name of a.targets) {

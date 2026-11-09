@@ -36,7 +36,9 @@ let gameState = 'waiting';
 let trial = null; // { accusedName, votes: Map(name -> 'guilty'|'innocent'), open, result }
 let wipeVotes = new Set(); // socket ids of players who voted to wipe everything
 // family: 'auto' = the Mother/Father/Son trio is dealt when 20+ players joined; 'on' / 'off' to force it.
-const roleConfig = { werewolf: 2, doctor: 1, detective: 1, officer: 0, family: 'auto' }; // the rest are civilians
+// difficulty: 'normal' announces family changes and shows the werewolf death animation; 'hard' reveals nothing on death.
+// interrogate: Batman's Interrogate ability (only in games that started with 4+ wolves).
+const roleConfig = { werewolf: 2, doctor: 1, detective: 1, officer: 0, family: 'auto', difficulty: 'normal', interrogate: true }; // the rest are civilians
 let nextMsgId = 1;
 let nextBotId = 1;
 // The Officer's arrest: made by day; the arrested player can't vote that day
@@ -316,6 +318,7 @@ function wipeEverything(reason) {
   family = {};
   familyFlags = {};
   batmanSeen = new Set();
+  startWolves = 0;
   killedNames = new Set();
   clues = [];
   privateClues = new Map();
@@ -355,7 +358,7 @@ function finishTrial() {
     guilty,
     innocent,
     votes: [...trial.votes.entries()].map(([name, vote]) => ({ name, vote })),
-    wolf: trial.result === 'guilty' && isWerewolf(trial.accusedName),
+    wolf: trial.result === 'guilty' && isWerewolf(trial.accusedName) && !hardMode(),
   });
   if (trial.result === 'guilty') revealDeath({ victim: trial.accusedName, card: null, announce: false });
 }
@@ -388,8 +391,17 @@ function becomeModerator(socket) {
 const ACTION_FOR_ROLE = { werewolf: 'kill', joker: 'kill', doctor: 'heal', detective: 'investigate', vigilante: 'vigil' };
 const ACTION_VERB = { kill: 'kill', heal: 'heal', investigate: 'investigate', vigil: 'kill' };
 function actionKindFor(name) {
-  return ACTION_FOR_ROLE[roles.get(key(name))] || null;
+  const r = roles.get(key(name));
+  if (r === 'batman') return canInterrogate(key(name)) ? 'interrogate' : null;
+  return ACTION_FOR_ROLE[r] || null;
 }
+// Batman's Interrogate: only if the game started with 4+ wolves, the moderator allows it,
+// and he hasn't lost it by interrogating someone innocent.
+let startWolves = 0;
+function canInterrogate(k) {
+  return roles.get(k) === 'batman' && roleConfig.interrogate && startWolves >= 4 && !familyFlags.interrogateLost && !isDeadKey(k);
+}
+const hardMode = () => roleConfig.difficulty === 'hard';
 // Players this actor may pick tonight.
 // Players this Detective already investigated (result known or waiting on the moderator).
 // lowercase name -> 'Wolf' | 'Killer' | 'Civilian' | null (still waiting)
@@ -465,7 +477,7 @@ function setNightAction(actorName, targetName) {
 function nightActionList() {
   const out = [];
   for (const [k, r] of roles) {
-    const kind = ACTION_FOR_ROLE[r];
+    const kind = actionKindFor(k);
     if (!kind) continue;
     const a = nightActions.get(k);
     out.push({ actor: userByName(k)?.name || k, role: displayRole(k), kind, target: a?.target || null, skip: !!a?.skip, muted: mutedNames.has(k) });
@@ -591,6 +603,7 @@ function addAbilityResult(k, entry) {
 }
 function sendAbilityResult(k, entry) {
   const e = addAbilityResult(k, entry);
+  if (e.publicClue) addClue('interrogate', e.publicClue.about, e.publicClue.text);
   const u = userByName(k);
   if (u) io.to(u.id).emit('ability:result', e);
   // An automatic detective result is also a private clue, like a moderator answer.
@@ -614,7 +627,17 @@ function abilityResults(outcome, vig = []) {
     } else if (arrestedTonight === k) {
       out.push([k, { kind: 'arrested', text: 'You were arrested, so you could not use your ability last night.', tone: 'bad' }]);
     } else if (r === 'batman') {
-      out.push([k, batmanClue()]);
+      out.push([k, batmanClue(k)]);
+      // Interrogate: a villain is exposed to everyone; an innocent costs Batman the ability.
+      const q = nightActions.get(k);
+      if (q?.kind === 'interrogate' && q.target) {
+        if (isWolfRole(roles.get(key(q.target)))) {
+          out.push([k, { kind: 'interrogate', text: `You interrogated ${q.target}: they are a villain! Everyone can now see it in the clues.`, tone: 'bad', target: q.target, publicClue: { about: q.target, text: `${q.target} is a villain.` } }]);
+        } else {
+          familyFlags.interrogateLost = true;
+          out.push([k, { kind: 'interrogate', text: `You interrogated ${q.target}: they are innocent. You can no longer interrogate.`, tone: 'good', target: q.target }]);
+        }
+      }
     } else if (r === 'vigilante') {
       const mine = vig.find((v) => v.actor === k);
       if (nightActions.get(k)?.skip) out.push([k, { kind: 'vigil', text: 'You chose not to kill anyone last night.', tone: 'neutral' }]);
@@ -694,6 +717,7 @@ function checkFamily() {
     if (father && !isDeadKey(father) && roles.get(father) === 'father') roles.set(father, 'vigilante');
     announceRoleChanges(before);
     if (moderatorId) io.to(moderatorId).emit('notice', '🃏 The Son died: the Mother is now the Joker and the Father is the Vigilante.');
+    if (!hardMode()) systemLobby('🃏 The Son is dead. Grief changes his parents: the Mother has become the Joker, and the Father has become the Vigilante.');
   }
   // Both parents die: the Son becomes Batman.
   if (mother && father && son && isDeadKey(mother) && isDeadKey(father) && !isDeadKey(son) && !familyFlags.batman && roles.get(son) === 'son') {
@@ -702,21 +726,22 @@ function checkFamily() {
     roles.set(son, 'batman');
     announceRoleChanges(before);
     if (moderatorId) io.to(moderatorId).emit('notice', '🦇 Both parents died: the Son is now Batman.');
+    if (!hardMode()) systemLobby('🦇 Both parents are gone. Their Son has become Batman, and he is watching the village.');
   }
 }
 // Batman's clue each morning: someone who used an ability, or someone an ability was used on.
 // Never about the same player twice.
 let batmanSeen = new Set();
-const PAST = { kill: 'attacked', vigil: 'attacked', heal: 'protected', investigate: 'investigated' };
-function batmanClue() {
+const PAST = { kill: 'attacked', vigil: 'attacked', heal: 'protected', investigate: 'investigated', interrogate: 'interrogated' };
+function batmanClue(self) {
   const options = [];
   for (const [actor, a] of nightActions) {
-    if (!a.target || a.skip) continue;
+    if (!a.target || a.skip || actor === self) continue; // nothing he already knows
     const actorName = userByName(actor)?.name || actor;
     options.push({ about: key(actorName), text: `${actorName} used an ability tonight.` });
     options.push({ about: key(a.target), text: `${a.target} was ${PAST[a.kind]} tonight.` });
   }
-  const fresh = options.filter((o) => !batmanSeen.has(o.about));
+  const fresh = options.filter((o) => !batmanSeen.has(o.about) && o.about !== self);
   if (!fresh.length) return { kind: 'clue', text: 'The night was quiet. You learned nothing new.', tone: 'neutral' };
   const pick = fresh[Math.floor(Math.random() * fresh.length)];
   batmanSeen.add(pick.about);
@@ -774,6 +799,7 @@ function randomizeRoles(quiet = false) {
   family = {};
   familyFlags = {};
   batmanSeen = new Set();
+  startWolves = 0;
   syncFamily();
   if (!quiet) {
     announceRoleChanges(before, true);
@@ -992,6 +1018,8 @@ io.on('connection', (socket) => {
       if (Number.isInteger(n) && n >= 0 && n <= 20) roleConfig[r] = n;
     }
     if (['auto', 'on', 'off'].includes(cfg.family)) roleConfig.family = cfg.family;
+    if (['normal', 'hard'].includes(cfg.difficulty)) roleConfig.difficulty = cfg.difficulty;
+    if (typeof cfg.interrogate === 'boolean') roleConfig.interrogate = cfg.interrogate;
     broadcastState();
   });
 
@@ -1038,6 +1066,7 @@ io.on('connection', (socket) => {
 
   function beginGame(dealt) {
     gameState = 'running';
+    startWolves = wolfCount();
     nightNumber = 0;
     phase = 'day';
     phaseStartedAt = Date.now();
@@ -1152,7 +1181,7 @@ io.on('connection', (socket) => {
       socket.emit('notice', `${target.name} is dead. It will be revealed when day starts.`);
     } else {
       // A daytime death gets its own pop-up for everyone.
-      io.emit('death:shown', { victim: target.name, wolf: isWerewolf(target.name) });
+      io.emit('death:shown', { victim: target.name, wolf: isWerewolf(target.name) && !hardMode() });
       revealDeath(reveal);
     }
     broadcastState();
@@ -1249,7 +1278,7 @@ io.on('connection', (socket) => {
         for (const r of list) r.line = deathLine(r.victim);
         // Which animation to show: a lone Serial Killer or the wolf pack.
         // A werewolf among the dead gets the silver-bullet animation instead.
-        const killer = list.some((r) => isWerewolf(r.victim)) ? 'wolfdeath' : pickNightAnimation(wolfCount() === 1 ? 'killer' : 'night');
+        const killer = list.some((r) => isWerewolf(r.victim)) && !hardMode() ? 'wolfdeath' : pickNightAnimation(wolfCount() === 1 ? 'killer' : 'night');
         io.emit('night:result', { victims: list.map((r) => r.victim), lines: list.map((r) => r.line), killer });
         if (!list.length) systemLobby('🌅 Nobody died last night.');
         for (const r of list) revealDeath(r);

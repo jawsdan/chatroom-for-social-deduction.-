@@ -1298,3 +1298,7 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
 .mini-seg button { border: none; background: transparent; border-radius: 6px; padding: 3px 7px; font-size: 0.72rem; font-weight: 700; color: var(--text-2); min-height: 0; }
 .mini-seg button.on { background: var(--accent); color: #fff; }
 .assign-btns { flex-wrap: wrap; justify-content: flex-end; }
+
+/* Batman's interrogation clue */
+.clue-card.interrogate, .tile.interrogate { background: #14161f; color: #f2f3f7; border-color: #e5484d; }
+.clue-chip.interrogate { background: #14161f; color: #f2f3f7; border-color: #e5484d; }
