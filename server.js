@@ -3,6 +3,7 @@ const http = require('http');
 const express = require('express');
 const { Server } = require('socket.io');
 const DEATH_LINES = require('./deaths');
+const ai = require('./ai');
 // Characters players can pick on the character select screen (see public/characters.js).
 const CHARACTERS = ['firekeeper', 'snout'];
 
@@ -56,6 +57,7 @@ const MANIFESTO_MAX = 200;
 let callingCards = new Map(); // killer key -> text
 let manifestos = new Map(); // player key -> text
 let killedNames = new Set(); // lowercase names the moderator marked dead
+let deathAt = new Map(); // lowercase name -> when they died or were voted out (the AI helper's knowledge stops there)
 let clues = []; // revealed notes everyone can inspect
 let privateClues = new Map(); // detective key -> [check results only they can see]
 // Each ability player's own results, shown in their "Ability results" tab.
@@ -201,6 +203,7 @@ function broadcastState() {
       wolfAccess: hasWolfAccess(id),
       wolfmates: isWolfRole(myRole) ? wolfNames() : [],
       packRoles: isWolfRole(myRole) ? Object.fromEntries(wolfNames().map((n) => [key(n), displayRole(n)])) : {},
+      ai: { enabled: aiHelper.enabled, left: aiHelper.questionsLeft(key(u.name)), max: aiHelper.maxPerGame, busy: aiHelper.isBusy(key(u.name)) },
     };
     s.me.arrestedToday = !!dayArrest && key(dayArrest.target) === key(u.name);
     s.me.arrestedTonight = arrestedTonight === key(u.name);
@@ -323,6 +326,7 @@ function wipeEverything(reason) {
   batmanSeen = new Set();
   startWolves = 0;
   killedNames = new Set();
+  deathAt = new Map();
   clues = [];
   privateClues = new Map();
   abilityLog = new Map();
@@ -333,6 +337,7 @@ function wipeEverything(reason) {
   phaseStartedAt = Date.now();
   io.emit('lobby:history', []);
   for (const [id, sock] of io.sockets.sockets) if (users.has(id)) sock.emit('mod:thread', []);
+  aiNewGame(true);
   sendModThreads();
   sendWolfHistoryToAll();
   io.emit('role:cleared');
@@ -349,7 +354,10 @@ function finishTrial() {
   for (const v of trial.votes.values()) v === 'guilty' ? guilty++ : innocent++;
   trial.open = false;
   trial.result = guilty > innocent ? 'guilty' : 'innocent';
-  if (trial.result === 'guilty') mutedNames.add(key(trial.accusedName));
+  if (trial.result === 'guilty') {
+    mutedNames.add(key(trial.accusedName));
+    deathAt.set(key(trial.accusedName), now());
+  }
   const breakdown = [...trial.votes.entries()].map(([n, v]) => `${n}: ${v}`).join(', ') || 'no votes';
   systemLobby(
     `Trial of ${trial.accusedName} is over: ${trial.result.toUpperCase()} (${guilty} guilty / ${innocent} innocent). Votes — ${breakdown}.` +
@@ -592,6 +600,7 @@ const OUTCOME_TEXT = {
 function killPlayer(name) {
   const k = key(name);
   killedNames.add(k);
+  deathAt.set(k, now());
   mutedNames.add(k);
   nightActions.delete(k);
 }
@@ -861,6 +870,123 @@ function scheduleBotVotes() {
   }
 }
 
+// ---- AI helper ----
+// Players can ask the AI about the game. It only answers questions; it never runs the game.
+// Each question's context is built by ai.playerView from what that player may know (see ai.js).
+const aiHelper = new ai.AiHelper({ url: process.env.OLLAMA_URL, model: process.env.AI_MODEL || 'qwen2.5:3b' });
+let aiChats = new Map(); // player key -> [{ id, role: 'user'|'assistant', text, ts, game, pending, error }]
+let aiGameNo = 1; // which game a message belongs to; only this game's messages go to the AI as history
+let nextAiId = 1;
+// A new game: everyone gets their questions back. A wipe also clears the AI chats, like every other chat.
+function aiNewGame(clearChats) {
+  aiGameNo++;
+  aiHelper.resetCounts();
+  if (clearChats) {
+    aiChats = new Map();
+    for (const [id, sock] of io.sockets.sockets) if (users.has(id)) sock.emit('ai:history', []);
+  }
+}
+function aiThread(name) {
+  return aiChats.get(key(name)) || [];
+}
+function aiPush(name, m) {
+  const k = key(name);
+  if (!aiChats.has(k)) aiChats.set(k, []);
+  const list = aiChats.get(k);
+  list.push(m);
+  if (list.length > 40) list.splice(0, list.length - 40);
+  const u = userByName(name);
+  if (u) io.to(u.id).emit('ai:message', m);
+  return m;
+}
+function aiUpdate(name, m) {
+  const u = userByName(name);
+  if (u) io.to(u.id).emit('ai:update', m);
+}
+// The game as the AI module reads it. ai.playerView copies out only what one player may know.
+function aiGame() {
+  return {
+    phase,
+    nightNumber,
+    gameState,
+    difficulty: roleConfig.difficulty,
+    moderator: moderatorId && users.get(moderatorId) ? users.get(moderatorId).name : null,
+    players: [...users.values()].map((u) => ({ name: u.name, key: key(u.name), moderator: u.id === moderatorId, bot: !!u.bot })),
+    deathAt,
+    lobby,
+    trial,
+    abilityLog,
+    privateClues,
+    modThreads,
+    manifestos,
+    callingCards,
+    nightActions,
+    displayRole: (k) => displayRole(k),
+    roleOf: (k) => roles.get(key(k)) || null,
+    wolfNames: () => wolfNames(),
+    actionFor: (name) => aiActionFor(name),
+  };
+}
+// The player's own ability right now, like the action box on their screen.
+function aiActionFor(name) {
+  const k = key(name);
+  if (displayRole(name) === 'officer' && !killedNames.has(k)) {
+    return { kind: 'arrest', target: dayArrest && dayArrest.by === k ? dayArrest.target : null, targets: arrestTargets(name), done: !!dayArrest };
+  }
+  const kind = actionKindFor(name);
+  if (!kind) return null;
+  const mine = nightActions.get(k);
+  return { kind, target: mine?.target || null, skip: !!mine?.skip, targets: validTargets(name), blocked: arrestedTonight === k };
+}
+function aiAsk(u, rawText) {
+  const text = typeof rawText === 'string' ? rawText.trim() : '';
+  if (!text) return;
+  if (text.length > aiHelper.maxChars) return io.to(u.id).emit('notice', `Questions can be at most ${aiHelper.maxChars} characters.`);
+  const k = key(u.name);
+  if (aiHelper.isBusy(k)) return io.to(u.id).emit('notice', 'Wait for your last answer first.');
+  const history = aiThread(u.name).filter((m) => m.game === aiGameNo && !m.pending && !m.error && !m.fixed);
+  aiPush(u.name, { id: nextAiId++, role: 'user', text, ts: now(), game: aiGameNo });
+  const view = ai.playerView(aiGame(), u.name);
+  // Fixed answers first: always right, instant and free.
+  const fixed = ai.fixedAnswer(text, view);
+  if (fixed) return aiPush(u.name, { id: nextAiId++, role: 'assistant', text: fixed, ts: now(), game: aiGameNo, fixed: true });
+  // The answer's bubble shows up first ("Waiting in line…"), then fills in.
+  const answer = aiPush(u.name, { id: nextAiId++, role: 'assistant', text: '', ts: now(), game: aiGameNo, pending: 'waiting' });
+  const res = aiHelper.ask({
+    player: k,
+    messages: ai.buildMessages(view, history, text),
+    onStart: () => {
+      answer.pending = 'thinking';
+      aiUpdate(u.name, answer);
+    },
+    onToken: (piece) => {
+      answer.text += piece;
+      const v = userByName(u.name);
+      if (v) io.to(v.id).emit('ai:delta', { id: answer.id, piece });
+    },
+    onDone: (full) => {
+      answer.text = full;
+      delete answer.pending;
+      aiUpdate(u.name, answer);
+      broadcastState();
+    },
+    onError: (msgText) => {
+      answer.text = msgText;
+      answer.error = true;
+      delete answer.pending;
+      aiUpdate(u.name, answer);
+      broadcastState();
+    },
+  });
+  if (!res.ok) {
+    answer.text = res.text;
+    answer.error = true;
+    delete answer.pending;
+    aiUpdate(u.name, answer);
+  }
+  broadcastState();
+}
+
 // ---- Sockets ----
 io.on('connection', (socket) => {
   const me = () => users.get(socket.id);
@@ -874,6 +1000,7 @@ io.on('connection', (socket) => {
     ack?.({ ok: true, name });
     socket.emit('lobby:history', lobby);
     sendOwnThread(socket);
+    socket.emit('ai:history', aiThread(name));
     socket.emit('wolf:history', hasWolfAccess(socket.id) ? wolfChat : null);
     socket.emit('phase:changed', { phase, silent: true });
     systemLobby(`${name} joined the lobby.`);
@@ -1086,6 +1213,7 @@ io.on('connection', (socket) => {
 
   function beginGame(dealt) {
     gameState = 'running';
+    aiNewGame(false);
     startWolves = wolfCount();
     nightNumber = 0;
     phase = 'day';
@@ -1188,12 +1316,14 @@ io.on('connection', (socket) => {
     if (killedNames.has(k)) {
       killedNames.delete(k);
       mutedNames.delete(k);
+      deathAt.delete(k);
       pendingReveals = pendingReveals.filter((r) => key(r.victim) !== k);
       systemLobby(`✨ ${target.name} is back among the living.`);
       return broadcastState();
     }
     killedNames.add(k);
     mutedNames.add(k);
+    deathAt.set(k, now());
     nightActions.delete(k);
     const reveal = { victim: target.name, card: callingCardFor(target.name) };
     if (phase === 'night') {
@@ -1321,7 +1451,7 @@ io.on('connection', (socket) => {
     if (!target) return socket.emit('notice', 'That player is not online.');
     if (target.id === moderatorId) return socket.emit('notice', 'The moderator cannot be put on trial.');
     if (trial && trial.open) return socket.emit('notice', 'A trial is already running.');
-    trial = { accusedName: target.name, votes: new Map(), open: true, result: null };
+    trial = { accusedName: target.name, votes: new Map(), open: true, result: null, startedAt: now() };
     io.emit('trial:started', { accused: target.name });
     scheduleBotVotes();
     systemLobby(`${target.name} is on trial! Vote guilty or innocent.`);
@@ -1364,6 +1494,25 @@ io.on('connection', (socket) => {
     else wipeVotes.add(socket.id);
     checkWipe();
     broadcastState();
+  });
+
+  // ---- AI helper ----
+  socket.on('ai:ask', (text) => {
+    const u = me();
+    if (!u || u.bot) return;
+    try {
+      aiAsk(u, text);
+    } catch (e) {
+      console.error('AI question failed:', e);
+      socket.emit('notice', 'Something went wrong with the AI. Try again.');
+    }
+  });
+  // The My role button: the fixed explanation, instant and free.
+  socket.on('ai:myrole', () => {
+    const u = me();
+    if (!u) return;
+    const view = ai.playerView(aiGame(), u.name);
+    aiPush(u.name, { id: nextAiId++, role: 'assistant', text: ai.myRoleAnswer(view), ts: now(), game: aiGameNo, fixed: true });
   });
 
   socket.on('disconnect', () => {

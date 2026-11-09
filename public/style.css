@@ -1585,3 +1585,12 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
 @media (min-width: 761px) {
   .profile-box .ability-box { background: none; border: none; border-radius: 0; }
 }
+
+/* ---------- AI helper chat ---------- */
+.bubble.ai-bubble { white-space: pre-wrap; }
+.bubble.ai-fixed { border-left: 3px solid var(--accent); }
+.bubble.ai-error { background: var(--danger-soft); color: var(--danger); }
+.bubble.ai-wait { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-style: italic; }
+.ai-dots { width: 22px; height: 6px; background: radial-gradient(circle, currentColor 2.5px, transparent 3px) 0 50% / 8px 6px repeat-x; animation: aiDots 1s steps(3) infinite; }
+@keyframes aiDots { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.ai-role-btn { min-height: 34px; padding: 6px 12px; font-size: 0.85rem; white-space: nowrap; }

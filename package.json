@@ -4,7 +4,8 @@
   "description": "Real-time chatroom for social deduction games (werewolf style) with a moderator, day/night phases, trials and wipe votes.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"

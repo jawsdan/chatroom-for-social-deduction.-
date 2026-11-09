@@ -5,10 +5,12 @@ const key = (n) => String(n).toLowerCase();
 
 let me = null; // my name
 let state = null; // latest public state from server
-let channel = 'lobby'; // 'lobby' | 'mod' | 'wolf'
+let channel = 'lobby'; // 'lobby' | 'mod' | 'wolf' | 'ai'
 let lobbyMsgs = [];
 let wolfMsgs = null; // wolf den messages, or null when I have no access
 let myThread = []; // my private chat with the moderator
+let aiMsgs = []; // my private chat with the AI helper
+let aiUnread = 0;
 let modThreads = {}; // moderator only: key -> []
 let selectedThread = null; // moderator only: key of member being viewed
 const unreadThreads = new Set();
@@ -243,6 +245,66 @@ socket.on('wolf:message', (m) => {
     renderNav();
   }
 });
+
+// ---------- AI helper chat ----------
+socket.on('ai:history', (list) => {
+  aiMsgs = list || [];
+  if (channel === 'ai') renderMessages();
+});
+socket.on('ai:message', (m) => {
+  if (aiMsgs.some((x) => x.id === m.id)) return;
+  aiMsgs.push(m);
+  if (channel === 'ai') appendMessage(aiView(m));
+  else if (m.role === 'assistant' && !m.pending) {
+    aiUnread++;
+    renderNav();
+  }
+});
+// An answer changed: started thinking, finished, or failed.
+socket.on('ai:update', (m) => {
+  const i = aiMsgs.findIndex((x) => x.id === m.id);
+  if (i >= 0) aiMsgs[i] = m;
+  else aiMsgs.push(m);
+  if (channel === 'ai') {
+    const node = $('messages').querySelector(`[data-mid="ai${m.id}"]`);
+    if (node) node.replaceWith(aiNode(m));
+    else appendMessage(aiView(m));
+    scrollIfNear();
+  } else if (!m.pending) {
+    aiUnread++;
+    renderNav();
+  }
+  if (!m.pending && state) renderComposer();
+});
+// Words of an answer as they come in.
+socket.on('ai:delta', ({ id, piece }) => {
+  const m = aiMsgs.find((x) => x.id === id);
+  if (!m) return;
+  m.text += piece;
+  m.pending = 'writing';
+  if (channel !== 'ai') return;
+  const node = $('messages').querySelector(`[data-mid="ai${id}"]`);
+  if (!node) return;
+  const b = node.querySelector('.bubble');
+  b.classList.remove('ai-wait');
+  b.textContent = m.text;
+  scrollIfNear();
+});
+function aiView(m) {
+  return { id: 'ai' + m.id, from: m.role === 'user' ? me : 'Village Helper', text: m.text, ts: m.ts, ai: m };
+}
+function aiNode(m) {
+  const box = $('messages');
+  const before = lastRendered;
+  lastRendered = null;
+  appendMessage(aiView(m), false);
+  lastRendered = before;
+  return box.lastElementChild; // appendMessage added it at the end; the caller moves it into place
+}
+function scrollIfNear() {
+  const box = $('messages');
+  if (box.scrollHeight - box.scrollTop - box.clientHeight < 200) box.scrollTop = box.scrollHeight;
+}
 
 socket.on('mod:thread', (list) => {
   myThread = list;
@@ -545,6 +607,7 @@ function switchChannel(c) {
   if (c === 'mod') modUnread = 0;
   if (c === 'lobby') lobbyUnread = 0;
   if (c === 'wolf') wolfUnread = 0;
+  if (c === 'ai') aiUnread = 0;
   closeDrawers();
   renderAll();
   focusComposer();
@@ -563,6 +626,10 @@ $('composer').addEventListener('submit', (e) => {
       socket.emit('mod:send', { to: displayName(selectedThread), text });
     } else socket.emit('mod:send', { text });
   } else if (channel === 'wolf') socket.emit('wolf:send', text);
+  else if (channel === 'ai') {
+    if (state.me.ai?.busy) return toast('Wait for your last answer first.');
+    socket.emit('ai:ask', text);
+  }
   $('msgInput').value = '';
 });
 
@@ -619,6 +686,7 @@ function renderNav() {
   setPill('modUnread', modUnread);
   setPill('lobbyUnread', lobbyUnread);
   setPill('wolfUnread', wolfUnread);
+  setPill('aiUnread', aiUnread);
   $('wolfNav').classList.toggle('hidden', !state.me.wolfAccess);
   $('wolfMeta').textContent = state.phase === 'night' ? '' : '🔒';
   $('wolfNav').title = state.phase === 'night' ? 'Open now' : 'Opens at night';
@@ -645,6 +713,17 @@ function renderHeader() {
       : state.moderator
         ? `Private. Only you and ${state.moderator} can see this.`
         : 'Private. No moderator yet, but your messages will be waiting.';
+  } else if (channel === 'ai') {
+    const a = state.me.ai || {};
+    title.textContent = '🤖 Ask the AI';
+    sub.textContent = !a.enabled
+      ? 'The AI is offline. The My role button still works.'
+      : amMod()
+        ? 'Private. It only knows the rules.'
+        : `Private. It only knows what you know · ${a.left} of ${a.max} questions left this game`;
+    const rb = btn('btn-soft ai-role-btn', amMod() ? '📖 Rules' : '🎭 My role', () => socket.emit('ai:myrole'));
+    rb.title = 'An instant explanation of your role';
+    actions.append(rb);
   } else if (channel === 'wolf') {
     const wolves = (amMod() ? Object.entries(state.modView?.roles || {}).filter(([, r]) => r === 'werewolf').map(([k]) => displayName(k)) : state.me.wolfmates);
     title.textContent = '🐺 Wolf den';
@@ -788,6 +867,12 @@ function renderComposer() {
       disabled = !selectedThread;
       ph = selectedThread ? `Private message to ${displayName(selectedThread)}…` : 'No player selected';
     } else ph = 'Message the moderator privately…';
+  } else if (channel === 'ai') {
+    const a = state.me.ai || {};
+    if (a.busy) {
+      disabled = true;
+      ph = '🤖 Thinking about your last question…';
+    } else ph = a.enabled ? 'Ask about the rules, your role or what happened…' : 'Ask about your role or the rules (the AI is offline)…';
   } else if (channel === 'wolf') {
     if (amMod()) ph = 'Message the wolves (as moderator)…';
     else if (state.phase !== 'night') {
@@ -1123,6 +1208,7 @@ function currentMessages() {
   if (channel === 'lobby') return lobbyMsgs;
   if (channel === 'mod') return amMod() ? modThreads[selectedThread] || [] : myThread;
   if (channel === 'wolf') return wolfMsgs || [];
+  if (channel === 'ai') return aiMsgs.map(aiView);
   return [];
 }
 
@@ -1148,6 +1234,8 @@ function renderMessages() {
         );
       } else box.append(emptyState('🤫', 'Just you and the moderator', 'Nobody else can see what you write here.'));
     } else if (channel === 'lobby') box.append(emptyState('👋', 'The lobby is quiet', 'Say hello to the village!'));
+    else if (channel === 'ai')
+      box.append(emptyState('🤖', 'Ask the Village Helper', state?.me?.ai?.enabled ? 'Ask about your role, the rules or what happened. It only knows what you know.' : 'The AI is offline right now, but the My role button above still works.'));
     else box.append(emptyState('🐺', 'The den is quiet', 'At night, the werewolves can plan their target here before telling the moderator.'));
     return;
   }
@@ -1222,6 +1310,14 @@ function appendMessage(m, live = true) {
       r.append(art, txt);
       bubble.append(r);
       bubble.classList.add('check-bubble');
+    } else if (m.ai) {
+      bubble.classList.add('ai-bubble');
+      if (m.ai.error) bubble.classList.add('ai-error');
+      if (m.ai.fixed) bubble.classList.add('ai-fixed');
+      if (m.ai.pending && !m.text) {
+        bubble.classList.add('ai-wait');
+        bubble.append(el('span', 'ai-dots', ''), el('span', '', m.ai.pending === 'waiting' ? 'Waiting in line…' : 'Thinking…'));
+      } else bubble.textContent = m.text;
     } else bubble.textContent = m.text;
     bubble.title = timeOf(m.ts);
     body.append(bubble);
@@ -2309,6 +2405,7 @@ function renderPhoneDock() {
   if (!state.moderator && !amMuted()) items.push({ id: 'claim', icon: '🛡️', label: 'Be mod', badge: '!', go: () => socket.emit('mod:claim') });
   items.push({ id: 'lobby', icon: '#', label: 'Lobby', on: channel === 'lobby', badge: pill(lobbyUnread), go: () => switchChannel('lobby') });
   items.push({ id: 'mod', icon: '🛡️', label: amMod() ? 'Inbox' : 'Mod', on: channel === 'mod', badge: pill(modUnread), go: () => switchChannel('mod') });
+  items.push({ id: 'ai', icon: '🤖', label: 'AI', on: channel === 'ai', badge: pill(aiUnread), go: () => switchChannel('ai') });
   if (state.me.wolfAccess) items.push({ id: 'wolf', img: 'werewolf', label: 'Wolves', on: channel === 'wolf', badge: pill(wolfUnread), lock: state.phase !== 'night', go: () => switchChannel('wolf') });
   if (state.me.canCard) items.push({ id: 'card', icon: '🃏', label: 'Card', go: () => openNoteEditor('card') });
   if (!amMod()) items.push({ id: 'manifesto', icon: '📜', label: 'Will', go: () => openNoteEditor('manifesto') });
