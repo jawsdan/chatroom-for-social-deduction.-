@@ -1248,3 +1248,11 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
   .dock-btn { width: 70px; font-size: 0.64rem; padding: 0 5px; gap: 4px; }
   .phone-players, .clue-tiles { width: 132px; }
 }
+
+@media (max-width: 760px) {
+  .dock-count {
+    position: absolute; top: -6px; right: -5px; padding: 1px 6px; border-radius: 999px; font-size: 0.62rem; font-weight: 800;
+    background: #171a2b; color: #fff; font-variant-numeric: tabular-nums; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+  .dock-btn.on .dock-count { background: #fff; color: var(--accent); }
+}

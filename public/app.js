@@ -2058,12 +2058,31 @@ function renderPhoneDock() {
   if (!amMod()) items.push({ id: 'manifesto', icon: '📜', label: 'Will', go: () => openNoteEditor('manifesto') });
   if (!amMod() && (state.me.action || state.me.abilityLog?.length)) items.push({ id: 'results', icon: '🔮', label: 'Results', on: resultsOpen, go: toggleResultsPop });
   if (amMod()) items.push({ id: 'abilities', icon: '🎭', label: 'Roles', go: () => openPanel('left') });
-  // The game panel: day/night, trials, your night action, roles, wipe.
-  const actNow = !amMod() && state.me.action && state.phase === 'night' && !state.me.action.target && !amMuted();
-  items.push({ id: 'game', icon: amMod() ? '⚙️' : '🎲', label: amMod() ? 'Game' : 'Game', badge: actNow ? '!' : '', go: () => openPanel('right') });
+  if (amMod()) {
+    // The moderator's game panel: day/night, trials, roles, bots.
+    items.push({ id: 'game', icon: '⚙️', label: 'Game', go: () => openPanel('right') });
+  } else {
+    // At night, players with an ability get a button for their night action.
+    const a = state.me.action;
+    if (a && state.phase === 'night' && !amMuted() && state.gameState === 'running') {
+      const ACT = { kill: ['🗡️', 'Kill'], heal: ['🩺', 'Heal'], investigate: ['🔍', 'Check'] }[a.kind];
+      items.push({ id: 'act', icon: ACT[0], label: ACT[1], badge: a.target ? '' : '!', go: () => openPanel('right') });
+    }
+    // Vote to reset (wipe everything), with a counter.
+    const n = state.wipe.votes;
+    const need = state.wipe.needed;
+    items.push({
+      id: 'reset',
+      icon: state.me.wiped ? '✓' : '🧹',
+      label: 'Reset?',
+      count: `${n}/${need}`,
+      on: state.me.wiped,
+      go: () => socket.emit('wipe:vote'),
+    });
+  }
   // Characters are picked before a game, not during one.
   if (state.gameState !== 'running') items.push({ id: 'char', icon: '👤', label: 'Me', go: openCharSelect });
-  const sig = JSON.stringify(items.map((i) => [i.id, i.on, i.badge, i.lock, i.label]));
+  const sig = JSON.stringify(items.map((i) => [i.id, i.on, i.badge, i.lock, i.label, i.count]));
   // Leave room so the newest messages aren't hidden under the menu at first,
   // and keep the moderator's inbox bars below the panels.
   requestAnimationFrame(() => {
@@ -2084,6 +2103,7 @@ function renderPhoneDock() {
     else ic.textContent = it.icon;
     b.append(ic, el('span', 'dock-label', it.label));
     if (it.badge) b.append(el('span', 'dock-badge', it.badge));
+    if (it.count) b.append(el('span', 'dock-count', it.count));
     if (it.lock) b.append(el('span', 'dock-lock', '🔒'));
     b.onclick = it.go;
     dock.append(b);
