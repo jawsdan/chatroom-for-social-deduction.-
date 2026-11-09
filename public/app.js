@@ -1757,6 +1757,8 @@ function renderStartScreen() {
   const box = $('startScreen');
   const show = state.gameState !== 'running' && channel === 'lobby';
   box.classList.toggle('hidden', !show);
+  // On phones the open start menu gets the whole chat area (the floating panels step aside).
+  document.body.classList.toggle('start-open', show && !startMinimized);
   if (!show) return;
   const players = state.users.filter((u) => !u.moderator);
   const cfg = state.modView?.roleConfig;
@@ -2063,8 +2065,29 @@ function renderAssigning(card, players) {
     const who = el('div', 'assign-who');
     who.append(avatar(u.name, 'sm'), el('span', '', u.name + (u.bot ? ' 🤖' : '')));
     row.append(who);
-    const btns = el('div', 'assign-btns');
     const cur = roles[key(u.name)];
+    if (isPhone()) {
+      // Phone: one compact row per player with ‹ role › arrows.
+      const order = [null, ...ASSIGN_ROLES];
+      const idx = Math.max(0, order.indexOf(cur === 'serialkiller' ? 'werewolf' : cur || null));
+      const step = (d) => socket.emit('mod:role', { to: u.name, role: order[(idx + d + order.length) % order.length] });
+      const pick = el('div', 'assign-step' + (cur ? ' has ' + (cur === 'serialkiller' ? 'werewolf' : cur) : ''));
+      const prev = el('button', 'assign-arrow', '‹');
+      const next = el('button', 'assign-arrow', '›');
+      prev.type = next.type = 'button';
+      prev.setAttribute('aria-label', `Previous role for ${u.name}`);
+      next.setAttribute('aria-label', `Next role for ${u.name}`);
+      prev.onclick = () => step(-1);
+      next.onclick = () => step(1);
+      const mid = el('span', 'assign-cur');
+      if (cur) mid.append(roleIcon(cur), el('span', '', ROLE[cur].label));
+      else mid.append(el('span', 'assign-none', 'No role'));
+      pick.append(prev, mid, next);
+      row.append(pick);
+      list.append(row);
+      continue;
+    }
+    const btns = el('div', 'assign-btns');
     for (const r of ASSIGN_ROLES) {
       const on = cur === r || (r === 'werewolf' && cur === 'serialkiller');
       const b = el('button', 'assign-btn' + (on ? ' on ' + r : ''));

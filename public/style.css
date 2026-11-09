@@ -1388,3 +1388,28 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
   /* Keep the newest messages above the raised bar. */
   .kb-open .messages { padding-bottom: calc(var(--kb, 0px) + 10px); }
 }
+
+/* Phone: compact role assignment with arrows */
+@media (max-width: 760px) {
+  .start-card { padding: 16px 14px; }
+  .start-screen .start-card .start-logo { display: none; }
+  .assign-list { max-height: 46vh; gap: 4px; }
+  .assign-row { padding: 4px 6px; }
+  .assign-who { font-size: 0.88rem; gap: 6px; }
+  .assign-who .avatar.sm { width: 26px; height: 26px; font-size: 0.66rem; }
+  .assign-step { display: flex; align-items: center; gap: 2px; flex-shrink: 0; background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px; padding: 2px; }
+  .assign-step.has { border-color: var(--accent); }
+  .assign-step.has.werewolf { border-color: var(--danger); }
+  .assign-arrow { width: 30px; height: 32px; min-height: 0; padding: 0; border: none; border-radius: 9px; background: var(--surface-2); color: var(--text); font-size: 1.3rem; font-weight: 800; line-height: 1; }
+  .assign-arrow:active { transform: scale(0.92); }
+  .assign-cur { display: flex; align-items: center; justify-content: center; gap: 5px; width: 98px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; overflow: hidden; }
+  .assign-cur .ri { width: 20px; height: 20px; }
+  .assign-none { color: var(--muted); font-weight: 600; }
+}
+
+@media (max-width: 760px) {
+  body.start-open .phone-dock, body.start-open .phone-players, body.start-open .clue-tiles, body.start-open .results-pop { display: none !important; }
+  body.start-open .start-screen { inset: 64px 0 76px 0; padding: 8px; }
+  body.start-open .start-card { max-height: 100%; }
+  .assign-list { max-height: 40vh; }
+}
