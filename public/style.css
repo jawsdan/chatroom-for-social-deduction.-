@@ -641,7 +641,6 @@ body:not(.night) .firefly { display: none; }
 }
 
 .wipe-note { margin: 10px 0 0; }
-#wipeBox .btn { margin-top: 10px; }
 
 /* ---------- Role pictures ---------- */
 .role-img { width: 100%; height: 100%; object-fit: contain; display: block; user-select: none; }
@@ -1099,3 +1098,26 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
 .tag.done-tag { text-transform: none; letter-spacing: 0; background: var(--surface-3); color: var(--text-2); white-space: nowrap; }
 .tag.done-tag.good { background: var(--success-soft); color: var(--success); }
 .tag.done-tag.bad { background: var(--danger-soft); color: var(--danger); }
+
+/* ---------- Vote to wipe button ---------- */
+.wipe-box { flex-shrink: 0; }
+.wipe-btn {
+  position: relative; overflow: hidden; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 10px 10px 16px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-2); font-weight: 700; box-shadow: var(--shadow-sm); transition: border-color 0.2s, color 0.2s, transform 0.1s;
+}
+/* Fills up as players vote. */
+.wipe-btn::before {
+  content: ''; position: absolute; inset: 0; width: var(--fill, 0%); background: color-mix(in srgb, var(--accent) 16%, transparent);
+  transition: width 0.5s var(--ease);
+}
+.wipe-btn > * { position: relative; }
+.wipe-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
+.wipe-btn:active:not(:disabled) { transform: scale(0.98); }
+.wipe-btn.voted { border-color: var(--accent); color: var(--accent); }
+.wipe-btn.passive { cursor: default; opacity: 0.85; }
+.wipe-count {
+  min-width: 44px; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); color: var(--text);
+  font-size: 0.82rem; font-weight: 800; font-variant-numeric: tabular-nums; text-align: center;
+}
+.wipe-btn.voted .wipe-count { background: var(--accent); color: #fff; }

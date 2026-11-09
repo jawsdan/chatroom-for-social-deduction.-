@@ -942,24 +942,27 @@ function renderPanel() {
     pl.append(li);
   }
 
-  // Wipe everything: the players vote, the moderator doesn't have to.
+  // Vote to wipe: one button with a counter. The button fills up as votes come in.
   const wb = $('wipeBox');
-  wb.innerHTML = '';
   const n = state.wipe.votes;
   const need = state.wipe.needed;
-  const lab = el('div', 'progress-label');
-  lab.append(el('span', '', 'Players who voted'), el('b', '', `${n} / ${need}`));
-  const bar = el('div', 'progress');
-  const fill = el('i');
-  fill.style.width = (100 * n) / Math.max(need, 1) + '%';
-  bar.append(fill);
-  wb.append(lab, bar);
-  if (amMod()) {
-    if (need === 0) wb.append(btn('btn-block', '🧹 Wipe everything now', () => socket.emit('wipe:vote')));
-    else wb.append(el('p', 'hint wipe-note', "You don't need to vote. It happens when all players have voted."));
-  } else {
-    const voted = state.me.wiped;
-    wb.append(btn('btn-block ' + (voted ? 'on' : ''), voted ? '✓ You voted (undo)' : '🧹 Vote to wipe everything', () => socket.emit('wipe:vote')));
+  const voted = !amMod() && state.me.wiped;
+  const sig = JSON.stringify([n, need, voted, amMod()]);
+  if (wb.dataset.sig !== sig) {
+    wb.dataset.sig = sig;
+    wb.innerHTML = '';
+    const modNow = amMod() && need === 0;
+    const b = el('button', 'wipe-btn' + (voted ? ' voted' : '') + (amMod() && !modNow ? ' passive' : ''));
+    b.type = 'button';
+    b.style.setProperty('--fill', (100 * n) / Math.max(need, 1) + '%');
+    b.title = amMod()
+      ? modNow ? 'No players are here, so you can wipe straight away.' : "Wipes all chats, roles and mutes. Players vote; you don't need to."
+      : 'Wipes all chats, roles and mutes for a new game. It happens when every player has voted. Tap again to take your vote back.';
+    b.append(el('span', 'wipe-label', modNow ? '🧹 Wipe now' : voted ? '✓ Voted to wipe' : '🧹 Vote to wipe'));
+    if (!modNow) b.append(el('span', 'wipe-count', `${n}/${need}`));
+    if (!amMod() || modNow) b.onclick = () => socket.emit('wipe:vote');
+    else b.disabled = true;
+    wb.append(b);
   }
 }
 

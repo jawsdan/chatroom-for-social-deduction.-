@@ -39,7 +39,7 @@ Then open http://localhost:3000 (set `PORT` to change it). Everyone who wants to
 - **Phase videos** — the chat background is an animated campfire scene during the day and a haunted house at night. They cross-fade when the phase changes (videos in `public/video`).
 - **Phase timer** — a timer next to the sun/moon in the top corner counts up from 00:00 each time day or night starts. Everyone sees the same time.
 - **Trial** — the moderator clicks *Put someone on trial* and picks a player. Everyone votes *Guilty* or *Innocent*. When everyone has voted (or the moderator clicks *End voting*), a pop-up shows who voted what. If guilty wins, that player is muted and can only talk to the moderator until the next wipe.
-- **Start fresh** — one *Vote to wipe everything* button. When **every player** has voted, all chats (main lobby, private moderator chats and the wolf den), roles, protections and mutes are cleared and it becomes day. The moderator doesn't vote (and can wipe straight away when no players are left). Bots don't vote either.
+- **Vote to wipe** — one *Vote to wipe* button with a vote counter (it fills up as players vote). When **every player** has voted, all chats (main lobby, private moderator chats and the wolf den), roles, protections and mutes are cleared and it becomes day. The moderator doesn't vote (and can wipe straight away when no players are left). Bots don't vote either.
 
 ## Use it like an app (iPad / iPhone)
 
