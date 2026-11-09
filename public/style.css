@@ -1256,3 +1256,34 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
   }
   .dock-btn.on .dock-count { background: #fff; color: var(--accent); }
 }
+
+@media (max-width: 760px) {
+  .ap-pick { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; padding: 4px 8px; border-radius: 9px; border: 1.5px solid transparent; background: #f3f4f8; color: #171a2b; text-align: left; font-weight: 600; font-size: 0.85rem; }
+  .ap-pick .avatar.sm { width: 26px !important; height: 26px !important; font-size: 0.66rem; }
+  .ap-pick-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ap-pick.on.kill { border-color: var(--danger); background: #fdecec; }
+  .ap-pick.on.heal { border-color: var(--success); background: #e3f6ef; }
+  .ap-pick.on.investigate { border-color: #3b82f6; background: #e6efff; }
+  .ap-pick-tick { font-weight: 800; }
+  .ap-pick.done { opacity: 0.55; }
+  .ap-pick-note { font-size: 0.7rem; color: #5a6078; }
+  .ap-pack { margin-top: 6px; font-size: 0.74rem; font-weight: 700; }
+  .ap-pack.ok { color: var(--success); }
+  .ap-pack.no { color: var(--danger); }
+  #actionPop .rp-empty { margin-bottom: 6px; }
+}
+
+@media (max-width: 760px) {
+  .results-pop:not(.hidden) { background: #fff; }
+  .dock-btn.long .dock-label { font-size: 0.6rem; letter-spacing: -0.01em; }
+}
+
+@media (min-width: 361px) and (max-width: 760px) {
+  .phone-dock { grid-template-columns: repeat(2, 92px); }
+  .dock-btn { width: 92px; }
+}
+
+@media (max-width: 760px) {
+  .dock-btn.long { padding: 0 5px; gap: 3px; }
+  .dock-btn.long .dock-icon { width: 16px; font-size: 0.9rem; }
+}

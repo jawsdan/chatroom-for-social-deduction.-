@@ -518,6 +518,7 @@ function renderAll(redrawMessages = true) {
   renderPhoneDock();
   renderPhonePlayers();
   renderResultsPop();
+  renderActionPop();
   renderCluesBar();
   renderStartScreen();
   renderModOverview();
@@ -2062,11 +2063,12 @@ function renderPhoneDock() {
     // The moderator's game panel: day/night, trials, roles, bots.
     items.push({ id: 'game', icon: '⚙️', label: 'Game', go: () => openPanel('right') });
   } else {
-    // At night, players with an ability get a button for their night action.
+    // Players with an ability get a button for it: Kill, Protect or Investigate. Civilians get none.
     const a = state.me.action;
-    if (a && state.phase === 'night' && !amMuted() && state.gameState === 'running') {
-      const ACT = { kill: ['🗡️', 'Kill'], heal: ['🩺', 'Heal'], investigate: ['🔍', 'Check'] }[a.kind];
-      items.push({ id: 'act', icon: ACT[0], label: ACT[1], badge: a.target ? '' : '!', go: () => openPanel('right') });
+    if (a && state.gameState === 'running' && !amMuted()) {
+      const [icon, label] = PHONE_ACT[a.kind];
+      const waiting = state.phase === 'night' && !a.target;
+      items.push({ id: 'act', icon, label, on: actionOpen, badge: waiting ? '!' : '', go: toggleActionPop });
     }
     // Vote to reset (wipe everything), with a counter.
     const n = state.wipe.votes;
@@ -2096,7 +2098,7 @@ function renderPhoneDock() {
   dock.dataset.sig = sig;
   dock.innerHTML = '';
   for (const it of items) {
-    const b = el('button', 'dock-btn' + (it.on ? ' on' : ''));
+    const b = el('button', 'dock-btn' + (it.on ? ' on' : '') + (it.label.length > 8 ? ' long' : ''));
     b.type = 'button';
     const ic = el('span', 'dock-icon');
     if (it.img) ic.append(roleIcon(it.img));
@@ -2174,6 +2176,8 @@ function renderPhonePlayers() {
 let resultsOpen = false;
 function toggleResultsPop() {
   resultsOpen = !resultsOpen;
+  if (resultsOpen) actionOpen = false;
+  renderActionPop();
   renderResultsPop();
   $('phoneDock').dataset.sig = '';
   renderPhoneDock();
@@ -2213,6 +2217,71 @@ function renderResultsPop() {
 }
 // Tap anywhere else to close it.
 document.addEventListener('pointerdown', (e) => {
-  if (!resultsOpen || e.target.closest('#resultsPop, .dock-btn')) return;
-  toggleResultsPop();
+  if (e.target.closest('#resultsPop, #actionPop, .dock-btn')) return;
+  if (resultsOpen) toggleResultsPop();
+  if (actionOpen) toggleActionPop();
 });
+
+// ---------- Phone: night action window (Kill / Protect / Investigate) ----------
+const PHONE_ACT = { kill: ['🗡️', 'Kill'], heal: ['🛡️', 'Protect'], investigate: ['🔍', 'Investigate'] };
+let actionOpen = false;
+function toggleActionPop() {
+  actionOpen = !actionOpen;
+  if (actionOpen && resultsOpen) {
+    resultsOpen = false;
+    renderResultsPop();
+  }
+  renderActionPop();
+  $('phoneDock').dataset.sig = '';
+  renderPhoneDock();
+}
+function renderActionPop() {
+  const pop = $('actionPop');
+  if (!state) return;
+  const a = state.me.action;
+  if (!a || amMod() || amMuted() || state.gameState !== 'running') actionOpen = false;
+  const show = actionOpen && isPhone();
+  pop.classList.toggle('hidden', !show);
+  if (!show) return;
+  const dock = $('phoneDock');
+  pop.style.top = dock.offsetTop + dock.offsetHeight + 6 + 'px';
+  const night = state.phase === 'night';
+  const sig = JSON.stringify([a, night]);
+  if (pop.dataset.sig === sig) return;
+  pop.dataset.sig = sig;
+  pop.innerHTML = '';
+  const [icon, label] = PHONE_ACT[a.kind];
+  const head = el('div', 'rp-head');
+  head.append(el('span', '', `${icon} ${label}`));
+  const x = el('button', 'rp-close', '✕');
+  x.type = 'button';
+  x.setAttribute('aria-label', 'Close');
+  x.onclick = toggleActionPop;
+  head.append(x);
+  pop.append(head);
+  if (!night) {
+    pop.append(el('div', 'rp-empty', a.target ? `Last night you chose ${a.target}. You can choose again at night.` : 'You can choose at night.'));
+    return;
+  }
+  const hint = { kill: 'Who do you want to kill?', heal: 'Who do you want to protect?', investigate: 'Who do you want to investigate?' }[a.kind];
+  pop.append(el('div', 'rp-empty', a.target ? `You chose ${a.target}. Tap someone else to change.` : hint));
+  const list = el('div', 'rp-list');
+  for (const name of a.targets) {
+    const on = a.target === name;
+    const b = el('button', 'ap-pick' + (on ? ' on ' + a.kind : ''));
+    b.type = 'button';
+    b.append(avatar(name, 'sm'), el('span', 'ap-pick-name', name + (key(name) === key(me) ? ' (you)' : '')));
+    if (on) b.append(el('span', 'ap-pick-tick', '✓'));
+    b.onclick = () => socket.emit('night:choose', on ? null : name);
+    list.append(b);
+  }
+  for (const x of a.investigated || []) {
+    const b = el('div', 'ap-pick done');
+    b.append(avatar(x.name, 'sm'), el('span', 'ap-pick-name', x.name), el('span', 'ap-pick-note', x.label || '…'));
+    list.append(b);
+  }
+  if (!a.targets.length && !a.investigated?.length) list.append(el('div', 'rp-empty', 'There is nobody to choose.'));
+  pop.append(list);
+  // Wolves: show whether the pack agrees.
+  if (a.pack?.length) pop.append(el('div', 'ap-pack ' + (a.agreed ? 'ok' : 'no'), a.agreed ? `✓ Pack agrees: ${a.agreed}` : '✗ The pack must all pick the same player'));
+}
