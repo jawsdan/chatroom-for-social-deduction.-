@@ -1469,7 +1469,7 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
 /* =========================================================
    Computer & iPad: chats and notes as a compact box of tiles
    ========================================================= */
-@media (min-width: 761px) {
+@media all { /* computers, iPads and the iPhone panel */
   .side-left :is(.nav, .ability-box) {
     display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; border-radius: 16px;
     background: color-mix(in srgb, var(--surface-2) 75%, transparent);
@@ -1582,7 +1582,7 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
   body:not(.is-mod) #gameCard { display: none; }
   body.has-mod:not(.is-mod) #modCard, body.has-mod:not(.is-mod) #wipeBox { display: none; }
 }
-@media (min-width: 761px) {
+@media all {
   .profile-box .ability-box { background: none; border: none; border-radius: 0; }
 }
 
@@ -1602,7 +1602,7 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
 }
 @media (max-width: 760px) { .day-count { padding: 4px 9px; font-size: 0.8rem; } }
 
-@media (min-width: 761px) {
+@media all {
   /* Chats: three per row */
   .side-left .nav { grid-template-columns: repeat(3, 1fr); gap: 7px; }
   .side-left .nav .nav-item { min-height: 66px; padding: 8px 4px; font-size: 0.78rem; gap: 3px; }
@@ -1665,4 +1665,28 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
   .rp-tiles .rp-role.taken .ri { margin-bottom: 8px; }
   .rp-tiles .rp-later-row { grid-template-columns: repeat(3, 1fr); gap: 7px; }
   .rp-tiles .actions { margin-top: 12px; }
+}
+
+/* =========================================================
+   iPhone: the slide-in panels (moderator's Roles and Game) use the same glass boxes as computers and iPads
+   ========================================================= */
+@media (max-width: 760px) {
+  .side.side-left, .side.side-right {
+    background: color-mix(in srgb, var(--bg) 55%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border: none; box-shadow: 0 0 40px rgba(0, 0, 0, 0.35); padding: calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom)); gap: 12px;
+  }
+  .side-left > .brand { display: none; }
+  .side-left > .profile-box, .side-left .nav, .side-left > .ability-box, .side-left > .side-box, .side-right > .card {
+    flex-shrink: 0; margin: 0; border-radius: 18px;
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border) 70%, rgba(255, 255, 255, 0.4));
+    box-shadow: 0 8px 22px rgba(10, 12, 30, 0.18);
+  }
+  .side-left > .profile-box { padding: 6px; }
+  .profile-box .me-card { background: transparent; padding: 8px; gap: 12px; }
+  .profile-box .me-card .avatar { width: 50px !important; height: 50px !important; }
+  .profile-box .me-card .name { font-size: 1.1rem; }
+  .side-left .ability-box:not(.hidden) { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px; }
+  .side-left :is(.nav, .ability-box) .nav-item { background: color-mix(in srgb, var(--surface-2) 80%, transparent); }
+  .side-left > .side-box { margin-top: 0; max-height: none; }
 }
