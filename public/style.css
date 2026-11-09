@@ -1124,3 +1124,58 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
 
 .btn.kick-all { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
 .btn.kick-all:hover:not(:disabled) { background: var(--danger-soft); }
+
+/* =========================================================
+   Phone: fixed button menu (top left) and players panel (top right)
+   ========================================================= */
+.phone-dock, .phone-players { display: none; }
+@media (max-width: 760px) {
+  #leftBtn, #rightBtn { display: none !important; }
+  .phone-dock {
+    display: grid; grid-template-columns: repeat(4, 46px); gap: 4px; position: absolute; left: 8px; z-index: 4;
+    padding: 6px; border-radius: 16px; background: rgba(18, 21, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  }
+  .dock-btn {
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    width: 46px; height: 46px; border-radius: 12px; border: none; background: rgba(255, 255, 255, 0.86); color: #171a2b;
+    font-size: 0.52rem; font-weight: 700; padding: 2px; transition: background-color 0.15s, transform 0.1s;
+  }
+  .dock-btn:active { transform: scale(0.94); }
+  .dock-btn.on { background: var(--accent); color: #fff; }
+  .dock-icon { font-size: 1.05rem; line-height: 1.1; font-weight: 800; }
+  .dock-icon .ri { width: 20px; height: 20px; }
+  .dock-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .dock-badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 0.66rem; font-weight: 800; display: grid; place-items: center; }
+  .dock-lock { position: absolute; top: 1px; right: 3px; font-size: 0.6rem; }
+  .phone-players {
+    display: block; position: absolute; right: 8px; z-index: 4; width: 150px; padding: 6px; border-radius: 16px;
+    background: rgba(18, 21, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18); color: #fff;
+  }
+  .pp-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 2px 4px; }
+  .pp-title { font-size: 0.74rem; font-weight: 800; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); white-space: nowrap; }
+  .pp-ctr { display: flex; gap: 4px; }
+  .pp-btn { width: 26px; height: 26px; min-height: 0; border-radius: 8px; border: none; background: rgba(255, 255, 255, 0.85); color: #171a2b; font-weight: 800; font-size: 1rem; line-height: 1; padding: 0; }
+  .pp-btn:disabled { opacity: 0.35; }
+  .pp-list { display: flex; flex-direction: column; gap: 3px; max-height: 46vh; overflow-y: auto; }
+  .pp-row { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 4px 6px; border: none; border-radius: 10px; background: rgba(255, 255, 255, 0.88); color: #171a2b; min-height: 0; }
+  .pp-row.dead { opacity: 0.6; }
+  .pp-row .avatar.sm { width: 24px !important; height: 24px !important; font-size: 0.65rem; }
+  .pp-text { min-width: 0; }
+  .pp-name { font-size: 0.78rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pp-sub { font-size: 0.66rem; color: #4a5068; display: flex; align-items: center; gap: 2px; }
+  .pp-sub .ri { width: 12px; height: 12px; }
+  .clue-tiles { right: 8px; width: 150px; }
+  .chat:has(.clue-tiles:not(.hidden):not(.collapsed)) .messages { padding-right: 12px; }
+}
+
+@media (max-width: 760px) {
+  /* Moderator inbox on phones: the players panel already shows alive/dead/roles. */
+  .mod-overview { display: none !important; }
+  .thread-tabs, .role-bar .role-actions { flex-wrap: nowrap; overflow-x: auto; }
+  .thread-tabs { background: color-mix(in srgb, var(--surface) 90%, transparent); }
+  .role-bar { padding: 6px 12px; gap: 6px; }
+  .role-bar > span { font-size: 0.8rem; }
+  .role-bar .btn { white-space: nowrap; min-height: 38px; padding: 6px 10px; }
+  .check-bar .role-actions { flex-wrap: wrap; }
+}

@@ -70,6 +70,7 @@
         return;
       }
       if (document.getElementById('modal').classList.contains('hidden') === false) return;
+      if (innerWidth <= 760) return; // phones use the menu instead
       if (dx > 0 && sx < 40 && isDrawer(left)) openOne(left); // swipe in from the left edge
       if (dx < 0 && sx > innerWidth - 40 && isDrawer(right)) openOne(right); // from the right edge
     },

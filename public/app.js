@@ -28,6 +28,12 @@ const ROLE = {
 };
 
 $('joinLogo').innerHTML = ART.night;
+// On phones and tablets, don't pop the keyboard up by itself.
+const IS_TOUCH = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 1;
+function focusComposer() {
+  if (!IS_TOUCH && !$('msgInput').disabled) $('msgInput').focus();
+}
+if (!IS_TOUCH) $('nameInput').focus();
 $('brandLogo').innerHTML = ART.night;
 
 // ---------- Helpers ----------
@@ -483,7 +489,7 @@ function switchChannel(c) {
   if (c === 'wolf') wolfUnread = 0;
   closeDrawers();
   renderAll();
-  if (!$('msgInput').disabled) $('msgInput').focus();
+  focusComposer();
 }
 document.querySelectorAll('.nav-item[data-channel]').forEach((b) => (b.onclick = () => switchChannel(b.dataset.channel)));
 
@@ -508,6 +514,8 @@ function renderAll(redrawMessages = true) {
   renderNav();
   renderHeader();
   renderTrialBanner();
+  renderPhoneDock();
+  renderPhonePlayers();
   renderCluesBar();
   renderStartScreen();
   renderModOverview();
@@ -1439,7 +1447,9 @@ function renderCluesBar() {
   box.classList.toggle('hidden', !show);
   if (!show) return;
   // Sit just below whatever banners are showing above the messages.
-  box.style.top = $('messages').offsetTop + 10 + 'px';
+  // On phones they stack under the players panel in the top right.
+  const pp = $('phonePlayers');
+  box.style.top = (isPhone() ? pp.offsetTop + pp.offsetHeight + 8 : $('messages').offsetTop + 10) + 'px';
   const sig = list.map((c) => c.id).join(',') + '|' + tilesCollapsed;
   if (box.dataset.sig === sig) return;
   const known = new Set((box.dataset.sig || '').split('|')[0].split(','));
@@ -1951,7 +1961,7 @@ function renderCharGrid() {
 }
 $('charDone').onclick = () => {
   $('charSelect').classList.add('hidden');
-  if (!$('msgInput').disabled) $('msgInput').focus();
+  focusComposer();
 };
 
 // After a reset the moderator picks a character again too.
@@ -1959,3 +1969,121 @@ socket.on('game:reset', () => {
   toast('🔄 Everyone was kicked and the game was reset.');
   openCharSelect();
 });
+
+// ---------- Phone: fixed button menu (top left) and players list (top right) ----------
+const isPhone = () => matchMedia('(max-width: 760px)').matches;
+let playersExpanded = false;
+try {
+  playersExpanded = localStorage.getItem('playersExpanded') === '1';
+} catch {}
+
+function openPanel(side) {
+  const el = $(side === 'left' ? 'sideLeft' : 'sideRight');
+  el.classList.add('open');
+  $('scrim').classList.add('on');
+}
+
+function renderPhoneDock() {
+  const dock = $('phoneDock');
+  if (!state) return;
+  dock.style.top = $('messages').offsetTop + 8 + 'px';
+  const items = [];
+  const pill = (n) => (n ? (n > 9 ? '9+' : String(n)) : '');
+  items.push({ id: 'lobby', icon: '#', label: 'Lobby', on: channel === 'lobby', badge: pill(lobbyUnread), go: () => switchChannel('lobby') });
+  items.push({ id: 'mod', icon: '🛡️', label: amMod() ? 'Inbox' : 'Mod', on: channel === 'mod', badge: pill(modUnread), go: () => switchChannel('mod') });
+  if (state.me.wolfAccess) items.push({ id: 'wolf', img: 'werewolf', label: 'Wolves', on: channel === 'wolf', badge: pill(wolfUnread), lock: state.phase !== 'night', go: () => switchChannel('wolf') });
+  if (state.me.canCard) items.push({ id: 'card', icon: '🃏', label: 'Card', go: () => openNoteEditor('card') });
+  if (!amMod()) items.push({ id: 'manifesto', icon: '📜', label: 'Will', go: () => openNoteEditor('manifesto') });
+  if (!amMod() && (state.me.action || state.me.abilityLog?.length)) items.push({ id: 'results', icon: '🔮', label: 'Results', go: () => openPanel('left') });
+  if (amMod()) items.push({ id: 'abilities', icon: '🎭', label: 'Roles', go: () => openPanel('left') });
+  // The game panel: day/night, trials, your night action, roles, wipe.
+  const actNow = !amMod() && state.me.action && state.phase === 'night' && !state.me.action.target && !amMuted();
+  items.push({ id: 'game', icon: amMod() ? '⚙️' : '🎲', label: amMod() ? 'Game' : 'Game', badge: actNow ? '!' : '', go: () => openPanel('right') });
+  items.push({ id: 'char', icon: '👤', label: 'Me', go: openCharSelect });
+  const sig = JSON.stringify(items.map((i) => [i.id, i.on, i.badge, i.lock, i.label]));
+  // Leave room so the newest messages aren't hidden under the menu at first,
+  // and keep the moderator's inbox bars below the panels.
+  requestAnimationFrame(() => {
+    const phone = isPhone();
+    $('messages').style.paddingTop = phone ? dock.offsetHeight + 16 + 'px' : '';
+    const top = $('threadTabs');
+    if (top) top.style.marginTop = phone && !top.classList.contains('hidden') ? dock.offsetHeight + 16 + 'px' : '';
+    if (phone && !top.classList.contains('hidden')) $('messages').style.paddingTop = '12px';
+  });
+  if (dock.dataset.sig === sig) return;
+  dock.dataset.sig = sig;
+  dock.innerHTML = '';
+  for (const it of items) {
+    const b = el('button', 'dock-btn' + (it.on ? ' on' : ''));
+    b.type = 'button';
+    const ic = el('span', 'dock-icon');
+    if (it.img) ic.append(roleIcon(it.img));
+    else ic.textContent = it.icon;
+    b.append(ic, el('span', 'dock-label', it.label));
+    if (it.badge) b.append(el('span', 'dock-badge', it.badge));
+    if (it.lock) b.append(el('span', 'dock-lock', '🔒'));
+    b.onclick = it.go;
+    dock.append(b);
+  }
+}
+
+function renderPhonePlayers() {
+  const box = $('phonePlayers');
+  if (!state) return;
+  box.style.top = $('messages').offsetTop + 8 + 'px';
+  const roles = state.modView?.roles;
+  const list = [...state.users].sort((a, b) => b.moderator - a.moderator);
+  const sig = JSON.stringify([list, playersExpanded, roles, state.dead, me]);
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  box.innerHTML = '';
+  const head = el('div', 'pp-head');
+  head.append(el('span', 'pp-title', `👥 Players ${list.length}`));
+  const ctr = el('div', 'pp-ctr');
+  const minus = el('button', 'pp-btn', '−');
+  const plus = el('button', 'pp-btn', '+');
+  minus.type = plus.type = 'button';
+  minus.disabled = !playersExpanded;
+  plus.disabled = playersExpanded || list.length <= 1;
+  const setExp = (v) => {
+    playersExpanded = v;
+    try {
+      localStorage.setItem('playersExpanded', v ? '1' : '0');
+    } catch {}
+    renderPhonePlayers();
+    renderCluesBar();
+  };
+  minus.onclick = () => setExp(false);
+  plus.onclick = () => setExp(true);
+  ctr.append(minus, plus);
+  head.append(ctr);
+  box.append(head);
+  const rows = el('div', 'pp-list');
+  for (const u of playersExpanded ? list : list.slice(0, 1)) {
+    const isMe = key(u.name) === key(me);
+    const dead = state.dead?.includes(key(u.name));
+    const r = el(amMod() && !u.moderator ? 'button' : 'div', 'pp-row' + (dead ? ' dead' : ''));
+    r.append(avatar(u.name, 'sm'));
+    const t = el('div', 'pp-text');
+    t.append(el('div', 'pp-name', u.name + (isMe ? ' (you)' : '')));
+    const role = knownRole(u.name);
+    const sub = el('div', 'pp-sub');
+    if (u.moderator) sub.textContent = '🛡️ Moderator';
+    else if (dead) sub.textContent = '💀 Dead';
+    else if (u.muted) sub.textContent = '🔇 Muted';
+    else if (role) sub.append(roleIcon(role), document.createTextNode(' ' + ROLE[role].label));
+    else if (u.bot) sub.textContent = '🤖 Bot';
+    if (sub.childNodes.length) t.append(sub);
+    r.append(t);
+    if (amMod() && !u.moderator) {
+      r.type = 'button';
+      r.title = `Open your chat with ${u.name}`;
+      r.onclick = () => {
+        selectedThread = key(u.name);
+        switchChannel('mod');
+      };
+    }
+    rows.append(r);
+  }
+  box.append(rows);
+}

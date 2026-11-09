@@ -63,11 +63,22 @@
     const scale = Math.max(cw / VIDEO_W, ch / VIDEO_H);
     const offX = (cw - VIDEO_W * scale) * POS_X[phase];
     const offY = ch - VIDEO_H * scale;
-    const h = Math.max(80, Math.min(260, (c.height || 138) * scale));
-    // On narrow screens the video's sides are cropped off; keep them (and their name) fully in view.
+    let h = Math.max(80, Math.min(260, (c.height || 138) * scale));
+    // On narrow screens the video's sides are cropped off, so there is no room beside the fire.
+    // Then they stand in front of it instead: lower down, a bit smaller, kept off the message box.
+    const wantX = offX + spot.x * scale;
+    let y = offY + spot.y * scale;
     const half = h * 0.3 + 12;
-    el.style.left = Math.min(Math.max(offX + spot.x * scale, half), cw - half) + 'px';
-    el.style.top = offY + spot.y * scale + 'px';
+    let x = Math.min(Math.max(wantX, half), cw - half);
+    if (Math.abs(x - wantX) > h * 0.15) {
+      h = Math.min(h, Math.max(80, cw * 0.26));
+      const halfSmall = h * 0.3 + 8;
+      x = c.spot.day.x < VIDEO_W / 2 ? halfSmall : cw - halfSmall;
+      const composer = document.getElementById('composer');
+      y = ch - (composer ? composer.offsetHeight : 70) - 6;
+    }
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
     el.style.setProperty('--fk-h', h + 'px');
   }
   function placeAll() {

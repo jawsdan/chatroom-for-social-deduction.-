@@ -29,7 +29,7 @@
       <p>Talk, scheme and vote. A chatroom for werewolf-style games.</p>
       <label class="field">
         <span>Your name</span>
-        <input id="nameInput" maxlength="20" placeholder="e.g. Alice" autocomplete="off" autofocus />
+        <input id="nameInput" maxlength="20" placeholder="e.g. Alice" autocomplete="off" />
       </label>
       <button type="submit" class="btn btn-primary btn-lg">Enter the village →</button>
       <div id="joinError" class="error" role="alert"></div>
@@ -127,6 +127,9 @@
       <div id="scene" class="scene" aria-hidden="true"></div>
       <aside id="clueTiles" class="clue-tiles hidden" aria-label="Clues"></aside>
       <section id="startScreen" class="start-screen hidden" aria-label="Start menu"></section>
+      <!-- Phone: a fixed menu of buttons (top left) and a players list (top right) -->
+      <nav id="phoneDock" class="phone-dock" aria-label="Menu"></nav>
+      <section id="phonePlayers" class="phone-players" aria-label="Players"></section>
       <div id="messages" class="messages"></div>
 
       <div id="checkBar" class="role-bar check-bar bottom hidden">
