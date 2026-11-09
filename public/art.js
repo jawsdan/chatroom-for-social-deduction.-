@@ -35,7 +35,7 @@ new Image().src = 'img/trial.webp';
 
 // Role pictures (round badges in public/img/roles).
 window.ROLE_IMG = {};
-for (const r of ['civilian', 'werewolf', 'serialkiller', 'doctor', 'officer']) {
+for (const r of ['civilian', 'werewolf', 'serialkiller', 'doctor', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman']) {
   window.ROLE_IMG[r] = `img/roles/${r}.webp`;
   window.ART[r] = `<img class="role-img" src="img/roles/${r}.webp" alt="" draggable="false">`;
   new Image().src = window.ROLE_IMG[r]; // preload so pop-ups show instantly

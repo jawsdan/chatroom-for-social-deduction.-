@@ -14,7 +14,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const MAX_MSG = 500;
 const MAX_HISTORY = 300;
-const ROLES = ['civilian', 'werewolf', 'doctor', 'officer'];
+const ROLES = ['civilian', 'werewolf', 'doctor', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman'];
+// Roles on the killers' side. The Joker joins the wolves when the Son dies.
+const WOLF_ROLES = ['werewolf', 'joker'];
+const isWolfRole = (r) => WOLF_ROLES.includes(r);
+const FAMILY = ['mother', 'father', 'son'];
 
 // ---- State ----
 const users = new Map(); // socketId -> { id, name }
@@ -31,7 +35,8 @@ let phaseStartedAt = Date.now(); // when the current day/night began, for the ti
 let gameState = 'waiting';
 let trial = null; // { accusedName, votes: Map(name -> 'guilty'|'innocent'), open, result }
 let wipeVotes = new Set(); // socket ids of players who voted to wipe everything
-const roleConfig = { werewolf: 2, doctor: 1, officer: 1 }; // the rest are civilians
+// family: 'auto' = the Mother/Father/Son trio is dealt when 20+ players joined; 'on' / 'off' to force it.
+const roleConfig = { werewolf: 2, doctor: 1, officer: 1, family: 'auto' }; // the rest are civilians
 let nextMsgId = 1;
 let nextBotId = 1;
 // Night actions: lowercase actor name -> { kind: 'kill'|'heal'|'investigate', target: name }.
@@ -84,7 +89,7 @@ function cleanText(t) {
 // ---- Roles ----
 function wolfCount() {
   let n = 0;
-  for (const r of roles.values()) if (r === 'werewolf') n++;
+  for (const r of roles.values()) if (isWolfRole(r)) n++;
   return n;
 }
 // A lone werewolf is shown as a Serial Killer.
@@ -103,10 +108,10 @@ function displayRoleMap() {
 function hasWolfAccess(socketId) {
   if (socketId === moderatorId) return true;
   const u = users.get(socketId);
-  return !!u && roles.get(key(u.name)) === 'werewolf' && wolfCount() >= 2;
+  return !!u && isWolfRole(roles.get(key(u.name))) && wolfCount() >= 2;
 }
 function wolfNames() {
-  return [...roles.entries()].filter(([, r]) => r === 'werewolf').map(([k]) => userByName(k)?.name || k);
+  return [...roles.entries()].filter(([, r]) => isWolfRole(r)).map(([k]) => userByName(k)?.name || k);
 }
 
 // Tell players whose shown role changed, with a pop-up and a note in their moderator chat.
@@ -185,7 +190,8 @@ function broadcastState() {
       abilityLog: abilityLog.get(key(u.name)) || [],
       role: id === moderatorId ? null : myRole,
       wolfAccess: hasWolfAccess(id),
-      wolfmates: myRole === 'werewolf' ? wolfNames() : [],
+      wolfmates: isWolfRole(myRole) ? wolfNames() : [],
+      packRoles: isWolfRole(myRole) ? Object.fromEntries(wolfNames().map((n) => [key(n), displayRole(n)])) : {},
     };
     const kind = id === moderatorId ? null : actionKindFor(u.name);
     if (kind) {
@@ -197,7 +203,7 @@ function broadcastState() {
           .filter((x) => userByName(x.name) && !mutedNames.has(key(x.name)));
       }
       // Wolves see what the rest of the pack picked.
-      if (kind === 'kill' && myRole === 'werewolf') {
+      if (kind === 'kill' && isWolfRole(myRole)) {
         const o = nightOutcome();
         s.me.action.agreed = o.reason === 'killed' || o.reason === 'saved' ? o.victim || o.target : null;
         s.me.action.agreedNobody = o.reason === 'skipped';
@@ -293,6 +299,9 @@ function wipeEverything(reason) {
   autoProtected.clear();
   callingCards = new Map();
   manifestos = new Map();
+  family = {};
+  familyFlags = {};
+  batmanSeen = new Set();
   killedNames = new Set();
   clues = [];
   privateClues = new Map();
@@ -362,8 +371,8 @@ function becomeModerator(socket) {
 }
 
 // ---- Night actions ----
-const ACTION_FOR_ROLE = { werewolf: 'kill', doctor: 'heal', officer: 'investigate' };
-const ACTION_VERB = { kill: 'kill', heal: 'heal', investigate: 'investigate' };
+const ACTION_FOR_ROLE = { werewolf: 'kill', joker: 'kill', doctor: 'heal', officer: 'investigate', vigilante: 'vigil' };
+const ACTION_VERB = { kill: 'kill', heal: 'heal', investigate: 'investigate', vigil: 'kill' };
 function actionKindFor(name) {
   return ACTION_FOR_ROLE[roles.get(key(name))] || null;
 }
@@ -390,7 +399,7 @@ function validTargets(actorName) {
     const self = key(u.name) === key(actorName);
     if (kind === 'heal') return true; // the doctor may protect themselves
     if (self) return false;
-    if (kind === 'kill' && roles.get(key(u.name)) === 'werewolf') return false; // wolves don't hunt wolves
+    if (kind === 'kill' && isWolfRole(roles.get(key(u.name)))) return false; // wolves don't hunt wolves
     return true;
   }).map((u) => u.name);
 }
@@ -409,7 +418,7 @@ function setNightAction(actorName, targetName) {
     nightActions.delete(k);
   } else if (targetName === NO_KILL) {
     // The killer decides not to kill anyone tonight.
-    if (kind !== 'kill') return 'You cannot choose that.';
+    if (kind !== 'kill' && kind !== 'vigil') return 'You cannot choose that.';
     if (nightActions.get(k)?.skip) return null;
     nightActions.set(k, { kind, target: null, skip: true });
   } else {
@@ -478,13 +487,13 @@ function pickNightAnimation(own) {
 
 // True if this player is a werewolf (not a lone Serial Killer).
 function isWerewolf(name) {
-  return displayRole(name) === 'werewolf';
+  return displayRole(name) === 'werewolf' || displayRole(name) === 'joker';
 }
 
 // ---- Settling the night ----
 // Living wolves (not dead or muted) are the ones who must agree.
 function livingWolves() {
-  return [...roles.entries()].filter(([k, r]) => r === 'werewolf' && !killedNames.has(k) && !mutedNames.has(k)).map(([k]) => k);
+  return [...roles.entries()].filter(([k, r]) => isWolfRole(r) && !killedNames.has(k) && !mutedNames.has(k)).map(([k]) => k);
 }
 // What happens at sunrise with tonight's picks.
 function nightOutcome() {
@@ -537,13 +546,23 @@ function sendAbilityResult(k, entry) {
   }
 }
 // What each ability player learns at sunrise. Worked out before anyone dies.
-function abilityResults(outcome) {
+function abilityResults(outcome, vig = []) {
   const out = [];
   const single = wolfCount() === 1;
+  // Everyone attacked tonight who survived because the Doctor protected them.
+  const saved = new Set([...(outcome.reason === 'saved' ? [key(outcome.target)] : []), ...vig.filter((v) => v.saved).map((v) => key(v.target))]);
   for (const [k, r] of roles) {
-    if (!['werewolf', 'doctor', 'officer'].includes(r) || killedNames.has(k) || mutedNames.has(k)) continue;
+    if (!['werewolf', 'joker', 'doctor', 'officer', 'vigilante', 'batman'].includes(r) || killedNames.has(k) || mutedNames.has(k)) continue;
     const pick = nightActions.get(k)?.target || null;
-    if (r === 'werewolf') {
+    if (r === 'batman') {
+      out.push([k, batmanClue()]);
+    } else if (r === 'vigilante') {
+      const mine = vig.find((v) => v.actor === k);
+      if (nightActions.get(k)?.skip) out.push([k, { kind: 'vigil', text: 'You chose not to kill anyone last night.', tone: 'neutral' }]);
+      else if (!mine) out.push([k, { kind: 'vigil', text: 'You did not choose anyone last night.', tone: 'neutral' }]);
+      else if (mine.saved) out.push([k, { kind: 'vigil', text: `You shot at ${mine.target}, but they survived. Someone protected them.`, tone: 'neutral', target: mine.target }]);
+      else out.push([k, { kind: 'vigil', text: `You killed ${mine.target}.`, tone: 'bad', target: mine.target }]);
+    } else if (isWolfRole(r)) {
       let text, tone;
       if (outcome.reason === 'killed') [text, tone] = [`You killed ${outcome.victim}.`, 'bad'];
       else if (outcome.reason === 'saved') [text, tone] = [`You attacked ${outcome.target}, but they survived. Someone protected them.`, 'neutral'];
@@ -553,14 +572,14 @@ function abilityResults(outcome) {
       out.push([k, { kind: 'kill', text, tone, target: outcome.victim || outcome.target || pick }]);
     } else if (r === 'doctor') {
       if (!pick) out.push([k, { kind: 'heal', text: 'You did not protect anyone last night.', tone: 'neutral' }]);
-      else if (outcome.reason === 'saved' && key(outcome.target) === key(pick)) out.push([k, { kind: 'heal', text: `You protected ${pick}. They were attacked, and you saved them!`, tone: 'good', target: pick }]);
+      else if (saved.has(key(pick))) out.push([k, { kind: 'heal', text: `You protected ${pick}. They were attacked, and you saved them!`, tone: 'good', target: pick }]);
       else out.push([k, { kind: 'heal', text: `You protected ${pick}. It was a quiet night for them.`, tone: 'neutral', target: pick }]);
     } else if (r === 'officer') {
       if (!pick) out.push([k, { kind: 'investigate', text: 'You did not investigate anyone last night.', tone: 'neutral' }]);
       else if (officerMode === 'manual') out.push([k, { kind: 'investigate', text: `You investigated ${pick}. The moderator will tell you what they found.`, tone: 'neutral', target: pick, pending: true }]);
       else {
         const tr = displayRole(pick);
-        const bad = tr === 'werewolf' || tr === 'serialkiller';
+        const bad = tr === 'werewolf' || tr === 'serialkiller' || tr === 'joker';
         const label = bad ? (tr === 'serialkiller' ? 'Killer' : 'Wolf') : 'Civilian';
         const text = `${pick} is ${label === 'Killer' ? 'the Killer' : 'a ' + label}.`;
         const clue = { id: nextClueId++, kind: 'check', about: pick, result: bad ? 'wolf' : 'civilian', label, text, ts: now(), private: true };
@@ -594,6 +613,66 @@ function revealDeath({ victim, card, announce = true, line }) {
   if (card) addClue('card', victim, card);
   const manifesto = manifestos.get(key(victim));
   if (manifesto) addClue('manifesto', victim, manifesto);
+  checkFamily();
+}
+
+// ---- The family: Mother, Father and Son ----
+// Remember who the family members are (their role changes later).
+let family = {};
+let familyFlags = {};
+function syncFamily() {
+  for (const [k, r] of roles) if (FAMILY.includes(r)) family[r] = k;
+}
+const isDeadKey = (k) => killedNames.has(k) || mutedNames.has(k);
+function checkFamily() {
+  syncFamily();
+  const { mother, father, son } = family;
+  // The Son dies: the Mother turns Joker (joins the wolves), the Father turns Vigilante.
+  if (son && isDeadKey(son) && !familyFlags.sonDown) {
+    familyFlags.sonDown = true;
+    const before = displayRoleMap();
+    if (mother && !isDeadKey(mother) && roles.get(mother) === 'mother') roles.set(mother, 'joker');
+    if (father && !isDeadKey(father) && roles.get(father) === 'father') roles.set(father, 'vigilante');
+    announceRoleChanges(before);
+    if (moderatorId) io.to(moderatorId).emit('notice', '🃏 The Son died: the Mother is now the Joker and the Father is the Vigilante.');
+  }
+  // Both parents die: the Son becomes Batman.
+  if (mother && father && son && isDeadKey(mother) && isDeadKey(father) && !isDeadKey(son) && !familyFlags.batman && roles.get(son) === 'son') {
+    familyFlags.batman = true;
+    const before = displayRoleMap();
+    roles.set(son, 'batman');
+    announceRoleChanges(before);
+    if (moderatorId) io.to(moderatorId).emit('notice', '🦇 Both parents died: the Son is now Batman.');
+  }
+}
+// Batman's clue each morning: someone who used an ability, or someone an ability was used on.
+// Never about the same player twice.
+let batmanSeen = new Set();
+const PAST = { kill: 'attacked', vigil: 'attacked', heal: 'protected', investigate: 'investigated' };
+function batmanClue() {
+  const options = [];
+  for (const [actor, a] of nightActions) {
+    if (!a.target || a.skip) continue;
+    const actorName = userByName(actor)?.name || actor;
+    options.push({ about: key(actorName), text: `${actorName} used an ability tonight.` });
+    options.push({ about: key(a.target), text: `${a.target} was ${PAST[a.kind]} tonight.` });
+  }
+  const fresh = options.filter((o) => !batmanSeen.has(o.about));
+  if (!fresh.length) return { kind: 'clue', text: 'The night was quiet. You learned nothing new.', tone: 'neutral' };
+  const pick = fresh[Math.floor(Math.random() * fresh.length)];
+  batmanSeen.add(pick.about);
+  return { kind: 'clue', text: pick.text, tone: 'neutral' };
+}
+// The Vigilante's shot at sunrise: kills unless the Doctor protected the target.
+function vigilanteOutcome() {
+  const out = [];
+  for (const [k, a] of nightActions) {
+    if (a.kind !== 'vigil' || !a.target || isDeadKey(k)) continue;
+    if (!userByName(a.target) || killedNames.has(key(a.target))) continue;
+    const healed = [...nightActions.values()].some((h) => h.kind === 'heal' && key(h.target) === key(a.target));
+    out.push({ actor: k, target: a.target, saved: healed });
+  }
+  return out;
 }
 // The Serial Killer's calling card is left if the victim is the one they picked tonight.
 function callingCardFor(victimName) {
@@ -605,14 +684,26 @@ function callingCardFor(victimName) {
   return null;
 }
 
+function familyInPlay(playerCount) {
+  return roleConfig.family === 'on' || (roleConfig.family === 'auto' && playerCount >= 20);
+}
+// If one family member is in play, all three must be.
+function familyProblem() {
+  const have = FAMILY.filter((r) => [...roles.values()].includes(r));
+  if (have.length && have.length < 3) return `The family plays together: also give out ${FAMILY.filter((r) => !have.includes(r)).map((r) => r[0].toUpperCase() + r.slice(1)).join(' and ')}.`;
+  return null;
+}
+
 // Shuffle roles out to every player. Returns an error message, or null.
 // quiet = don't announce yet (the game start does that).
 function randomizeRoles(quiet = false) {
   const players = [...users.values()].filter((u) => u.id !== moderatorId);
-  const special = roleConfig.werewolf + roleConfig.doctor + roleConfig.officer;
+  // The family (Mother, Father, Son) is dealt with 20+ players, or when switched on.
+  const withFamily = familyInPlay(players.length);
+  const special = roleConfig.werewolf + roleConfig.doctor + roleConfig.officer + (withFamily ? 3 : 0);
   if (players.length === 0) return 'There are no players to give roles to.';
   if (special > players.length) return `Not enough players: you picked ${special} special roles but there are only ${players.length} players.`;
-  const deck = [...Array(roleConfig.werewolf).fill('werewolf'), ...Array(roleConfig.doctor).fill('doctor'), ...Array(roleConfig.officer).fill('officer')];
+  const deck = [...Array(roleConfig.werewolf).fill('werewolf'), ...Array(roleConfig.doctor).fill('doctor'), ...Array(roleConfig.officer).fill('officer'), ...(withFamily ? FAMILY : [])];
   while (deck.length < players.length) deck.push('civilian');
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -621,6 +712,10 @@ function randomizeRoles(quiet = false) {
   const before = displayRoleMap();
   roles = new Map(players.map((p, i) => [key(p.name), deck[i]]));
   protectedNames = new Set();
+  family = {};
+  familyFlags = {};
+  batmanSeen = new Set();
+  syncFamily();
   if (!quiet) {
     announceRoleChanges(before, true);
     systemLobby('The moderator handed out secret roles. Check your pop-up!');
@@ -773,7 +868,12 @@ io.on('connection', (socket) => {
     const before = displayRoleMap();
     if (role) roles.set(key(target.name), role);
     else roles.delete(key(target.name));
+    syncFamily();
     announceRoleChanges(before);
+    if (gameState === 'running' && FAMILY.includes(role)) {
+      const fam = familyProblem();
+      if (fam) socket.emit('notice', fam);
+    }
     broadcastState();
   });
 
@@ -832,6 +932,7 @@ io.on('connection', (socket) => {
       const n = Number(cfg[r]);
       if (Number.isInteger(n) && n >= 0 && n <= 20) roleConfig[r] = n;
     }
+    if (['auto', 'on', 'off'].includes(cfg.family)) roleConfig.family = cfg.family;
     broadcastState();
   });
 
@@ -862,6 +963,9 @@ io.on('connection', (socket) => {
   socket.on('game:begin', () => {
     if (!isMod(socket) || gameState !== 'assigning') return;
     if (wolfCount() < 1) return socket.emit('notice', 'Give at least one player the Werewolf role first (one Werewolf plays as the Serial Killer).');
+    const fam = familyProblem();
+    if (fam) return socket.emit('notice', fam);
+    syncFamily();
     beginGame(false);
   });
 
@@ -1059,7 +1163,15 @@ io.on('connection', (socket) => {
         if (!list.some((r) => key(r.victim) === key(outcome.victim))) list = [{ victim: outcome.victim, card }, ...list];
       }
       if (moderatorId) io.to(moderatorId).emit('notice', `🌅 ${OUTCOME_TEXT[outcome.reason](outcome)}.`);
-      const results = abilityResults(outcome);
+      // The Vigilante's shot.
+      const vig = vigilanteOutcome();
+      for (const v of vig) {
+        if (v.saved || list.some((r) => key(r.victim) === key(v.target))) continue;
+        killPlayer(v.target);
+        list.push({ victim: v.target, card: null });
+        if (moderatorId) io.to(moderatorId).emit('notice', `🎯 The Vigilante killed ${v.target}.`);
+      }
+      const results = abilityResults(outcome, vig);
       // Give the sunrise animation a moment before the news.
       setTimeout(() => {
         // Night deaths get a funny morning story.

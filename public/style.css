@@ -1291,3 +1291,10 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
 /* "Kill nobody tonight" option */
 .target-btn.nobody, .ap-pick.nobody { border-style: dashed; }
 .nobody-icon { width: 28px; text-align: center; font-size: 1.1rem; flex-shrink: 0; }
+
+/* Family switch in the role setup */
+.family-row .stepper-label .ri { width: 18px; height: 18px; margin-right: -4px; }
+.mini-seg { display: flex; gap: 2px; background: var(--surface); padding: 2px; border-radius: 8px; border: 1px solid var(--border); }
+.mini-seg button { border: none; background: transparent; border-radius: 6px; padding: 3px 7px; font-size: 0.72rem; font-weight: 700; color: var(--text-2); min-height: 0; }
+.mini-seg button.on { background: var(--accent); color: #fff; }
+.assign-btns { flex-wrap: wrap; justify-content: flex-end; }

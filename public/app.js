@@ -25,6 +25,12 @@ const ROLE = {
   serialkiller: { label: 'Serial Killer', icon: '🔪', color: 'var(--danger)', desc: 'You work alone. Each night, tell the moderator who you want to eliminate. Do not get caught.' },
   doctor: { label: 'Doctor', icon: '🩺', color: '#0ea5e9', desc: 'Each night, tell the moderator one player to protect.' },
   officer: { label: 'Officer', icon: '👮', color: '#3b82f6', desc: 'Each night, ask the moderator to investigate one player.' },
+  mother: { label: 'Mother', icon: '👩', color: '#b83b7a', desc: 'You are part of the family, on the village side. If your Son dies, grief turns you into the Joker and you join the wolves.' },
+  father: { label: 'Father', icon: '👨', color: '#2f5ea8', desc: 'You are part of the family, on the village side. If your Son dies, you become the Vigilante.' },
+  son: { label: 'Son', icon: '👦', color: '#4d7c0f', desc: 'You are part of the family, on the village side. If both your parents die, you become Batman.' },
+  joker: { label: 'Joker', icon: '🃏', color: '#7e22ce', desc: 'Your Son is gone. You now hunt with the wolves: join the wolf den and pick a victim with the pack at night.' },
+  vigilante: { label: 'Vigilante', icon: '🎯', color: '#c2410c', desc: 'You are still on the village side, but each night you may kill one player. You can also choose to kill nobody.' },
+  batman: { label: 'Batman', icon: '🦇', color: '#1f2335', desc: 'Your parents are gone. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
 };
 
 $('joinLogo').innerHTML = ART.night;
@@ -56,7 +62,7 @@ function knownRole(name) {
   const k = key(name);
   if (state.modView) return state.modView.roles[k] || null;
   if (k === key(me)) return state.me.role || null;
-  if (state.me.wolfmates?.some((n) => key(n) === k)) return 'werewolf';
+  if (state.me.wolfmates?.some((n) => key(n) === k)) return state.me.packRoles?.[k] || 'werewolf';
   return null;
 }
 // Small round role picture to use next to text.
@@ -292,18 +298,22 @@ socket.on('phase:changed', ({ phase, silent }) => {
 socket.on('role:assigned', ({ role }) => {
   if (!role) return toast('The moderator removed your role.');
   const r = ROLE[role];
-  openModal((card) => {
+  // Wait for any open pop-up (like the morning news) before showing a new role.
+  const show = () => openModal((card) => {
     const art = el('div', 'art role');
     art.innerHTML = ART[role];
     card.append(art);
     card.append(el('div', 'role-kicker', 'Your secret role'));
-    card.append(el('h2', '', `You are ${/^[aeiou]/i.test(r.label) ? 'an' : 'a'} ${r.label}`));
+    const article = { joker: 'the ', vigilante: 'the ', batman: '' }[role] ?? (/^[aeiou]/i.test(r.label) ? 'an ' : 'a ');
+    card.append(el('h2', '', `You are ${article}${r.label}`));
     card.append(el('p', '', r.desc));
     card.append(el('p', 'hint', 'Only you and the moderator can see this.'));
     const actions = el('div', 'actions');
     actions.append(btn('btn-primary', 'Got it', closeModal));
     card.append(actions);
   });
+  if ($('modal').classList.contains('hidden')) show();
+  else clueQueue.push({ __result: show });
 });
 socket.on('role:cleared', () => toast('New game: all roles were cleared.'));
 
@@ -693,7 +703,7 @@ function updateCheckHint() {
   const target = $('checkTarget').value;
   const real = target && state.modView?.roles[key(target)];
   const hint = $('checkHint');
-  const isWolf = real === 'werewolf' || real === 'serialkiller';
+  const isWolf = real === 'werewolf' || real === 'serialkiller' || real === 'joker';
   hint.textContent = '';
   if (real) hint.append(document.createTextNode('(really '), roleIcon(real), document.createTextNode(` ${ROLE[real].label})`));
   else if (target) hint.textContent = '(no role yet)';
@@ -744,13 +754,17 @@ function renderComposer() {
   $('composer').classList.toggle('locked', disabled);
 }
 
+function familyOn(cfg, players) {
+  return cfg.family === 'on' || (cfg.family === 'auto' && players >= 20);
+}
 function renderRolesCard() {
   const card = $('rolesCard');
   card.classList.toggle('hidden', !amMod());
   if (!amMod() || !state.modView) return;
   const cfg = state.modView.roleConfig;
   const players = state.users.filter((u) => !u.moderator).length;
-  const special = cfg.werewolf + cfg.doctor + cfg.officer;
+  const fam = familyOn(cfg, players);
+  const special = cfg.werewolf + cfg.doctor + cfg.officer + (fam ? 3 : 0);
   const civilians = Math.max(players - special, 0);
   const box = $('roleSetup');
   box.innerHTML = '';
@@ -774,6 +788,21 @@ function renderRolesCard() {
   row('werewolf', cfg.werewolf === 1 ? 'Serial Killer' : 'Werewolves');
   row('doctor', 'Doctors');
   row('officer', 'Officers');
+  // The family trio: dealt automatically with 20+ players, or switched on/off.
+  const famRow = el('div', 'stepper-row family-row' + (fam ? '' : ' off'));
+  const famLab = el('span', 'stepper-label');
+  for (const r of ['mother', 'father', 'son']) famLab.append(roleIcon(r));
+  famLab.append(document.createTextNode(' Family'));
+  const seg = el('div', 'mini-seg');
+  for (const [m, t] of [['auto', 'Auto 20+'], ['on', 'On'], ['off', 'Off']]) {
+    const b = el('button', cfg.family === m ? 'on' : '', t);
+    b.type = 'button';
+    b.title = m === 'auto' ? 'Mother, Father and Son are dealt when 20 or more players have joined' : m === 'on' ? 'Always deal the family' : 'Never deal the family';
+    b.onclick = () => socket.emit('roles:config', { ...cfg, family: m });
+    seg.append(b);
+  }
+  famRow.append(famLab, seg);
+  box.append(famRow);
   const civ = el('div', 'stepper-row');
   civ.append(roleLabel('stepper-label', 'civilian', 'Civilians'), el('b', 'civ-count', String(civilians)));
   box.append(civ);
@@ -1121,8 +1150,11 @@ let fxRole = undefined;
 function rnd(a, b) {
   return a + Math.random() * (b - a);
 }
+// The new family roles borrow the closest existing screen theme.
+const THEME_FOR = { mother: 'civilian', father: 'civilian', son: 'civilian', joker: 'werewolf', vigilante: 'civilian', batman: 'officer' };
 function renderRoleFx() {
-  const role = !state || amMod() ? null : state.me.role || null;
+  const raw = !state || amMod() ? null : state.me.role || null;
+  const role = THEME_FOR[raw] || raw;
   if (role === fxRole) return;
   fxRole = role;
   const fx = $('roleFx');
@@ -1252,6 +1284,7 @@ const ACTION_TEXT = {
   kill: { verb: 'kill', noun: 'Kill', title: 'Choose your victim', btn: 'btn-danger' },
   heal: { verb: 'heal', noun: 'Heal', title: 'Choose who to protect', btn: 'btn-success' },
   investigate: { verb: 'investigate', noun: 'Investigate', title: 'Choose who to investigate', btn: 'btn-primary' },
+  vigil: { verb: 'kill', noun: 'Vigilante', title: 'Choose who to kill', btn: 'btn-danger' },
 };
 
 // The player's own panel: pick a target at night.
@@ -1302,7 +1335,7 @@ function renderActionCard() {
   }
   if (!a.targets.length) list.append(el('p', 'hint', a.investigated?.length ? 'You have investigated everyone you can.' : 'There is nobody to choose.'));
   // The killer can also decide not to kill anyone tonight.
-  if (a.kind === 'kill') {
+  if (a.kind === 'kill' || a.kind === 'vigil') {
     const nb = el('button', 'target-btn nobody' + (a.skip ? ' on kill' : ''));
     nb.type = 'button';
     nb.append(el('span', 'nobody-icon', '🚫'), el('span', 'tname', 'Kill nobody tonight'));
@@ -1588,7 +1621,7 @@ function renderModOverview() {
     const r = roles[key(u.name)];
     if (r) counts[r] = (counts[r] || 0) + 1;
   }
-  const order = ['werewolf', 'serialkiller', 'doctor', 'officer', 'civilian'];
+  const order = ['werewolf', 'serialkiller', 'joker', 'doctor', 'officer', 'vigilante', 'batman', 'mother', 'father', 'son', 'civilian'];
   const roleItems = order.filter((r) => counts[r]).map((r) => roleLabel('ov-chip role', r, `${counts[r]} × ${ROLE[r].label}`));
   box.append(panel('🟢 Alive', 'alive', alive.map((u) => chip(u.name))), panel('💀 Dead', 'dead', dead.map((u) => chip(u.name))), panel('🎭 Roles still alive', 'roles', roleItems));
 }
@@ -1653,10 +1686,12 @@ function renderStartScreen() {
   who.append(chips);
   card.append(who);
   if (amMod() && cfg) {
-    const special = cfg.werewolf + cfg.doctor + cfg.officer;
+    const fam = familyOn(cfg, players.length);
+    const special = cfg.werewolf + cfg.doctor + cfg.officer + (fam ? 3 : 0);
     const setup = el('div', 'start-setup');
     const civ = Math.max(players.length - special, 0);
     const parts = [
+      ...(fam ? [['mother', 'Mother'], ['father', 'Father'], ['son', 'Son']] : []),
       [cfg.werewolf === 1 ? 'serialkiller' : 'werewolf', cfg.werewolf === 1 ? '1 Serial Killer' : `${cfg.werewolf} Werewolves`],
       ['doctor', `${cfg.doctor} Doctor${cfg.doctor === 1 ? '' : 's'}`],
       ['officer', `${cfg.officer} Officer${cfg.officer === 1 ? '' : 's'}`],
@@ -1795,7 +1830,7 @@ socket.on('death:shown', ({ victim, wolf }) => {
 });
 
 // ---------- Ability results ----------
-const ABILITY_ICON = { kill: '🗡️', heal: '🩺', investigate: '🔍' };
+const ABILITY_ICON = { kill: '🗡️', heal: '🩺', investigate: '🔍', vigil: '🎯', clue: '🦇' };
 socket.on('ability:result', (e) => {
   freshAbilityId = e.id;
   // Show it as a pop-up after the morning news.
@@ -1818,14 +1853,14 @@ socket.on('ability:result', (e) => {
 // ---------- Left sidebar box ----------
 // Players with an ability see their own results; the moderator sees every ability player.
 let freshAbilityId = null;
-const ABILITY_ROLES = ['werewolf', 'serialkiller', 'doctor', 'officer'];
-const ACTION_WORD = { kill: 'kill', heal: 'heal', investigate: 'check' };
+const ABILITY_ROLES = ['werewolf', 'serialkiller', 'joker', 'doctor', 'officer', 'vigilante', 'batman', 'mother', 'father', 'son'];
+const ACTION_WORD = { kill: 'kill', heal: 'heal', investigate: 'check', vigil: 'kill' };
 function renderSideBox() {
   const box = $('sideBox');
   if (!state) return;
   if (amMod()) return renderModAbilityBox(box);
   const log = state.me.abilityLog || [];
-  const show = !!(state.me.action || log.length);
+  const show = !!(state.me.action || log.length || state.me.role === 'batman');
   box.classList.toggle('hidden', !show);
   if (!show) return;
   const sig = 'p|' + log.map((e) => e.id + (e.pending ? 'p' : '') + e.text).join(',');
@@ -1891,7 +1926,7 @@ function renderModAbilityBox(box) {
 }
 
 // Manual roles: the moderator gives each player a role, then starts the game.
-const ASSIGN_ROLES = ['civilian', 'werewolf', 'doctor', 'officer'];
+const ASSIGN_ROLES = ['civilian', 'werewolf', 'doctor', 'officer', 'mother', 'father', 'son'];
 function renderAssigning(card, players) {
   const roles = state.modView?.roles || {};
   if (!amMod()) {
@@ -2067,7 +2102,7 @@ function renderPhoneDock() {
   if (state.me.wolfAccess) items.push({ id: 'wolf', img: 'werewolf', label: 'Wolves', on: channel === 'wolf', badge: pill(wolfUnread), lock: state.phase !== 'night', go: () => switchChannel('wolf') });
   if (state.me.canCard) items.push({ id: 'card', icon: '🃏', label: 'Card', go: () => openNoteEditor('card') });
   if (!amMod()) items.push({ id: 'manifesto', icon: '📜', label: 'Will', go: () => openNoteEditor('manifesto') });
-  if (!amMod() && (state.me.action || state.me.abilityLog?.length)) items.push({ id: 'results', icon: '🔮', label: 'Results', on: resultsOpen, go: toggleResultsPop });
+  if (!amMod() && (state.me.action || state.me.abilityLog?.length || state.me.role === 'batman')) items.push({ id: 'results', icon: '🔮', label: 'Results', on: resultsOpen, go: toggleResultsPop });
   if (amMod()) items.push({ id: 'abilities', icon: '🎭', label: 'Roles', go: () => openPanel('left') });
   if (amMod()) {
     // The moderator's game panel: day/night, trials, roles, bots.
@@ -2233,7 +2268,7 @@ document.addEventListener('pointerdown', (e) => {
 });
 
 // ---------- Phone: night action window (Kill / Protect / Investigate) ----------
-const PHONE_ACT = { kill: ['🗡️', 'Kill'], heal: ['🛡️', 'Protect'], investigate: ['🔍', 'Investigate'] };
+const PHONE_ACT = { kill: ['🗡️', 'Kill'], heal: ['🛡️', 'Protect'], investigate: ['🔍', 'Investigate'], vigil: ['🎯', 'Kill'] };
 let actionOpen = false;
 function toggleActionPop() {
   actionOpen = !actionOpen;
@@ -2291,7 +2326,7 @@ function renderActionPop() {
     list.append(b);
   }
   if (!a.targets.length && !a.investigated?.length) list.append(el('div', 'rp-empty', 'There is nobody to choose.'));
-  if (a.kind === 'kill') {
+  if (a.kind === 'kill' || a.kind === 'vigil') {
     const nb = el('button', 'ap-pick nobody' + (a.skip ? ' on kill' : ''));
     nb.type = 'button';
     nb.append(el('span', 'nobody-icon', '🚫'), el('span', 'ap-pick-name', 'Kill nobody tonight'));
