@@ -1420,3 +1420,9 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
   .start-screen.minimized > .btn { padding: 14px 20px; font-size: 1rem; border-radius: 999px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35); animation: startPulse 2.4s ease-in-out infinite; }
 }
 @keyframes startPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+
+/* Family roles already given to someone else */
+.assign-btn.taken { opacity: 0.2; cursor: not-allowed; }
+.rp-role.taken { opacity: 0.45; cursor: not-allowed; }
+.rp-role.taken:hover { border-color: transparent; }
+.rp-taken { margin-left: auto; font-size: 0.7rem; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60px; }

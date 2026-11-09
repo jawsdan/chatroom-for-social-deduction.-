@@ -507,6 +507,12 @@ function openRolePicker(name) {
     b.append(roleIcon(r), el('span', '', ROLE[r].label));
     if (on) b.append(el('span', 'rp-tick', '✓'));
     b.onclick = () => give(r);
+    if (!on && roleTakenByOther(r, name)) {
+      b.disabled = true;
+      b.classList.add('taken');
+      const holder = Object.entries(state.modView.roles).find(([, x]) => x === r)[0];
+      b.append(el('span', 'rp-taken', displayName(holder)));
+    }
     return b;
   };
   openModal((card) => {
@@ -2047,6 +2053,13 @@ function renderModAbilityBox(box) {
 }
 
 // Manual roles: the moderator gives each player a role, then starts the game.
+// Roles only one player can have at a time.
+const UNIQUE_ROLES = ['mother', 'father', 'son', 'joker', 'vigilante', 'batman'];
+// Is this unique role already given to someone other than this player?
+function roleTakenByOther(role, name) {
+  if (!UNIQUE_ROLES.includes(role)) return false;
+  return Object.entries(state.modView?.roles || {}).some(([k, r]) => r === role && k !== key(name));
+}
 const ASSIGN_ROLES = ['civilian', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son'];
 function renderAssigning(card, players) {
   const roles = state.modView?.roles || {};
@@ -2070,7 +2083,15 @@ function renderAssigning(card, players) {
       // Phone: one compact row per player with ‹ role › arrows.
       const order = [null, ...ASSIGN_ROLES];
       const idx = Math.max(0, order.indexOf(cur === 'serialkiller' ? 'werewolf' : cur || null));
-      const step = (d) => socket.emit('mod:role', { to: u.name, role: order[(idx + d + order.length) % order.length] });
+      const step = (d) => {
+        // Skip family roles another player already has.
+        let i = idx;
+        for (let n = 0; n < order.length; n++) {
+          i = (i + d + order.length) % order.length;
+          if (!roleTakenByOther(order[i], u.name)) break;
+        }
+        socket.emit('mod:role', { to: u.name, role: order[i] });
+      };
       const pick = el('div', 'assign-step' + (cur ? ' has ' + (cur === 'serialkiller' ? 'werewolf' : cur) : ''));
       const prev = el('button', 'assign-arrow', '‹');
       const next = el('button', 'assign-arrow', '›');
@@ -2095,6 +2116,11 @@ function renderAssigning(card, players) {
       b.title = ROLE[r].label;
       b.append(roleIcon(r === 'werewolf' && killers <= 1 && (on || !killers) ? 'serialkiller' : r));
       b.onclick = () => socket.emit('mod:role', { to: u.name, role: on ? null : r });
+      if (!on && roleTakenByOther(r, u.name)) {
+        b.disabled = true;
+        b.classList.add('taken');
+        b.title = `${ROLE[r].label} is already given to someone else`;
+      }
       btns.append(b);
     }
     row.append(btns);

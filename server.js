@@ -19,6 +19,7 @@ const ROLES = ['civilian', 'werewolf', 'doctor', 'detective', 'officer', 'mother
 const WOLF_ROLES = ['werewolf', 'joker'];
 const isWolfRole = (r) => WOLF_ROLES.includes(r);
 const FAMILY = ['mother', 'father', 'son'];
+const UNIQUE_ROLES = ['mother', 'father', 'son', 'joker', 'vigilante', 'batman'];
 
 // ---- State ----
 const users = new Map(); // socketId -> { id, name }
@@ -952,6 +953,11 @@ io.on('connection', (socket) => {
     const target = userByName(String(to || ''));
     if (!target) return socket.emit('notice', 'That player is not online.');
     if (target.id === moderatorId) return;
+    // Only one Mother, one Father and one Son (and one of each family transformation).
+    if (UNIQUE_ROLES.includes(role)) {
+      const holder = [...roles.entries()].find(([k, r]) => r === role && k !== key(target.name));
+      if (holder) return socket.emit('notice', `${userByName(holder[0])?.name || holder[0]} is already the ${role[0].toUpperCase() + role.slice(1)}.`);
+    }
     const before = displayRoleMap();
     if (role) roles.set(key(target.name), role);
     else roles.delete(key(target.name));
