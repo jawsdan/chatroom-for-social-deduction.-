@@ -989,3 +989,57 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
 .ability-text.bad { color: var(--danger); }
 .officer-mode { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
 .officer-mode .hint { margin: 8px 0 0; }
+
+/* ---------- Firekeeper character by the fire ---------- */
+.firekeeper { position: absolute; z-index: 1; width: 0; height: 0; pointer-events: none; }
+.firekeeper .fk-img {
+  position: absolute; bottom: 0; left: 0; height: var(--fk-h, 140px); width: auto; transform: translateX(-50%);
+  image-rendering: pixelated; filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.35)); transition: opacity 0.6s, filter 0.6s;
+}
+.firekeeper .fk-name {
+  position: absolute; left: 0; bottom: calc(var(--fk-h, 140px) + 6px); transform: translateX(-50%); white-space: nowrap;
+  background: rgba(15, 17, 35, 0.78); color: #fff; font-weight: 700; font-size: 0.8rem; padding: 2px 10px; border-radius: 999px;
+}
+.firekeeper.dead .fk-img, .firekeeper.spawn.dead .fk-img { animation: none; opacity: 0.35; filter: grayscale(1) drop-shadow(0 0 6px rgba(150, 200, 255, 0.6)); }
+.firekeeper.dead .fk-name::before { content: '💀 '; }
+.firekeeper.spawn .fk-img { animation: fkSpawn 0.9s cubic-bezier(0.22, 1.4, 0.36, 1) both; }
+.firekeeper.spawn .fk-name { animation: fade 0.6s 0.5s both; }
+.firekeeper .fk-poof {
+  position: absolute; left: 0; bottom: 0; width: calc(var(--fk-h, 140px) * 0.9); height: calc(var(--fk-h, 140px) * 0.9);
+  transform: translate(-50%, 15%) scale(0); border-radius: 50%; opacity: 0;
+  background: radial-gradient(circle, rgba(235, 235, 245, 0.95), rgba(200, 200, 215, 0.6) 45%, transparent 70%);
+}
+.firekeeper.spawn .fk-poof { animation: fkPoof 0.8s ease-out both; }
+@keyframes fkSpawn { 0%, 30% { opacity: 0; transform: translateX(-50%) scale(0.4); } 100% { opacity: 1; transform: translateX(-50%) scale(1); } }
+@keyframes fkPoof { 0% { opacity: 0; transform: translate(-50%, 15%) scale(0.2); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, 15%) scale(1.6); } }
+
+/* ---------- Left sidebar box: ability results / ability players ---------- */
+.side-box {
+  margin-top: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2);
+  padding: 10px; display: flex; flex-direction: column; gap: 8px; max-height: 46%; min-height: 0;
+}
+.side-box-title { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+.side-box-title .ri { width: 16px; height: 16px; }
+.side-box-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; min-height: 0; }
+.side-box-empty { margin: 0; font-size: 0.82rem; color: var(--muted); line-height: 1.4; }
+.ab-row { background: var(--surface); border-radius: 10px; padding: 7px 9px; border-left: 4px solid var(--muted); }
+.ab-row.good { border-left-color: var(--success); }
+.ab-row.bad { border-left-color: var(--danger); }
+.ab-row.pending { opacity: 0.75; }
+.ab-row.fresh { animation: tileIn 0.5s var(--ease); }
+.ab-night { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.ab-text { font-size: 0.86rem; font-weight: 600; line-height: 1.35; color: var(--text); }
+.ab-sub { font-size: 0.74rem; color: var(--muted); }
+.ap-row {
+  display: flex; align-items: center; gap: 8px; text-align: left; width: 100%; padding: 6px 8px; border-radius: 10px;
+  border: 1.5px solid transparent; background: var(--surface); position: relative; transition: border-color 0.15s, background-color 0.15s;
+}
+.ap-row:hover { border-color: var(--accent); }
+.ap-row.on { border-color: var(--accent); background: var(--accent-soft); }
+.ap-row.dead { opacity: 0.55; }
+.ap-row .new { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+.ap-text { min-width: 0; flex: 1; }
+.ap-name { font-weight: 700; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ap-role { display: inline-flex; align-items: center; gap: 2px; font-size: 0.76rem; font-weight: 600; color: var(--text-2); }
+.ap-role .ri { width: 14px; height: 14px; }
+.ap-pick { font-size: 0.74rem; color: var(--muted); }

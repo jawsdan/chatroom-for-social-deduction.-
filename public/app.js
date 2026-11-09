@@ -175,10 +175,11 @@ socket.on('state', (s) => {
   tickPhaseTimer();
   if (channel === 'wolf' && !s.me.wolfAccess) channel = 'lobby';
   renderAll(false);
-  // The results tab redraws whenever new results arrive.
-  const n = s.me.abilityLog?.length || 0;
-  if (channel === 'ability' && n !== renderAll._abilityN) renderMessages();
-  renderAll._abilityN = n;
+  // The character by the fire belongs to the first person who joined
+  // (the moderator only if nobody else is here). Bots don't count.
+  const humans = s.users.filter((u) => !u.bot);
+  const keeper = humans.find((u) => !u.moderator) || humans[0];
+  window.setFirekeeper?.(keeper?.name || null, keeper && (keeper.muted || s.dead?.includes(key(keeper.name))), s.phase);
   maybeShowTrialPopup();
 });
 
@@ -477,7 +478,6 @@ function switchChannel(c) {
   if (c === 'mod') modUnread = 0;
   if (c === 'lobby') lobbyUnread = 0;
   if (c === 'wolf') wolfUnread = 0;
-  if (c === 'ability') abilityUnread = 0;
   closeDrawers();
   renderAll();
   if (!$('msgInput').disabled) $('msgInput').focus();
@@ -549,11 +549,7 @@ function renderNav() {
   $('cardNav').classList.toggle('hidden', !state.me.canCard);
   $('cardMeta').textContent = state.me.callingCard ? '✓' : '';
   $('manifestoNav').classList.toggle('hidden', amMod());
-  const hasAbility = !amMod() && (state.me.action || state.me.abilityLog?.length);
-  $('abilityNav').classList.toggle('hidden', !hasAbility);
-  if (!hasAbility && channel === 'ability') channel = 'lobby';
-  $('abilityUnread').textContent = abilityUnread;
-  $('abilityUnread').classList.toggle('hidden', !abilityUnread);
+  renderSideBox();
   $('manifestoMeta').textContent = state.me.dead ? '🔒' : state.me.manifesto ? '✓' : '';
 
 }
@@ -577,9 +573,6 @@ function renderHeader() {
     const wolves = (amMod() ? Object.entries(state.modView?.roles || {}).filter(([, r]) => r === 'werewolf').map(([k]) => displayName(k)) : state.me.wolfmates);
     title.textContent = '🐺 Wolf den';
     sub.textContent = (state.phase === 'night' ? 'Open now' : 'Closed until night') + ` · secret chat for the werewolves${wolves.length ? ': ' + wolves.join(', ') : ''}`;
-  } else if (channel === 'ability') {
-    title.textContent = '🔮 Ability results';
-    sub.textContent = 'Private. What your night ability found out, night by night.';
   }
 }
 
@@ -728,9 +721,6 @@ function renderComposer() {
       disabled = true;
       ph = state.me.dead && state.dead?.includes(key(me)) ? '💀 You are dead. You can only talk to the moderator.' : '🔇 You are muted. You can only talk to the moderator.';
     } else ph = 'Plan your target with the pack…';
-  } else if (channel === 'ability') {
-    disabled = true;
-    ph = 'Your results appear here every morning.';
   }
   input.disabled = disabled;
   send.disabled = disabled;
@@ -974,7 +964,6 @@ function currentMessages() {
   if (channel === 'lobby') return lobbyMsgs;
   if (channel === 'mod') return amMod() ? modThreads[selectedThread] || [] : myThread;
   if (channel === 'wolf') return wolfMsgs || [];
-  if (channel === 'ability') return null;
   return [];
 }
 
@@ -989,7 +978,6 @@ function renderMessages() {
   box.style.scrollBehavior = 'auto';
   box.innerHTML = '';
   lastRendered = null;
-  if (channel === 'ability') return renderAbilityLog(box);
   const list = currentMessages();
   if (list.length === 0) {
     if (channel === 'mod') {
@@ -1733,12 +1721,9 @@ socket.on('death:shown', ({ victim, wolf }) => {
 });
 
 // ---------- Ability results ----------
-let abilityUnread = 0;
 const ABILITY_ICON = { kill: '🗡️', heal: '🩺', investigate: '🔍' };
 socket.on('ability:result', (e) => {
-  if (channel === 'ability') renderMessages();
-  else abilityUnread++;
-  renderNav();
+  freshAbilityId = e.id;
   // Show it as a pop-up after the morning news.
   const show = () =>
     openModal((card) => {
@@ -1747,7 +1732,7 @@ socket.on('ability:result', (e) => {
       card.append(art);
       card.append(el('div', 'role-kicker', `Night ${e.night} · your ability result`));
       card.append(el('h2', 'ability-text ' + (e.tone || ''), e.text));
-      card.append(el('p', 'hint', 'Saved in your Ability results tab.'));
+      card.append(el('p', 'hint', 'Saved in the Ability results box on the left.'));
       const actions = el('div', 'actions');
       actions.append(btn('btn-primary', 'Close', closeModal));
       card.append(actions);
@@ -1755,33 +1740,78 @@ socket.on('ability:result', (e) => {
   clueQueue.push({ __result: show });
   showNextClue();
 });
-function renderAbilityLog(box) {
-  const log = state?.me?.abilityLog || [];
+
+// ---------- Left sidebar box ----------
+// Players with an ability see their own results; the moderator sees every ability player.
+let freshAbilityId = null;
+const ABILITY_ROLES = ['werewolf', 'serialkiller', 'doctor', 'officer'];
+const ACTION_WORD = { kill: 'kill', heal: 'heal', investigate: 'check' };
+function renderSideBox() {
+  const box = $('sideBox');
+  if (!state) return;
+  if (amMod()) return renderModAbilityBox(box);
+  const log = state.me.abilityLog || [];
+  const show = !!(state.me.action || log.length);
+  box.classList.toggle('hidden', !show);
+  if (!show) return;
+  const sig = 'p|' + log.map((e) => e.id + (e.pending ? 'p' : '') + e.text).join(',');
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  box.innerHTML = '';
+  const head = el('div', 'side-box-title');
+  if (state.me.role) head.append(roleIcon(state.me.role));
+  head.append(document.createTextNode(' Ability results'));
+  box.append(head);
   if (!log.length) {
-    box.append(emptyState('🔮', 'No results yet', 'Use your night action, and what you found out shows up here in the morning.'));
+    box.append(el('p', 'side-box-empty', 'Use your night action. What you find out shows up here in the morning.'));
     return;
   }
-  // Newest night first; within a night, newest first.
-  const nights = new Map();
+  const list = el('div', 'side-box-list');
   for (const e of [...log].reverse()) {
-    if (!nights.has(e.night)) nights.set(e.night, []);
-    nights.get(e.night).push(e);
+    const row = el('div', 'ab-row ' + (e.tone || 'neutral') + (e.pending ? ' pending' : '') + (e.id === freshAbilityId ? ' fresh' : ''));
+    row.append(el('div', 'ab-night', `${ABILITY_ICON[e.kind] || '🔮'} Night ${e.night}`));
+    row.append(el('div', 'ab-text', e.text));
+    if (e.pending) row.append(el('div', 'ab-sub', 'Waiting for the moderator…'));
+    list.append(row);
   }
-  const wrap = el('div', 'ability-log');
-  for (const [n, entries] of nights) {
-    const g = el('div', 'ability-night');
-    g.append(el('div', 'ability-night-title', n ? `🌙 Night ${n}` : 'Results'));
-    for (const e of entries) {
-      const c = el('div', 'ability-card ' + (e.tone || 'neutral') + (e.pending ? ' pending' : ''));
-      c.append(el('span', 'ability-icon', ABILITY_ICON[e.kind] || '🔮'));
-      const t = el('div');
-      t.append(el('div', 'ability-main', e.text));
-      if (e.fromModerator) t.append(el('div', 'ability-sub', 'Answered by the moderator'));
-      if (e.pending) t.append(el('div', 'ability-sub', 'Waiting for the moderator…'));
-      c.append(t);
-      g.append(c);
-    }
-    wrap.append(g);
+  box.append(list);
+}
+
+function renderModAbilityBox(box) {
+  const roles = state.modView?.roles || {};
+  const actions = state.modView?.nightActions || [];
+  const people = Object.entries(roles)
+    .filter(([, r]) => ABILITY_ROLES.includes(r))
+    .sort((a, b) => ABILITY_ROLES.indexOf(a[1]) - ABILITY_ROLES.indexOf(b[1]));
+  box.classList.toggle('hidden', !people.length);
+  if (!people.length) return;
+  const sig = 'm|' + JSON.stringify([people, actions, state.dead, channel, selectedThread, [...unreadThreads]]);
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  box.innerHTML = '';
+  box.append(el('div', 'side-box-title', '🎭 Ability players'));
+  const list = el('div', 'side-box-list');
+  for (const [k, r] of people) {
+    const name = displayName(k);
+    const dead = isDeadName(name);
+    const open = channel === 'mod' && selectedThread === k;
+    const b = el('button', 'ap-row' + (dead ? ' dead' : '') + (open ? ' on' : ''));
+    b.type = 'button';
+    b.title = `Open your chat with ${name}`;
+    b.append(avatar(name, 'sm'));
+    const t = el('div', 'ap-text');
+    t.append(el('div', 'ap-name', name + (dead ? ' 💀' : '')));
+    t.append(roleLabel('ap-role', r, ROLE[r].label));
+    const act = actions.find((a) => key(a.actor) === k);
+    if (act?.target) t.append(el('div', 'ap-pick', `${state.phase === 'night' ? 'Tonight' : 'Last night'}: ${ACTION_WORD[act.kind]} ${act.target}`));
+    b.append(t);
+    if (unreadThreads.has(k)) b.append(el('span', 'new'));
+    b.onclick = () => {
+      selectedThread = k;
+      unreadThreads.delete(k);
+      switchChannel('mod');
+    };
+    list.append(b);
   }
-  box.append(wrap);
+  box.append(list);
 }
