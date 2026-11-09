@@ -175,6 +175,10 @@ socket.on('state', (s) => {
   tickPhaseTimer();
   if (channel === 'wolf' && !s.me.wolfAccess) channel = 'lobby';
   renderAll(false);
+  // The results tab redraws whenever new results arrive.
+  const n = s.me.abilityLog?.length || 0;
+  if (channel === 'ability' && n !== renderAll._abilityN) renderMessages();
+  renderAll._abilityN = n;
   maybeShowTrialPopup();
 });
 
@@ -473,6 +477,7 @@ function switchChannel(c) {
   if (c === 'mod') modUnread = 0;
   if (c === 'lobby') lobbyUnread = 0;
   if (c === 'wolf') wolfUnread = 0;
+  if (c === 'ability') abilityUnread = 0;
   closeDrawers();
   renderAll();
   if (!$('msgInput').disabled) $('msgInput').focus();
@@ -544,6 +549,11 @@ function renderNav() {
   $('cardNav').classList.toggle('hidden', !state.me.canCard);
   $('cardMeta').textContent = state.me.callingCard ? '✓' : '';
   $('manifestoNav').classList.toggle('hidden', amMod());
+  const hasAbility = !amMod() && (state.me.action || state.me.abilityLog?.length);
+  $('abilityNav').classList.toggle('hidden', !hasAbility);
+  if (!hasAbility && channel === 'ability') channel = 'lobby';
+  $('abilityUnread').textContent = abilityUnread;
+  $('abilityUnread').classList.toggle('hidden', !abilityUnread);
   $('manifestoMeta').textContent = state.me.dead ? '🔒' : state.me.manifesto ? '✓' : '';
 
 }
@@ -567,6 +577,9 @@ function renderHeader() {
     const wolves = (amMod() ? Object.entries(state.modView?.roles || {}).filter(([, r]) => r === 'werewolf').map(([k]) => displayName(k)) : state.me.wolfmates);
     title.textContent = '🐺 Wolf den';
     sub.textContent = (state.phase === 'night' ? 'Open now' : 'Closed until night') + ` · secret chat for the werewolves${wolves.length ? ': ' + wolves.join(', ') : ''}`;
+  } else if (channel === 'ability') {
+    title.textContent = '🔮 Ability results';
+    sub.textContent = 'Private. What your night ability found out, night by night.';
   }
 }
 
@@ -715,6 +728,9 @@ function renderComposer() {
       disabled = true;
       ph = state.me.dead && state.dead?.includes(key(me)) ? '💀 You are dead. You can only talk to the moderator.' : '🔇 You are muted. You can only talk to the moderator.';
     } else ph = 'Plan your target with the pack…';
+  } else if (channel === 'ability') {
+    disabled = true;
+    ph = 'Your results appear here every morning.';
   }
   input.disabled = disabled;
   send.disabled = disabled;
@@ -770,6 +786,28 @@ function renderRolesCard() {
           : 'No killers in this setup.';
   }
   $('randomizeBtn').disabled = players === 0 || special > players;
+  // Officer results: automatic at sunrise, or answered by the moderator.
+  let om = $('officerMode');
+  if (!om) {
+    om = el('div', 'officer-mode');
+    om.id = 'officerMode';
+    $('rolesCard').append(om);
+  }
+  const mode = state.modView.officerMode;
+  const sig = mode;
+  if (om.dataset.sig !== sig) {
+    om.dataset.sig = sig;
+    om.innerHTML = '';
+    om.append(roleLabel('start-label', 'officer', 'Officer results'));
+    const seg = el('div', 'segmented');
+    for (const [m, t] of [['auto', '⚙️ Automatic'], ['manual', '✋ Manual']]) {
+      const b = el('button', mode === m ? 'on' : '', t);
+      b.type = 'button';
+      b.onclick = () => socket.emit('officer:mode', m);
+      seg.append(b);
+    }
+    om.append(seg, el('p', 'hint', mode === 'auto' ? 'The Officer sees if their pick is good or bad at sunrise, by themselves.' : 'You answer the Officer with the Wolf / Civilian buttons in their chat.'));
+  }
 }
 
 function renderPanel() {
@@ -936,6 +974,7 @@ function currentMessages() {
   if (channel === 'lobby') return lobbyMsgs;
   if (channel === 'mod') return amMod() ? modThreads[selectedThread] || [] : myThread;
   if (channel === 'wolf') return wolfMsgs || [];
+  if (channel === 'ability') return null;
   return [];
 }
 
@@ -950,6 +989,7 @@ function renderMessages() {
   box.style.scrollBehavior = 'auto';
   box.innerHTML = '';
   lastRendered = null;
+  if (channel === 'ability') return renderAbilityLog(box);
   const list = currentMessages();
   if (list.length === 0) {
     if (channel === 'mod') {
@@ -1691,3 +1731,57 @@ socket.on('death:shown', ({ victim, wolf }) => {
   if ($('modal').classList.contains('hidden')) show();
   else clueQueue.unshift({ __result: show });
 });
+
+// ---------- Ability results ----------
+let abilityUnread = 0;
+const ABILITY_ICON = { kill: '🗡️', heal: '🩺', investigate: '🔍' };
+socket.on('ability:result', (e) => {
+  if (channel === 'ability') renderMessages();
+  else abilityUnread++;
+  renderNav();
+  // Show it as a pop-up after the morning news.
+  const show = () =>
+    openModal((card) => {
+      const art = el('div', 'art role');
+      art.innerHTML = ART[state?.me?.role] || '';
+      card.append(art);
+      card.append(el('div', 'role-kicker', `Night ${e.night} · your ability result`));
+      card.append(el('h2', 'ability-text ' + (e.tone || ''), e.text));
+      card.append(el('p', 'hint', 'Saved in your Ability results tab.'));
+      const actions = el('div', 'actions');
+      actions.append(btn('btn-primary', 'Close', closeModal));
+      card.append(actions);
+    });
+  clueQueue.push({ __result: show });
+  showNextClue();
+});
+function renderAbilityLog(box) {
+  const log = state?.me?.abilityLog || [];
+  if (!log.length) {
+    box.append(emptyState('🔮', 'No results yet', 'Use your night action, and what you found out shows up here in the morning.'));
+    return;
+  }
+  // Newest night first; within a night, newest first.
+  const nights = new Map();
+  for (const e of [...log].reverse()) {
+    if (!nights.has(e.night)) nights.set(e.night, []);
+    nights.get(e.night).push(e);
+  }
+  const wrap = el('div', 'ability-log');
+  for (const [n, entries] of nights) {
+    const g = el('div', 'ability-night');
+    g.append(el('div', 'ability-night-title', n ? `🌙 Night ${n}` : 'Results'));
+    for (const e of entries) {
+      const c = el('div', 'ability-card ' + (e.tone || 'neutral') + (e.pending ? ' pending' : ''));
+      c.append(el('span', 'ability-icon', ABILITY_ICON[e.kind] || '🔮'));
+      const t = el('div');
+      t.append(el('div', 'ability-main', e.text));
+      if (e.fromModerator) t.append(el('div', 'ability-sub', 'Answered by the moderator'));
+      if (e.pending) t.append(el('div', 'ability-sub', 'Waiting for the moderator…'));
+      c.append(t);
+      g.append(c);
+    }
+    wrap.append(g);
+  }
+  box.append(wrap);
+}

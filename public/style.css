@@ -971,3 +971,21 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
   .side-left.open { transform: none; }
   .only-mobile { display: inline-grid; }
 }
+
+/* ---------- Ability results ---------- */
+.ability-log { display: flex; flex-direction: column; gap: 14px; max-width: 620px; width: 100%; margin: 0 auto; }
+.ability-night { background: color-mix(in srgb, var(--surface) 94%, transparent); border: 1px solid var(--border); border-radius: 16px; padding: 12px; box-shadow: var(--shadow-sm); }
+.ability-night-title { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
+.ability-card { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); color: var(--text); border-left: 4px solid var(--muted); }
+.ability-card + .ability-card { margin-top: 6px; }
+.ability-card.good { border-left-color: var(--success); }
+.ability-card.bad { border-left-color: var(--danger); }
+.ability-card.pending { opacity: 0.75; }
+.ability-icon { font-size: 1.3rem; line-height: 1.2; }
+.ability-main { font-weight: 600; line-height: 1.4; }
+.ability-sub { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+.ability-text { font-size: 1.25rem; }
+.ability-text.good { color: var(--success); }
+.ability-text.bad { color: var(--danger); }
+.officer-mode { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.officer-mode .hint { margin: 8px 0 0; }

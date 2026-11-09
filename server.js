@@ -44,6 +44,11 @@ let manifestos = new Map(); // player key -> text
 let killedNames = new Set(); // lowercase names the moderator marked dead
 let clues = []; // revealed notes everyone can inspect
 let privateClues = new Map(); // officer key -> [check results only they can see]
+// Each ability player's own results, shown in their "Ability results" tab.
+let abilityLog = new Map(); // player key -> [{ id, night, kind, text, tone, target }]
+let nightNumber = 0;
+// 'auto': the Officer learns good/bad at sunrise by themselves. 'manual': the moderator answers.
+let officerMode = 'auto';
 let pendingReveals = []; // deaths at night, revealed when day starts
 let nextClueId = 1;
 const BOT_NAMES = ['Astrid', 'Bjorn', 'Cora', 'Dag', 'Edda', 'Finn', 'Greta', 'Hugo', 'Ingrid', 'Jonas', 'Kari', 'Leif', 'Mia', 'Nils', 'Oda', 'Per', 'Runa', 'Sven', 'Tora', 'Ulf'];
@@ -160,6 +165,7 @@ function broadcastState() {
       callingCard: myRole === 'serialkiller' ? callingCards.get(key(u.name)) || '' : null,
       manifesto: id === moderatorId ? null : manifestos.get(key(u.name)) || '',
       privateClues: privateClues.get(key(u.name)) || [],
+      abilityLog: abilityLog.get(key(u.name)) || [],
       role: id === moderatorId ? null : myRole,
       wolfAccess: hasWolfAccess(id),
       wolfmates: myRole === 'werewolf' ? wolfNames() : [],
@@ -182,6 +188,7 @@ function broadcastState() {
         wolfCount: wolfCount(),
         nightActions: nightActionList(),
         outcome: phase === 'night' ? OUTCOME_TEXT[nightOutcome().reason](nightOutcome()) : null,
+        officerMode,
         notes: Object.fromEntries([...roles.keys()].map((k) => [k, { manifesto: manifestos.get(k) || '', card: callingCards.get(k) || '' }])),
       };
     }
@@ -265,6 +272,8 @@ function wipeEverything(reason) {
   killedNames = new Set();
   clues = [];
   privateClues = new Map();
+  abilityLog = new Map();
+  nightNumber = 0;
   pendingReveals = [];
   trial = null;
   phase = 'day';
@@ -457,6 +466,58 @@ function killPlayer(name) {
   killedNames.add(k);
   mutedNames.add(k);
   nightActions.delete(k);
+}
+
+// ---- Ability results ----
+let nextAbilityId = 1;
+function addAbilityResult(k, entry) {
+  const e = { id: nextAbilityId++, night: entry.night ?? nightNumber, ts: now(), ...entry };
+  if (!abilityLog.has(k)) abilityLog.set(k, []);
+  abilityLog.get(k).push(e);
+  return e;
+}
+function sendAbilityResult(k, entry) {
+  const e = addAbilityResult(k, entry);
+  const u = userByName(k);
+  if (u) io.to(u.id).emit('ability:result', e);
+  // An automatic officer result is also a private clue, like a moderator answer.
+  if (e.clue) {
+    if (!privateClues.has(k)) privateClues.set(k, []);
+    privateClues.get(k).push(e.clue);
+  }
+}
+// What each ability player learns at sunrise. Worked out before anyone dies.
+function abilityResults(outcome) {
+  const out = [];
+  const single = wolfCount() === 1;
+  for (const [k, r] of roles) {
+    if (!['werewolf', 'doctor', 'officer'].includes(r) || killedNames.has(k) || mutedNames.has(k)) continue;
+    const pick = nightActions.get(k)?.target || null;
+    if (r === 'werewolf') {
+      let text, tone;
+      if (outcome.reason === 'killed') [text, tone] = [`You killed ${outcome.victim}.`, 'bad'];
+      else if (outcome.reason === 'saved') [text, tone] = [`You attacked ${outcome.target}, but they survived. Someone protected them.`, 'neutral'];
+      else if (outcome.reason === 'disagree') [text, tone] = ['The pack did not agree on one victim, so nobody was killed.', 'neutral'];
+      else [text, tone] = [single ? 'You did not choose anyone, so nobody was killed.' : 'Nobody was chosen, so nobody was killed.', 'neutral'];
+      out.push([k, { kind: 'kill', text, tone, target: outcome.victim || outcome.target || pick }]);
+    } else if (r === 'doctor') {
+      if (!pick) out.push([k, { kind: 'heal', text: 'You did not protect anyone last night.', tone: 'neutral' }]);
+      else if (outcome.reason === 'saved' && key(outcome.target) === key(pick)) out.push([k, { kind: 'heal', text: `You protected ${pick}. They were attacked, and you saved them!`, tone: 'good', target: pick }]);
+      else out.push([k, { kind: 'heal', text: `You protected ${pick}. It was a quiet night for them.`, tone: 'neutral', target: pick }]);
+    } else if (r === 'officer') {
+      if (!pick) out.push([k, { kind: 'investigate', text: 'You did not investigate anyone last night.', tone: 'neutral' }]);
+      else if (officerMode === 'manual') out.push([k, { kind: 'investigate', text: `You investigated ${pick}. The moderator will tell you what they found.`, tone: 'neutral', target: pick, pending: true }]);
+      else {
+        const tr = displayRole(pick);
+        const bad = tr === 'werewolf' || tr === 'serialkiller';
+        const label = bad ? (tr === 'serialkiller' ? 'Killer' : 'Wolf') : 'Civilian';
+        const text = `${pick} is ${label === 'Killer' ? 'the Killer' : 'a ' + label}.`;
+        const clue = { id: nextClueId++, kind: 'check', about: pick, result: bad ? 'wolf' : 'civilian', label, text, ts: now(), private: true };
+        out.push([k, { kind: 'investigate', text, tone: bad ? 'bad' : 'good', target: pick, clue }]);
+      }
+    }
+  }
+  return out;
 }
 
 // ---- Deaths, calling cards and manifestos ----
@@ -670,6 +731,18 @@ io.on('connection', (socket) => {
     privateClues.get(asker).push(clue);
     const officer = userByName(asker);
     if (officer) io.to(officer.id).emit('clue:reveal', clue);
+    // Fill in a waiting result for this player if there is one, otherwise add a new one.
+    const waiting = (abilityLog.get(asker) || []).filter((e) => e.pending && key(e.target || '') === key(targetName)).pop();
+    const answer = { text: clue.text, tone: result === 'wolf' ? 'bad' : 'good', fromModerator: true, pending: false };
+    if (waiting) Object.assign(waiting, answer);
+    else addAbilityResult(asker, { kind: 'investigate', target: targetName, ...answer });
+    broadcastState();
+  });
+
+  socket.on('officer:mode', (mode) => {
+    if (!isMod(socket) || (mode !== 'auto' && mode !== 'manual')) return;
+    officerMode = mode;
+    socket.emit('notice', mode === 'auto' ? '🔍 Officers now learn their results automatically at sunrise.' : '🔍 You now answer the Officer yourself.');
     broadcastState();
   });
 
@@ -710,6 +783,7 @@ io.on('connection', (socket) => {
       if (err) return socket.emit('notice', err);
     }
     gameState = 'running';
+    nightNumber = 0;
     phase = 'day';
     phaseStartedAt = Date.now();
     io.emit('game:started');
@@ -851,6 +925,7 @@ io.on('connection', (socket) => {
     // Sunrise locks in tonight's picks; the next night starts new messages.
     if (p === 'day') lockActionMessages();
     if (newNight) {
+      nightNumber++;
       // A fresh night: everyone picks again, and last night's protections end.
       actionMsgs = new Map();
       nightActions = new Map();
@@ -871,6 +946,7 @@ io.on('connection', (socket) => {
         if (!list.some((r) => key(r.victim) === key(outcome.victim))) list = [{ victim: outcome.victim, card }, ...list];
       }
       if (moderatorId) io.to(moderatorId).emit('notice', `🌅 ${OUTCOME_TEXT[outcome.reason](outcome)}.`);
+      const results = abilityResults(outcome);
       // Give the sunrise animation a moment before the news.
       setTimeout(() => {
         // Night deaths get a funny morning story.
@@ -881,6 +957,8 @@ io.on('connection', (socket) => {
         io.emit('night:result', { victims: list.map((r) => r.victim), lines: list.map((r) => r.line), killer });
         if (!list.length) systemLobby('🌅 Nobody died last night.');
         for (const r of list) revealDeath(r);
+        // Then each ability player gets their own result.
+        for (const [k, entry] of results) sendAbilityResult(k, entry);
         broadcastState();
       }, 1800);
     }
