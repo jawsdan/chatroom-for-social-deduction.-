@@ -352,7 +352,7 @@ body.night .protect-btn.on { background: #1e2f5c; }
 .role-bar .btn.current { outline: 2px solid currentColor; outline-offset: 1px; }
 .role-kicker { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
 
-/* Officer checks */
+/* Detective checks */
 .btn-success-soft { background: var(--success-soft); color: var(--success); border-color: transparent; }
 .check-bar { background: color-mix(in srgb, #3b82f6 10%, var(--surface-2)); }
 .check-bar select { padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); min-width: 190px; }
@@ -574,13 +574,13 @@ body.night.fx-role-doctor {
 }
 @keyframes floatUp { 0% { transform: translateY(0) rotate(0); opacity: 0; } 10% { opacity: 0.35; } 85% { opacity: 0.3; } 100% { transform: translateY(-110vh) rotate(90deg); opacity: 0; } }
 
-/* ---- Officer: navy, flashing police lights, caution tape ---- */
-body.fx-role-officer { --fx-top: 16px; --fx-bottom: 28px; }
-body:not(.night).fx-role-officer {
+/* ---- Detective: navy, flashing police lights, caution tape ---- */
+body.fx-role-detective { --fx-top: 16px; --fx-bottom: 28px; }
+body:not(.night).fx-role-detective {
   --bg: #dce4f5; --surface: #f8faff; --surface-2: #e5ebf8; --surface-3: #d3ddf2; --border: #c9d4ec;
   --accent: #1d4ed8; --accent-2: #3b82f6; --accent-soft: #dbe6fd; --bubble: #f8faff; --muted: #64739a; --text-2: #34446e;
 }
-body.night.fx-role-officer {
+body.night.fx-role-detective {
   --bg: #050a1c; --surface: #0b132c; --surface-2: #121d3d; --surface-3: #19284f; --border: #1d2b57;
   --accent: #3b82f6; --accent-2: #60a5fa; --accent-soft: #1e2f5c; --bubble: #121d3d; --muted: #7d8bb3; --text-2: #b6c2e3;
 }
@@ -986,8 +986,8 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
 .ability-text { font-size: 1.25rem; }
 .ability-text.good { color: var(--success); }
 .ability-text.bad { color: var(--danger); }
-.officer-mode { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
-.officer-mode .hint { margin: 8px 0 0; }
+.detective-mode { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.detective-mode .hint { margin: 8px 0 0; }
 
 /* ---------- Firekeeper character by the fire ---------- */
 .firekeeper { position: absolute; z-index: 1; width: 0; height: 0; pointer-events: none; }
@@ -1056,7 +1056,7 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
 .assign-btn.on { opacity: 1; border-color: var(--accent); }
 .assign-btn.on.werewolf { border-color: var(--danger); }
 .assign-btn.on.doctor { border-color: #0ea5e9; }
-.assign-btn.on.officer { border-color: #3b82f6; }
+.assign-btn.on.detective { border-color: #3b82f6; }
 .assign-btn.on.civilian { border-color: var(--success); }
 
 /* ---------- Character select ---------- */
@@ -1092,7 +1092,7 @@ button, a, input, select, textarea, label, .tile, .nav-item, .target-btn { touch
 .firekeeper.flip.spawn .fk-img { animation-name: fkSpawnFlip; }
 @keyframes fkSpawnFlip { 0%, 30% { opacity: 0; transform: translateX(-50%) scaleX(-1) scale(0.4); } 100% { opacity: 1; transform: translateX(-50%) scaleX(-1) scale(1); } }
 
-/* Officer: already investigated */
+/* Detective: already investigated */
 .target-btn.done { opacity: 0.6; cursor: not-allowed; background: var(--surface-2); }
 .target-btn.done:hover { border-color: var(--border); }
 .tag.done-tag { text-transform: none; letter-spacing: 0; background: var(--surface-3); color: var(--text-2); white-space: nowrap; }

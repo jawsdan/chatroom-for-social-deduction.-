@@ -14,7 +14,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const MAX_MSG = 500;
 const MAX_HISTORY = 300;
-const ROLES = ['civilian', 'werewolf', 'doctor', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman'];
+const ROLES = ['civilian', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman'];
 // Roles on the killers' side. The Joker joins the wolves when the Son dies.
 const WOLF_ROLES = ['werewolf', 'joker'];
 const isWolfRole = (r) => WOLF_ROLES.includes(r);
@@ -36,9 +36,13 @@ let gameState = 'waiting';
 let trial = null; // { accusedName, votes: Map(name -> 'guilty'|'innocent'), open, result }
 let wipeVotes = new Set(); // socket ids of players who voted to wipe everything
 // family: 'auto' = the Mother/Father/Son trio is dealt when 20+ players joined; 'on' / 'off' to force it.
-const roleConfig = { werewolf: 2, doctor: 1, officer: 1, family: 'auto' }; // the rest are civilians
+const roleConfig = { werewolf: 2, doctor: 1, detective: 1, officer: 0, family: 'auto' }; // the rest are civilians
 let nextMsgId = 1;
 let nextBotId = 1;
+// The Officer's arrest: made by day; the arrested player can't vote that day
+// and can't use their ability the following night.
+let dayArrest = null; // { by: officer key, target: name } for today
+let arrestedTonight = null; // lowercase name, blocked during the current night
 // Night actions: lowercase actor name -> { kind: 'kill'|'heal'|'investigate', target: name }.
 // Cleared when a new night starts.
 let nightActions = new Map();
@@ -50,12 +54,12 @@ let callingCards = new Map(); // killer key -> text
 let manifestos = new Map(); // player key -> text
 let killedNames = new Set(); // lowercase names the moderator marked dead
 let clues = []; // revealed notes everyone can inspect
-let privateClues = new Map(); // officer key -> [check results only they can see]
+let privateClues = new Map(); // detective key -> [check results only they can see]
 // Each ability player's own results, shown in their "Ability results" tab.
 let abilityLog = new Map(); // player key -> [{ id, night, kind, text, tone, target }]
 let nightNumber = 0;
-// 'auto': the Officer learns good/bad at sunrise by themselves. 'manual': the moderator answers.
-let officerMode = 'auto';
+// 'auto': the Detective learns good/bad at sunrise by themselves. 'manual': the moderator answers.
+let detectiveMode = 'auto';
 let pendingReveals = []; // deaths at night, revealed when day starts
 let nextClueId = 1;
 const BOT_NAMES = ['Astrid', 'Bjorn', 'Cora', 'Dag', 'Edda', 'Finn', 'Greta', 'Hugo', 'Ingrid', 'Jonas', 'Kari', 'Leif', 'Mia', 'Nils', 'Oda', 'Per', 'Runa', 'Sven', 'Tora', 'Ulf'];
@@ -193,6 +197,11 @@ function broadcastState() {
       wolfmates: isWolfRole(myRole) ? wolfNames() : [],
       packRoles: isWolfRole(myRole) ? Object.fromEntries(wolfNames().map((n) => [key(n), displayRole(n)])) : {},
     };
+    s.me.arrestedToday = !!dayArrest && key(dayArrest.target) === key(u.name);
+    s.me.arrestedTonight = arrestedTonight === key(u.name);
+    if (id !== moderatorId && roles.get(key(u.name)) === 'officer' && !killedNames.has(key(u.name))) {
+      s.me.action = { kind: 'arrest', target: dayArrest && dayArrest.by === key(u.name) ? dayArrest.target : null, targets: arrestTargets(u.name), done: !!dayArrest };
+    }
     const kind = id === moderatorId ? null : actionKindFor(u.name);
     if (kind) {
       const mine = nightActions.get(key(u.name));
@@ -217,8 +226,10 @@ function broadcastState() {
         roleConfig,
         wolfCount: wolfCount(),
         nightActions: nightActionList(),
+        arrest: dayArrest ? { by: userByName(dayArrest.by)?.name || dayArrest.by, target: dayArrest.target } : null,
+        arrestedTonight: arrestedTonight ? userByName(arrestedTonight)?.name || arrestedTonight : null,
         outcome: phase === 'night' ? OUTCOME_TEXT[nightOutcome().reason](nightOutcome()) : null,
-        officerMode,
+        detectiveMode,
         notes: Object.fromEntries([...roles.keys()].map((k) => [k, { manifesto: manifestos.get(k) || '', card: callingCards.get(k) || '' }])),
       };
     }
@@ -297,6 +308,9 @@ function wipeEverything(reason) {
   nightActions = new Map();
   actionMsgs = new Map();
   autoProtected.clear();
+  dayArrest = null;
+  arrestedTonight = null;
+  lastArrest = null;
   callingCards = new Map();
   manifestos = new Map();
   family = {};
@@ -348,7 +362,7 @@ function finishTrial() {
 function eligibleVoters() {
   if (!trial) return [];
   return [...users.values()].filter(
-    (u) => u.id !== moderatorId && key(u.name) !== key(trial.accusedName) && !mutedNames.has(key(u.name))
+    (u) => u.id !== moderatorId && key(u.name) !== key(trial.accusedName) && !mutedNames.has(key(u.name)) && !(dayArrest && key(dayArrest.target) === key(u.name))
   );
 }
 function maybeAutoFinishTrial() {
@@ -371,13 +385,13 @@ function becomeModerator(socket) {
 }
 
 // ---- Night actions ----
-const ACTION_FOR_ROLE = { werewolf: 'kill', joker: 'kill', doctor: 'heal', officer: 'investigate', vigilante: 'vigil' };
+const ACTION_FOR_ROLE = { werewolf: 'kill', joker: 'kill', doctor: 'heal', detective: 'investigate', vigilante: 'vigil' };
 const ACTION_VERB = { kill: 'kill', heal: 'heal', investigate: 'investigate', vigil: 'kill' };
 function actionKindFor(name) {
   return ACTION_FOR_ROLE[roles.get(key(name))] || null;
 }
 // Players this actor may pick tonight.
-// Players this Officer already investigated (result known or waiting on the moderator).
+// Players this Detective already investigated (result known or waiting on the moderator).
 // lowercase name -> 'Wolf' | 'Killer' | 'Civilian' | null (still waiting)
 function investigatedBy(actorName) {
   const out = new Map();
@@ -391,7 +405,7 @@ function investigatedBy(actorName) {
 function validTargets(actorName) {
   const kind = actionKindFor(actorName);
   if (!kind) return [];
-  // An Officer can't waste a night on someone they already investigated.
+  // A Detective can't waste a night on someone they already investigated.
   const done = kind === 'investigate' ? investigatedBy(actorName) : new Map();
   return [...users.values()].filter((u) => {
     if (done.has(key(u.name))) return false;
@@ -410,6 +424,7 @@ function setNightAction(actorName, targetName) {
   if (!kind) return 'You have no night action.';
   if (phase !== 'night') return 'You can only choose at night.';
   if (mutedNames.has(k)) return 'You are muted and cannot act.';
+  if (arrestedTonight === k) return 'You were arrested today, so you cannot use your ability tonight.';
   if (kind === 'heal' && autoProtected.has(k)) {
     protectedNames.delete(autoProtected.get(k));
     autoProtected.delete(k);
@@ -462,7 +477,7 @@ function scheduleBotActions() {
   for (const b of bots()) {
     if (!actionKindFor(b.name)) continue;
     setTimeout(() => {
-      if (phase !== 'night' || !users.has(b.id) || nightActions.has(key(b.name))) return;
+      if (phase !== 'night' || !users.has(b.id) || nightActions.has(key(b.name)) || arrestedTonight === key(b.name)) return;
       const options = validTargets(b.name);
       if (!options.length) return;
       // Bot wolves go along with a packmate's pick so the pack can agree.
@@ -490,6 +505,41 @@ function isWerewolf(name) {
   return displayRole(name) === 'werewolf' || displayRole(name) === 'joker';
 }
 
+// ---- The Officer's arrest (by day) ----
+function arrestTargets(officerName) {
+  return [...users.values()]
+    .filter((u) => u.id !== moderatorId && key(u.name) !== key(officerName) && !killedNames.has(key(u.name)) && !mutedNames.has(key(u.name)))
+    .map((u) => u.name);
+}
+function makeArrest(officerName, targetName) {
+  const k = key(officerName);
+  if (roles.get(k) !== 'officer') return 'Only the Officer can arrest.';
+  if (gameState !== 'running' || phase !== 'day') return 'You can only arrest during the day.';
+  if (mutedNames.has(k) || killedNames.has(k)) return 'You cannot arrest anyone now.';
+  if (dayArrest) return 'Someone has already been arrested today.';
+  const target = arrestTargets(officerName).find((n) => key(n) === key(targetName));
+  if (!target) return 'You cannot arrest that player.';
+  dayArrest = { by: k, target };
+  // They can't vote today: drop a vote they already cast.
+  if (trial && trial.open && trial.votes.delete(target)) maybeAutoFinishTrial();
+  systemLobby(`🚔 ${target} was arrested by the Officer. They cannot vote today or use an ability tonight.`);
+  const u = userByName(target);
+  if (u) io.to(u.id).emit('arrested');
+  if (moderatorId) io.to(moderatorId).emit('notice', `🚔 ${userByName(k)?.name || k} arrested ${target}.`);
+  return null;
+}
+// A bot Officer arrests someone at random a few seconds into the day.
+function scheduleBotArrest() {
+  for (const b of bots()) {
+    if (roles.get(key(b.name)) !== 'officer') continue;
+    setTimeout(() => {
+      if (phase !== 'day' || dayArrest || !users.has(b.id)) return;
+      const options = arrestTargets(b.name);
+      if (options.length && !makeArrest(b.name, options[Math.floor(Math.random() * options.length)])) broadcastState();
+    }, 3000 + Math.random() * 4000);
+  }
+}
+
 // ---- Settling the night ----
 // Living wolves (not dead or muted) are the ones who must agree.
 function livingWolves() {
@@ -497,8 +547,11 @@ function livingWolves() {
 }
 // What happens at sunrise with tonight's picks.
 function nightOutcome() {
-  const wolves = livingWolves();
-  if (!wolves.length) return { victim: null, reason: 'nokiller' };
+  const all = livingWolves();
+  if (!all.length) return { victim: null, reason: 'nokiller' };
+  // An arrested wolf sits this night out; if every killer is arrested, nobody dies.
+  const wolves = all.filter((k) => k !== arrestedTonight);
+  if (!wolves.length) return { victim: null, reason: 'arrested' };
   const acts = wolves.map((k) => nightActions.get(k));
   // Everyone chose "nobody": an agreed night without a kill.
   if (acts.every((a) => a?.skip)) return { victim: null, reason: 'skipped' };
@@ -518,6 +571,7 @@ const OUTCOME_TEXT = {
   disagree: () => 'The wolves did not agree on one victim',
   nopick: () => 'The killer did not choose anyone',
   skipped: () => 'The killer chose not to kill anyone',
+  arrested: () => 'The killer was arrested and could not kill',
   nokiller: () => 'There is no killer alive',
 };
 function killPlayer(name) {
@@ -539,22 +593,27 @@ function sendAbilityResult(k, entry) {
   const e = addAbilityResult(k, entry);
   const u = userByName(k);
   if (u) io.to(u.id).emit('ability:result', e);
-  // An automatic officer result is also a private clue, like a moderator answer.
+  // An automatic detective result is also a private clue, like a moderator answer.
   if (e.clue) {
     if (!privateClues.has(k)) privateClues.set(k, []);
     privateClues.get(k).push(e.clue);
   }
 }
 // What each ability player learns at sunrise. Worked out before anyone dies.
+let lastArrest = null; // yesterday's arrest, for the Officer's morning result
 function abilityResults(outcome, vig = []) {
   const out = [];
   const single = wolfCount() === 1;
   // Everyone attacked tonight who survived because the Doctor protected them.
   const saved = new Set([...(outcome.reason === 'saved' ? [key(outcome.target)] : []), ...vig.filter((v) => v.saved).map((v) => key(v.target))]);
   for (const [k, r] of roles) {
-    if (!['werewolf', 'joker', 'doctor', 'officer', 'vigilante', 'batman'].includes(r) || killedNames.has(k) || mutedNames.has(k)) continue;
+    if (!['werewolf', 'joker', 'doctor', 'detective', 'vigilante', 'batman', 'officer'].includes(r) || killedNames.has(k) || mutedNames.has(k)) continue;
     const pick = nightActions.get(k)?.target || null;
-    if (r === 'batman') {
+    if (r === 'officer') {
+      if (lastArrest && lastArrest.by === k) out.push([k, { kind: 'arrest', text: `You arrested ${lastArrest.target}. They could not use an ability last night.`, tone: 'neutral', target: lastArrest.target }]);
+    } else if (arrestedTonight === k) {
+      out.push([k, { kind: 'arrested', text: 'You were arrested, so you could not use your ability last night.', tone: 'bad' }]);
+    } else if (r === 'batman') {
       out.push([k, batmanClue()]);
     } else if (r === 'vigilante') {
       const mine = vig.find((v) => v.actor === k);
@@ -574,9 +633,9 @@ function abilityResults(outcome, vig = []) {
       if (!pick) out.push([k, { kind: 'heal', text: 'You did not protect anyone last night.', tone: 'neutral' }]);
       else if (saved.has(key(pick))) out.push([k, { kind: 'heal', text: `You protected ${pick}. They were attacked, and you saved them!`, tone: 'good', target: pick }]);
       else out.push([k, { kind: 'heal', text: `You protected ${pick}. It was a quiet night for them.`, tone: 'neutral', target: pick }]);
-    } else if (r === 'officer') {
+    } else if (r === 'detective') {
       if (!pick) out.push([k, { kind: 'investigate', text: 'You did not investigate anyone last night.', tone: 'neutral' }]);
-      else if (officerMode === 'manual') out.push([k, { kind: 'investigate', text: `You investigated ${pick}. The moderator will tell you what they found.`, tone: 'neutral', target: pick, pending: true }]);
+      else if (detectiveMode === 'manual') out.push([k, { kind: 'investigate', text: `You investigated ${pick}. The moderator will tell you what they found.`, tone: 'neutral', target: pick, pending: true }]);
       else {
         const tr = displayRole(pick);
         const bad = tr === 'werewolf' || tr === 'serialkiller' || tr === 'joker';
@@ -700,10 +759,10 @@ function randomizeRoles(quiet = false) {
   const players = [...users.values()].filter((u) => u.id !== moderatorId);
   // The family (Mother, Father, Son) is dealt with 20+ players, or when switched on.
   const withFamily = familyInPlay(players.length);
-  const special = roleConfig.werewolf + roleConfig.doctor + roleConfig.officer + (withFamily ? 3 : 0);
+  const special = roleConfig.werewolf + roleConfig.doctor + roleConfig.detective + roleConfig.officer + (withFamily ? 3 : 0);
   if (players.length === 0) return 'There are no players to give roles to.';
   if (special > players.length) return `Not enough players: you picked ${special} special roles but there are only ${players.length} players.`;
-  const deck = [...Array(roleConfig.werewolf).fill('werewolf'), ...Array(roleConfig.doctor).fill('doctor'), ...Array(roleConfig.officer).fill('officer'), ...(withFamily ? FAMILY : [])];
+  const deck = [...Array(roleConfig.werewolf).fill('werewolf'), ...Array(roleConfig.doctor).fill('doctor'), ...Array(roleConfig.detective).fill('detective'), ...Array(roleConfig.officer).fill('officer'), ...(withFamily ? FAMILY : [])];
   while (deck.length < players.length) deck.push('civilian');
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -877,7 +936,7 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  // Officer check: the moderator answers "wolf" or "civilian" about a player. It stays in the asker's chat.
+  // Detective check: the moderator answers "wolf" or "civilian" about a player. It stays in the asker's chat.
   socket.on('mod:check', ({ to, target, result } = {}) => {
     if (!isMod(socket)) return;
     if (result !== 'wolf' && result !== 'civilian') return;
@@ -892,12 +951,12 @@ io.on('connection', (socket) => {
       moderator: true,
       check: { target: targetName, result, label },
     }));
-    // The result also goes into that officer's own, private clues.
+    // The result also goes into that detective's own, private clues.
     const clue = { id: nextClueId++, kind: 'check', about: targetName, result, label, text: `${targetName} is ${label === 'Killer' ? 'the Killer' : 'a ' + label}.`, ts: now(), private: true };
     if (!privateClues.has(asker)) privateClues.set(asker, []);
     privateClues.get(asker).push(clue);
-    const officer = userByName(asker);
-    if (officer) io.to(officer.id).emit('clue:reveal', clue);
+    const detective = userByName(asker);
+    if (detective) io.to(detective.id).emit('clue:reveal', clue);
     // Fill in a waiting result for this player if there is one, otherwise add a new one.
     const waiting = (abilityLog.get(asker) || []).filter((e) => e.pending && key(e.target || '') === key(targetName)).pop();
     const answer = { text: clue.text, tone: result === 'wolf' ? 'bad' : 'good', fromModerator: true, pending: false };
@@ -906,10 +965,10 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  socket.on('officer:mode', (mode) => {
+  socket.on('detective:mode', (mode) => {
     if (!isMod(socket) || (mode !== 'auto' && mode !== 'manual')) return;
-    officerMode = mode;
-    socket.emit('notice', mode === 'auto' ? '🔍 Officers now learn their results automatically at sunrise.' : '🔍 You now answer the Officer yourself.');
+    detectiveMode = mode;
+    socket.emit('notice', mode === 'auto' ? '🔍 Detectives now learn their results automatically at sunrise.' : '🔍 You now answer the Detective yourself.');
     broadcastState();
   });
 
@@ -928,7 +987,7 @@ io.on('connection', (socket) => {
 
   socket.on('roles:config', (cfg = {}) => {
     if (!isMod(socket)) return;
-    for (const r of ['werewolf', 'doctor', 'officer']) {
+    for (const r of ['werewolf', 'doctor', 'detective', 'officer']) {
       const n = Number(cfg[r]);
       if (Number.isInteger(n) && n >= 0 && n <= 20) roleConfig[r] = n;
     }
@@ -1099,6 +1158,14 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
+  socket.on('arrest:choose', (target) => {
+    const u = me();
+    if (!u || isMod(socket)) return;
+    const err = makeArrest(u.name, String(target || ''));
+    if (err) return socket.emit('notice', err);
+    broadcastState();
+  });
+
   socket.on('night:choose', (target) => {
     const u = me();
     if (!u || isMod(socket)) return;
@@ -1142,6 +1209,10 @@ io.on('connection', (socket) => {
     // Sunrise locks in tonight's picks; the next night starts new messages.
     if (p === 'day') lockActionMessages();
     if (newNight) {
+      // Yesterday's arrest now blocks that player's ability for the night.
+      arrestedTonight = dayArrest ? key(dayArrest.target) : null;
+      lastArrest = dayArrest;
+      dayArrest = null;
       nightNumber++;
       // A fresh night: everyone picks again, and last night's protections end.
       actionMsgs = new Map();
@@ -1184,6 +1255,9 @@ io.on('connection', (socket) => {
         for (const r of list) revealDeath(r);
         // Then each ability player gets their own result.
         for (const [k, entry] of results) sendAbilityResult(k, entry);
+        arrestedTonight = null;
+        lastArrest = null;
+        scheduleBotArrest();
         broadcastState();
       }, 1800);
     }
