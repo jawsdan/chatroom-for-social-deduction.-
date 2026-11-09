@@ -1,8 +1,15 @@
 // Background videos behind the chat: a campfire by day, a haunted house by night.
 // Both load once; switching phase cross-fades them, and the hidden one is paused.
+// Big 16:9 screens (2560x1440 and up) get sharper 1280x720 videos; everyone else the 864x576 ones.
+window.SCENE_HD = (function () {
+  const dpr = window.devicePixelRatio || 1;
+  const touch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 1;
+  return !touch && screen.width * dpr >= 2560 && screen.height * dpr >= 1440;
+})();
 (function () {
   // Bump this when a video file changes so browsers fetch the new one.
   const VERSION = 4;
+  const SUFFIX = window.SCENE_HD ? '-hd' : '';
   let videos = null;
   function build(root) {
     videos = {};
@@ -15,10 +22,10 @@
       v.preload = 'auto';
       v.setAttribute('muted', '');
       v.setAttribute('playsinline', '');
-      v.poster = `video/${phase}-poster.jpg?v=${VERSION}`;
+      v.poster = `video/${phase}${SUFFIX}-poster.jpg?v=${VERSION}`;
       for (const [ext, type] of [['webm', 'video/webm'], ['mp4', 'video/mp4']]) {
         const src = document.createElement('source');
-        src.src = `video/${phase}.${ext}?v=${VERSION}`;
+        src.src = `video/${phase}${SUFFIX}.${ext}?v=${VERSION}`;
         src.type = type;
         v.append(src);
       }
@@ -46,12 +53,14 @@
 
 // ---------- Characters standing by the fire ----------
 // Players who picked a character on the character select screen stand around the fire.
-// Spots are in the videos' own pixels (864x576), mapped onto the screen the same way
-// the video is cropped (object-fit: cover, anchored at the bottom).
+// Spots are in the videos' own pixels (864x576, or 1280x720 for the big-screen videos), mapped onto
+// the screen the same way the video is drawn: stretched to fill on computers and iPads,
+// cropped (object-fit: cover, anchored at the bottom) on phones.
 (function () {
-  const VIDEO_W = 864;
-  const VIDEO_H = 576;
-  const POS_X = { day: 0.5, night: 0.55 }; // matches the videos' object-position
+  const HD = window.SCENE_HD;
+  const VIDEO_W = HD ? 1280 : 864;
+  const VIDEO_H = HD ? 720 : 576;
+  const POS_X = { day: 0.5, night: 0.55 }; // matches the videos' object-position on phones
   const els = new Map(); // character id -> element
   let phase = 'day';
   let root = null;
@@ -59,15 +68,27 @@
   function place(el, c) {
     const cw = root.clientWidth;
     const ch = root.clientHeight;
-    const spot = c.spot[phase] || c.spot.day;
-    const scale = Math.max(cw / VIDEO_W, ch / VIDEO_H);
-    const offX = (cw - VIDEO_W * scale) * POS_X[phase];
-    const offY = ch - VIDEO_H * scale;
-    let h = Math.max(80, Math.min(260, (c.height || 138) * scale));
+    const spots = (HD && c.spotHd) || c.spot;
+    const spot = spots[phase] || spots.day;
+    const baseH = (HD && c.heightHd) || c.height || 138;
+    const video = root.querySelector('.scene-video');
+    const stretched = video && getComputedStyle(video).objectFit === 'fill';
+    let sx, sy, offX, offY;
+    if (stretched) {
+      sx = cw / VIDEO_W;
+      sy = ch / VIDEO_H;
+      offX = 0;
+      offY = 0;
+    } else {
+      sx = sy = Math.max(cw / VIDEO_W, ch / VIDEO_H);
+      offX = (cw - VIDEO_W * sx) * POS_X[phase];
+      offY = ch - VIDEO_H * sy;
+    }
+    let h = Math.max(80, Math.min(260, baseH * Math.sqrt(sx * sy)));
     // On narrow screens the video's sides are cropped off, so there is no room beside the fire.
     // Then they stand in front of it instead: lower down, a bit smaller, kept off the message box.
-    const wantX = offX + spot.x * scale;
-    let y = offY + spot.y * scale;
+    const wantX = offX + spot.x * sx;
+    let y = offY + spot.y * sy;
     // Keep them inside the chat area (the side panels float over the scene on bigger screens).
     const chat = document.querySelector('.chat');
     const sr = root.getBoundingClientRect();
@@ -79,7 +100,7 @@
     if (Math.abs(x - wantX) > h * 0.15) {
       h = Math.min(h, Math.max(80, (maxX - minX) * 0.26));
       const halfSmall = h * 0.3 + 8;
-      x = c.spot.day.x < VIDEO_W / 2 ? minX + halfSmall : maxX - halfSmall;
+      x = spots.day.x < VIDEO_W / 2 ? minX + halfSmall : maxX - halfSmall;
       const composer = document.getElementById('composer');
       const cb = composer ? composer.getBoundingClientRect().top - sr.top : ch - 70;
       y = cb - 6;

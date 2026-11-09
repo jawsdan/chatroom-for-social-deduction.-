@@ -2,6 +2,7 @@
 // To add one: put an animated .webp (transparent background) and a still .png in img/characters,
 // add an entry here, add its id to CHARACTERS in server.js, and give it a free spot by the fire.
 // Spots are in the background videos' own pixels (864x576): x = where the feet are, y = ground line.
+// spotHd / heightHd are the same for the big-screen videos (1280x720).
 window.CHARACTERS = [
   {
     id: 'firekeeper',
@@ -11,6 +12,8 @@ window.CHARACTERS = [
     still: 'img/characters/firekeeper-still.png',
     height: 138,
     spot: { day: { x: 250, y: 452 }, night: { x: 236, y: 478 } },
+    spotHd: { day: { x: 405, y: 585 }, night: { x: 290, y: 640 } },
+    heightHd: 150,
   },
   {
     id: 'snout',
@@ -21,6 +24,8 @@ window.CHARACTERS = [
     height: 138,
     // Right of the fire, mirrored so he faces it.
     spot: { day: { x: 625, y: 452 }, night: { x: 640, y: 482 } },
+    spotHd: { day: { x: 880, y: 585 }, night: { x: 735, y: 640 } },
+    heightHd: 150,
     flip: true,
   },
 ];

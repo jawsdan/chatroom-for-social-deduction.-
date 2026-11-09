@@ -14,6 +14,7 @@ let aiMode = false; // Talk to moderator: when on, messages go to the AI helper 
 // Players see the AI helper inside their Talk to moderator chat.
 const inAiChat = () => channel === 'mod' && state && !amMod();
 let modThreads = {}; // moderator only: key -> []
+let aiThreads = {}; // moderator only: key -> each player's AI helper chat
 let selectedThread = null; // moderator only: key of member being viewed
 const unreadThreads = new Set();
 let modUnread = 0;
@@ -169,7 +170,15 @@ $('joinForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const name = $('nameInput').value.trim();
   if (!name) return ($('joinError').textContent = 'Please enter a name.');
-  socket.emit('join', name, (res) => {
+  // Say so when the server can't be reached, instead of the button doing nothing.
+  if (!socket.connected) {
+    $('joinError').textContent = 'Connecting to the game… try again in a moment. If it keeps saying this, refresh the page.';
+    socket.connect();
+    return;
+  }
+  $('joinError').textContent = '';
+  socket.timeout(8000).emit('join', name, (err, res) => {
+    if (err) return ($('joinError').textContent = 'The game did not answer. Check your connection and refresh the page.');
     if (!res.ok) return ($('joinError').textContent = res.error);
     me = res.name;
     $('join').classList.add('hidden');
@@ -292,14 +301,15 @@ socket.on('ai:delta', ({ id, piece }) => {
   b.textContent = m.text;
   scrollIfNear();
 });
-function aiView(m) {
-  return { id: 'ai' + m.id, from: m.role === 'user' ? me : 'Village Helper', text: m.text, ts: m.ts, ai: m };
+// asker: whose AI chat this is (the moderator reads players' chats).
+function aiView(m, asker = me) {
+  return { id: 'ai' + m.id, from: m.role === 'user' ? asker : 'Village Helper', text: m.text, ts: m.ts, ai: m };
 }
-function aiNode(m) {
+function aiNode(m, asker = me) {
   const box = $('messages');
   const before = lastRendered;
   lastRendered = null;
-  appendMessage(aiView(m), false);
+  appendMessage(aiView(m, asker), false);
   lastRendered = before;
   return box.lastElementChild; // appendMessage added it at the end; the caller moves it into place
 }
@@ -311,6 +321,22 @@ function scrollIfNear() {
 socket.on('mod:thread', (list) => {
   myThread = list;
   if (channel === 'mod' && !amMod()) renderMessages();
+});
+// Moderator: every player's AI helper chat, shown in their inbox tab.
+socket.on('ai:threads', (threads) => {
+  aiThreads = threads || {};
+  if (channel === 'mod' && amMod()) renderMessages();
+});
+socket.on('ai:mod', ({ thread, message }) => {
+  const list = (aiThreads[thread] ||= []);
+  const i = list.findIndex((x) => x.id === message.id);
+  if (i >= 0) list[i] = message;
+  else list.push(message);
+  if (channel === 'mod' && amMod() && selectedThread === thread) {
+    const node = $('messages').querySelector(`[data-mid="ai${message.id}"]`);
+    if (node) node.replaceWith(aiNode(message, displayName(thread)));
+    else appendMessage(aiView(message, displayName(thread)));
+  }
 });
 socket.on('mod:threads', (threads) => {
   modThreads = threads;
@@ -712,7 +738,7 @@ function renderHeader() {
       ? 'Private chats. Each player only sees their own.'
       : aiMode
         ? a.enabled
-          ? `🤖 Asking the AI · it only knows what you know · ${a.left} of ${a.max} questions left`
+          ? `🤖 Asking the AI · the moderator can read it too · ${a.left} of ${a.max} questions left`
           : '🤖 The AI is offline. The My role button still works.'
         : state.moderator
           ? `Private. Only you and ${state.moderator} can see this.`
@@ -1217,7 +1243,10 @@ function renderPanel() {
 function currentMessages() {
   if (channel === 'lobby') return lobbyMsgs;
   // Players: the moderator chat and the AI helper's answers, in time order.
-  if (channel === 'mod') return amMod() ? modThreads[selectedThread] || [] : [...myThread, ...aiMsgs.map(aiView)].sort((a, b) => a.ts - b.ts);
+  if (channel === 'mod') {
+    const [chat, ai, asker] = amMod() ? [modThreads[selectedThread] || [], aiThreads[selectedThread] || [], displayName(selectedThread || '')] : [myThread, aiMsgs, me];
+    return [...chat, ...ai.map((m) => aiView(m, asker))].sort((a, b) => a.ts - b.ts);
+  }
   if (channel === 'wolf') return wolfMsgs || [];
   return [];
 }

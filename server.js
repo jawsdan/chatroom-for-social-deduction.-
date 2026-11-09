@@ -249,7 +249,11 @@ function broadcastState() {
 // ---- Private moderator threads ----
 function sendModThreads() {
   const sock = moderatorId && io.sockets.sockets.get(moderatorId);
-  if (sock) sock.emit('mod:threads', Object.fromEntries(modThreads));
+  if (sock) {
+    sock.emit('mod:threads', Object.fromEntries(modThreads));
+    // The moderator can also read what each player asks the AI helper.
+    sock.emit('ai:threads', Object.fromEntries(aiChats));
+  }
 }
 function sendOwnThread(socket) {
   const u = users.get(socket.id);
@@ -898,11 +902,17 @@ function aiPush(name, m) {
   if (list.length > 40) list.splice(0, list.length - 40);
   const u = userByName(name);
   if (u) io.to(u.id).emit('ai:message', m);
+  aiToModerator(name, m, u);
   return m;
 }
 function aiUpdate(name, m) {
   const u = userByName(name);
   if (u) io.to(u.id).emit('ai:update', m);
+  if (!m.pending) aiToModerator(name, m, u);
+}
+// The moderator sees each player's AI chat in their inbox tab (not their own, if they are the one asking).
+function aiToModerator(name, m, u) {
+  if (moderatorId && moderatorId !== u?.id) io.to(moderatorId).emit('ai:mod', { thread: key(name), message: m });
 }
 // The game as the AI module reads it. ai.playerView copies out only what one player may know.
 function aiGame() {

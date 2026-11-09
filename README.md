@@ -13,7 +13,7 @@ Then open http://localhost:3000 (set `PORT` to change it). Everyone who wants to
 
 ## AI helper (optional)
 
-The AI helper lives in each player's **Talk to moderator** chat: switch on **🤖 AI** next to the message box and messages go to the AI instead of the moderator (the moderator never sees them). Players can ask things like *what does my role do?*, *can I use my ability now?*, *what happened last night?* or *how do trials work?*. Answers stream in word by word.
+The AI helper lives in each player's **Talk to moderator** chat: switch on **🤖 AI** next to the message box and messages go to the AI instead of the moderator. The moderator can read every player's AI questions and answers in that player's inbox tab. Players can ask things like *what does my role do?*, *can I use my ability now?*, *what happened last night?* or *how do trials work?*. Answers stream in word by word.
 
 - **It only answers questions.** It never runs the game or decides anything; all game logic is plain code in `server.js`.
 - **No leaks.** For each question the server builds the AI's context from only what that player is allowed to know: their own role and its rules, their own ability results, private clues and moderator chat, public events (deaths, trials, revealed calling cards / manifestos, announcements), the current phase and the general rules. Other players' roles, night picks, the wolf den and other private chats are never sent. Wolves also get their pack and the pack's picks. Dead players only get what they knew before they died. The moderator's AI only knows the rules. Bots never use the AI. See `playerView` in `ai.js`.
@@ -69,7 +69,7 @@ npm test
 - **Test bots** — the moderator can add 1–10 bots. Bots count as players, get roles and vote at random in trials. They don't count for wipe votes. *Remove bots* takes them out again.
 - **Wolf den** — a secret chat for the werewolves (when there are two or more). Wolves can only write in it at night. The moderator can always read it.
 - **Day / Night** — the moderator switches the phase. A big sun or moon pops up in the middle of everyone's screen, then moves to the corner of the chat.
-- **Phase videos** — the chat background is an animated campfire scene during the day and a haunted house at night. They cross-fade when the phase changes (videos in `public/video`).
+- **Phase videos** — the background is an animated campfire scene during the day and at night. They cross-fade when the phase changes and are stretched to fill the screen on computers and iPads (phones crop them instead). Big screens (2560x1440 and up) get sharper 1280x720 versions (`day-hd` / `night-hd` in `public/video`); character spots for those are `spotHd` in `public/characters.js`.
 - **Phase timer** — a timer next to the sun/moon in the top corner counts up from 00:00 each time day or night starts. Everyone sees the same time.
 - **Trial** — the moderator clicks *Put someone on trial* and picks a player. Everyone votes *Guilty* or *Innocent*. When everyone has voted (or the moderator clicks *End voting*), a pop-up shows who voted what. If guilty wins, that player is muted and can only talk to the moderator until the next wipe.
 - **Kick all & reset** — the moderator can send everyone (players and bots) back to the join screen, wipe everything and clear all character picks, so everyone joins again and picks a character.

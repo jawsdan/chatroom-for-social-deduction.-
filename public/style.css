@@ -1626,3 +1626,8 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
 .ai-toggle.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .composer.ai-mode .composer-box { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
 .bubble.ai-question::before { content: '🤖 '; }
+
+/* Computer & iPad: the day/night background is stretched to fill the whole screen (no cropping). */
+@media (min-width: 761px) {
+  .scene-video, .scene-video.night { object-fit: fill; object-position: center; }
+}
