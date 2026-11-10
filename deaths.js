@@ -1,37 +1,76 @@
-// Funny ways the village finds a victim in the morning. {name} is replaced with the victim's name.
-module.exports = [
-  // Village life
-  "☠️ {name} was found face-down in the bakery, glazed like a cinnamon roll and clutching a suspiciously half-eaten baguette.",
-  "☠️ The laundry line snapped at dawn, and {name} was discovered folded neatly between two bedsheets, still faintly lavender-scented.",
-  "☠️ The chickens refuse to comment, but {name} was found buried under four hundred eggs and one very smug rooster.",
-  "☠️ {name} went to fetch water from the well last night, and the bucket came back up wearing their hat.",
-  "☠️ {name} was found in the pantry, entombed in a pickle-jar avalanche, the last cucumber still rolling ominously.",
-  "☠️ The village goat ate the door, the doormat, and the welcome sign, and now nobody can find {name} either.",
-  "☠️ {name} was discovered stuck headfirst in the butter churn, legs waving goodbye with remarkable dignity.",
-  "☠️ At sunrise, {name} was found tucked into the haystack, which the village has now voted to stop calling 'cozy.'",
-  // Forest and animals
-  "☠️ {name} was found buried under a mountain of acorns, with a squirrel nearby looking extremely innocent.",
-  "☠️ A flock of geese honked {name} clean out of the village, and the body was later found still wearing a very startled expression.",
-  "☠️ {name} told everyone the mushroom was 'definitely the edible kind,' and the forest has been chuckling ever since.",
-  "☠️ {name} was found flattened beneath a tree, and a beaver nearby was busy filing a timber permit.",
-  "☠️ An owl asked 'Who?' all night long, and by sunrise the answer was {name}.",
-  "☠️ {name} tried to pet a moose 'just once,' and the moose would like it known that it hasn't changed its mind.",
-  "☠️ {name} was found tucked into a raccoon's den, wrapped in stolen picnic blankets and missing both shoes.",
-  "☠️ A woodpecker spent the whole night rat-a-tat-tatting on {name}'s door, and by morning nobody answered.",
-  // Tavern and festivals
-  "☠️ {name} was found face-down in the festival pie, still clutching a first-place ribbon that nobody remembers awarding.",
-  "☠️ The bard's lute was found strummed one last time, and {name} lay beneath it, finally silenced mid-encore of 'Ninety-Nine Verses of Gary.'",
-  "☠️ {name} was discovered tangled in the maypole ribbons, having danced in circles until the village simply lost track of them.",
-  "☠️ At dawn, {name} was found under a pile of juggling pins, proving at last that seven was one too many.",
-  "☠️ {name} sang the tavern's karaoke night ballad so off-key that someone, somewhere, took it personally.",
-  "☠️ {name} was found wedged inside the giant festival drum, which would explain last night's very muffled finale.",
-  "☠️ The tavern's mechanical dancing bear has a new partner this morning: {name}, permanently mid-waltz and looking surprised.",
-  // Spooky and supernatural
-  "☠️ {name} was found frozen mid-scream in front of a haunted mirror that, witnesses say, finally told them the truth about their haircut.",
-  "☠️ {name} was discovered beside a crystal ball that reads 'I TOLD YOU SO', and the fortune teller has already left town.",
-  "☠️ {name} tried on a cursed hat from a yard sale and is now, technically, a very fashionable pile of dust.",
-  "☠️ {name} was found turned into a teapot after borrowing a wizard's wand to 'just make toast, real quick.'",
-  "☠️ {name} challenged a ghost to a staring contest last night and lost, which, in hindsight, was always going to happen.",
-  "☠️ {name} read the fine print on a genie's lamp too late: clause 47 says 'one wish, one villager, no refunds.'",
-  "☠️ {name} was found in bed with a Ouija board spelling out 'OOPS' and a planchette that refuses to make eye contact.",
-];
+// How a victim is found in the morning. {name} is replaced with the victim's name.
+// classic: the original village game. darkknight: how The Joker left the body in Gotham.
+module.exports = {
+  classic: [
+    // Around the village
+    "☠️ The baker opened his oven at dawn and screamed. {name} was inside the largest bread basket, dusted in flour, with claw marks down the cellar door behind them.",
+    "☠️ The church bell rang thirteen times at sunrise. When the villagers climbed the tower, they found {name} tangled in the rope, and muddy footprints leading up but none coming down.",
+    "☠️ {name} was found sitting upright at the tavern's corner table, cold as the untouched stew in front of them. The second bowl across the table was empty.",
+    "☠️ The well bucket came up heavy this morning. It held {name}'s lantern, still lit, and a single boot. The rest of {name} was found three fields away.",
+    "☠️ The scarecrow in the north field has a new coat. It is {name}'s, and {name} was found underneath it, staring at the sky with straw in both fists.",
+    "☠️ {name} never came home from the mill. At dawn the great wheel was jammed, the flour ran pink, and the miller has refused to speak since.",
+    "☠️ Every dog in the village howled at the same door all night. In the morning it stood open, the bed was shredded, and {name} lay on the roof.",
+    "☠️ The blacksmith found {name} in the forge at first light, cold beside a fire that had burned all night, with every horseshoe in the shop bent into a circle around them.",
+    "☠️ {name} was found in the market square, propped against the fountain like someone resting. The water had been running red since midnight, the washerwomen say.",
+    "☠️ A trail of {name}'s belongings led out of the village: a scarf, a shoe, a ring. It ended at the old oak, where the bark is scratched as high as a man can reach. {name} was in the branches.",
+    // The forest
+    "☠️ The woodcutter followed a silence in the forest, the kind where no birds sing. At the middle of it lay {name}, covered carefully with leaves, as if something meant to come back.",
+    "☠️ {name}'s lantern was found on the forest path, still warm. {name} was found much later, a long way from the path, and facing the wrong direction.",
+    "☠️ The hunters' traps were all sprung last night, every one, and empty. All but the last, by the creek, where they found {name} and no tracks but paw prints.",
+    "☠️ The fog came in thick from the marsh, and someone was heard calling {name}'s name from inside it. This morning the fog lifted, and {name} was lying in the reeds, pale as the mist.",
+    "☠️ {name} was found at the standing stones, laid neatly in the middle of the circle. The grass around them is flattened, as if something large paced there until dawn.",
+    "☠️ The shepherd counted his flock this morning: all the sheep, alive, huddled in a ring. In the middle of the ring was {name}, and none of the sheep would look at them.",
+    "☠️ Crows gathered on one roof before sunrise, a hundred or more. When the villagers finally looked up, they saw why. {name} had been left on the chimney.",
+    "☠️ {name} set out to check the snares and was found beside the frozen pond. The ice is cracked from below, and their hands are still gripping the edge.",
+    // Homes and locked doors
+    "☠️ {name}'s door was locked from the inside, the windows nailed shut. They were found in their chair by the cold hearth all the same, and the chimney is far too narrow for a person.",
+    "☠️ {name} was found in bed, blankets pulled up to the chin, looking almost peaceful. Then the neighbors noticed the ceiling, and the long scratches in the beams above.",
+    "☠️ The candle in {name}'s window burned all night, as it does when someone is afraid. This morning it was out, the window was open, and {name} was in the garden below.",
+    "☠️ {name} barricaded the door with every chair in the house. The chairs are still there. The wall beside the door is not, and neither, any longer, is {name}.",
+    "☠️ A neighbor heard {name} laughing with a guest late into the night. At dawn the table was set for two, one glass was still full, and {name} was slumped in the pantry.",
+    "☠️ {name} wrote in their diary last night: 'It is scratching at the door again. I will not open it.' The door was found open. So was {name}.",
+    "☠️ The children found {name} in the hayloft during hide-and-seek, and thought for a moment that they had won. The game is over now.",
+    // Stranger things
+    "☠️ The fortune teller turned over {name}'s card yesterday and closed her tent without a word. This morning {name} was found at the crossroads, the same card pinned to their chest.",
+    "☠️ {name} was found in the graveyard, lying in a freshly dug grave with no headstone. The gravedigger swears he dug no grave yesterday.",
+    "☠️ Every mirror in {name}'s house was turned to face the wall. {name} was found in front of the last one, the only one still uncovered, and it is cracked from side to side.",
+    "☠️ The village clock stopped at 3:07. So did {name}, found at the foot of the clock tower with its missing minute hand beside them.",
+    "☠️ At first light the snow outside {name}'s house showed two sets of prints going in and only one coming out, and that one does not look human. {name} was found by the door, one hand still on the latch.",
+  ],
+  darkknight: [
+    // Gifts and jokes
+    "🃏 A giant gift box with a purple bow sat on the steps of City Hall this morning. When the lid was lifted, {name} sprang out on a spring, face stretched into a rictus grin, a tag around the neck: 'To Gotham. No returns.'",
+    "🃏 {name} was found seated at a long dinner table in an abandoned ballroom, slumped in the chair of honor. Every other chair held a mannequin in a party hat, and a cake read 'YOU DIED LAUGHING'.",
+    "🃏 The GCPD found {name} hanging upside down from the Gotham Bridge, wrapped head to toe in purple ribbon like a present. A card in the bow read: 'Guess what's inside? Too slow.'",
+    "🃏 {name} was found in a phone booth filled to the ceiling with chattering wind-up teeth. They were still clacking when the door was pried open. {name} was not.",
+    "🃏 A jack-in-the-box the size of a car sat in Robinson Park, playing its tune over and over. At dawn it finally popped. What swung out on the spring had once been {name}.",
+    "🃏 Commuters found {name} riding the morning train, propped in a seat with a newspaper. The headline had been changed with a marker to: '{name} DEAD. FUNNY, ISN'T IT?' The smile had been carved to match.",
+    "🃏 {name} was found strapped to a giant playing card and nailed to the doors of the Gotham Opera House: the Joker of the deck, with {name}'s own lipstick grin smeared on by another hand.",
+    "🃏 A birthday party was set up on the roof of the First National Bank: balloons, streamers, a banner reading 'SURPRISE!'. {name} was the piñata. The stick was left behind, well used.",
+    // Laughing gas and smiles
+    "🃏 {name} was found alone in a locked movie theater, front row, a film of nothing but laughing faces still running. The Joker venom had pulled {name}'s grin so wide the jaw had broken.",
+    "🃏 Neighbors heard {name} laughing all night, louder and louder, until it stopped at four. Police broke in to find green gas still hissing from a toy clown, and {name} on the floor with a smile no undertaker will be able to close.",
+    "🃏 {name} was found in a bathtub of bright green chemicals, skin bleached chalk white, hair turned grass green. A note on the mirror: 'I made a friend! He didn't take it well.'",
+    "🃏 A flower on {name}'s lapel was still dripping acid when they were found in the alley behind the Monarch Theatre. There was not much left above the collar, except, somehow, the grin.",
+    "🃏 {name} was found on the stage of a closed comedy club, tied to the microphone stand under a single spotlight. A sign hung from the neck: 'TOUGH CROWD.' The laugh track was still playing.",
+    "🃏 {name} sat in a photo booth at the Gotham pier for six hours before anyone looked inside. The strip of photos shows four frames: fear, pleading, laughter, and then only the Joker, waving.",
+    // Amusement Mile
+    "🃏 The old Ferris wheel at Amusement Mile was turning again this morning, lights blazing. {name} was strapped into the top car, painted like a clown, and had been going round all night.",
+    "🃏 {name} was found in the hall of mirrors at Amusement Mile. Every mirror had a smile painted on it at exactly head height, so that wherever {name} looked while dying, they were grinning.",
+    "🃏 A carnival strength game appeared in Gotham Square overnight. The bell at the top had been rung so hard it cracked. {name} was what the hammer had been swung at.",
+    "🃏 The tunnel of love at Amusement Mile ran one boat last night. It came out the far end carrying {name}, posed arm in arm with a skeleton in a wedding veil, both wearing the same smile.",
+    "🃏 {name} was found on the carousel, tied to a painted horse, the music box grinding out a lullaby at half speed. The ride had been spinning fast enough, for long enough, that no one envies the coroner.",
+    "🃏 A claw machine in the arcade on Amusement Mile was found stuffed with something far too large for it. It took the fire department two hours to get {name} out, and the claw was still holding on.",
+    // Messages for Gotham
+    "🃏 {name} was found propped on a rooftop beside the Bat-Signal, which had been repainted with a huge red smile. The beam was on. All of Gotham saw {name}'s silhouette in it before anyone knew what it was.",
+    "🃏 Every television in Gotham showed the same broadcast at midnight: {name}, tied to a chair, forced to read a list of jokes. The video cut out at the last punchline. The body was found at the station at dawn, still holding the cue cards.",
+    "🃏 {name} was left on the steps of the GCPD in a clown suit two sizes too big, a pie tin glued over the face. Under the pie tin, Commissioner Gordon found a note: 'Knock knock.' Nobody wants to know who's there.",
+    "🃏 A trail of playing cards led from Crime Alley to the docks, fifty-one of them. The fifty-second, a joker, was found in {name}'s mouth. {name} was found in a shipping crate marked 'FRAGILE: COMEDY'.",
+    "🃏 {name} was found sealed inside a giant novelty snow globe in the window of Gotham's biggest toy store, floating among the glitter with a wind-up key in the back, still slowly turning.",
+    "🃏 The clock tower struck midnight with a wet thud instead of a chime. {name} had been tied inside the great bell as the clapper. It rang twelve times before anyone could stop it.",
+    "🃏 {name} was found in the back of an ice cream truck parked outside Gotham General, its jingle playing on a loop. Frozen solid, posed mid-laugh, with a cone in one hand and a sign: 'CHILL OUT, GOTHAM.'",
+    "🃏 A marionette show was running in the window of an old puppet shop when the sun came up. The puppet dancing on the wires was {name}, and the strings had been threaded with great care and no mercy at all.",
+    "🃏 {name} was found in a dentist's chair in an abandoned clinic, every tool laid out neatly and every one of them used. On the tray, a get-well card: 'Smile! It's the last thing you'll ever do.'",
+    "🃏 Fireworks went off over Gotham Harbor at 3 a.m., spelling out HA HA HA in green. The last rocket was the biggest. Witnesses say {name} was tied to it, and the harbor patrol is still collecting what came down.",
+  ],
+};

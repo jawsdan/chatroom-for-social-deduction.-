@@ -38,17 +38,17 @@ const ROLE = {
   vigilante: { label: 'Vigilante', icon: '🎯', color: '#c2410c', desc: 'You are still on the village side, but each night you may kill one player. You can also choose to kill nobody.' },
   batman: { label: 'Batman', icon: '🦇', color: '#eab308', desc: 'Your parents are gone. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
   // Game mode "The Dark Knight": the villains.
-  dkjoker: { label: 'The Joker', icon: '🃏', color: '#7e22ce', desc: 'You are the one who kills. Each night, pick a victim (or nobody). Plan with your villains in the hideout.' },
-  harley: { label: 'Harley Quinn', icon: '🔨', color: '#e11d48', desc: "You are The Joker's sidekick. You have no ability, but you win if The Joker wins. Help him stay hidden." },
-  ivy: { label: 'Poison Ivy', icon: '🌿', color: '#15803d', desc: 'Each night you poison one player. If they have an ability it gets confused: Thomas Wayne cannot protect, and The Batman gets wrong intel.' },
-  clayface: { label: 'Clayface', icon: '🎭', color: '#a16207', desc: 'Pick a disguise (any role except The Batman). When The Batman investigates you, he sees that role instead.' },
+  dkjoker: { label: 'The Joker', icon: '🃏', color: '#7e22ce', desc: "Why so serious? Gotham is your playground, and every night you decide who gets the punchline. Pick a victim with Kill (or let them sweat one more night). Scheme with your crew at Amusement Mile, and never let Gotham see who is behind the smile." },
+  harley: { label: 'Harley Quinn', icon: '🔨', color: '#e11d48', desc: "You are head over heels for Mistah J and would do anything for him. You have no ability, but you are his best trick: charm, lie and fool the citizens of Gotham so your Puddin' gets away with his plans. If The Joker wins, you win." },
+  ivy: { label: 'Poison Ivy', icon: '🌿', color: '#15803d', desc: 'Gotham poisoned the green world, and now you return the favor. Each night, pick one player to Poison. Your toxins cloud their mind: Thomas Wayne cannot protect anyone that night, and The Batman walks away with false intel.' },
+  clayface: { label: 'Clayface', icon: '🎭', color: '#a16207', desc: 'Once an actor, now living clay: you can wear any face in Gotham. Choose your Disguise (any role except The Batman). When The Batman investigates you, your greatest performance fools him and he sees that role instead.' },
 };
 // The Dark Knight renames the village roles and gives them new pictures.
 const DK_SKIN = {
-  civilian: { label: 'Citizen', img: 'citizen', desc: 'A citizen of Gotham. Find The Joker and his villains, and vote to send them to Arkham.' },
-  doctor: { label: 'Thomas Wayne', img: 'thomaswayne', desc: 'Each night, protect one player from The Joker. If Poison Ivy poisons you, you cannot protect that night.' },
-  detective: { label: 'The Batman', img: 'dkbatman', desc: "Each night, investigate one player to learn their role. Beware: Clayface wears a disguise, and Poison Ivy's poison gives you wrong intel." },
-  officer: { label: 'Commissioner Gordon', img: 'gordon', desc: 'Each day you may arrest one player. They cannot vote that day and cannot use their ability the night after.' },
+  civilian: { label: 'Citizen', img: 'citizen', desc: 'You are an ordinary citizen of Gotham, and your city is rotting from the inside. Keep your eyes open, trust no smile, and vote the villains into Arkham before The Joker comes knocking on your door.' },
+  doctor: { label: 'Thomas Wayne', img: 'thomaswayne', desc: "You are Gotham's finest surgeon, and you refuse to let this city die. Each night, choose one player to Protect from The Joker. Beware Poison Ivy: her toxin leaves you too dizzy to save anyone that night." },
+  detective: { label: 'The Batman', img: 'dkbatman', desc: "You are vengeance. You are the night. Each night, Investigate one player and learn who they really are. But trust nothing blindly: Clayface wears other faces, and Poison Ivy's toxin fills your head with false intel." },
+  officer: { label: 'Commissioner Gordon', img: 'gordon', desc: "You are Gotham's last honest cop. Work with The Batman to expose The Joker and his crew. Each day you may Arrest one player: they cannot vote that day and cannot use their ability the night after." },
 };
 const DK_VILLAINS = ['dkjoker', 'harley', 'ivy', 'clayface'];
 const ROLE_BASE = Object.fromEntries(Object.keys(DK_SKIN).map((k) => [k, { role: { ...ROLE[k] }, img: ROLE_IMG[k], art: ART[k] }]));
@@ -415,7 +415,7 @@ socket.on('mod:update', ({ thread, message }) => {
 
 socket.on('phase:changed', ({ phase, silent }) => {
   setPhase(phase, !silent);
-  if (!silent && phase === 'night' && state?.me?.wolfAccess && !amMod()) setTimeout(() => toast(dkMode() ? "🃏 The villains' hideout is open. Plan your night!" : '🐺 The wolf den is open. Plan your target!'), 1800);
+  if (!silent && phase === 'night' && state?.me?.wolfAccess && !amMod()) setTimeout(() => toast(dkMode() ? '🎡 Amusement Mile is open. Time to scheme!' : '🐺 The wolf den is open. Plan your target!'), 1800);
   if (state) renderAll(false);
 });
 
@@ -452,7 +452,7 @@ socket.on('trial:result', (r) => {
     const art = el('div', 'art');
     art.innerHTML = ART.scales;
     card.append(art);
-    card.append(el('h2', '', `The village has decided. ${r.accused} is`));
+    card.append(el('h2', '', `${dkMode() ? 'Gotham' : 'The village'} has decided. ${r.accused} is`));
     card.append(el('div', 'verdict ' + r.result, r.result.toUpperCase()));
     if (r.result === 'guilty') card.append(killVideo(r.wolf ? 'wolfdeath' : 'vote'));
     const tally = el('div', 'tally');
@@ -529,7 +529,7 @@ function renderPhaseDisplay() {
     return d.append(art, txt);
   }
   txt.append(el('div', 'p-name', currentPhase === 'night' ? 'Night' : 'Day'));
-  txt.append(el('div', 'p-sub', currentPhase === 'night' ? 'The werewolves are awake…' : 'Discuss and find the wolves.'));
+  txt.append(el('div', 'p-sub', currentPhase === 'night' ? (dkMode() ? 'The villains are out in Gotham…' : 'The werewolves are awake…') : dkMode() ? 'Discuss and find the villains.' : 'Discuss and find the wolves.'));
   d.append(art, txt);
 }
 
@@ -555,8 +555,9 @@ function maybeShowTrialPopup() {
     art.innerHTML = ART.scales;
     card.append(art);
     card.append(el('h2', '', `${t.accused} is on trial!`));
-    let text = 'The village is voting.';
-    if (key(t.accused) === key(me)) text = 'The village is deciding your fate. Plead your case in the main chat!';
+    const town = dkMode() ? 'Gotham' : 'The village';
+    let text = `${town} is voting.`;
+    if (key(t.accused) === key(me)) text = `${town} is deciding your fate. Plead your case in the main chat!`;
     else if (state.me.arrestedToday) text = 'You are arrested, so you cannot vote today.';
     else if (canVote()) text = 'Is this person guilty? Everyone will see who voted what when the trial ends.';
     card.append(el('p', '', text));
@@ -753,7 +754,7 @@ function renderNav() {
   $('wolfNav').title = state.phase === 'night' ? 'Open now' : 'Opens at night';
   $('disguiseNav').classList.toggle('hidden', !state.me.disguise);
   if (state.me.disguise) $('disguiseMeta').textContent = '';
-  document.querySelector('#wolfNav .nav-label').textContent = dkMode() ? 'Hideout' : 'Wolf den';
+  document.querySelector('#wolfNav .nav-label').textContent = dkMode() ? 'Amusement Mile' : 'Wolf den';
   document.querySelector('#wolfNav .ri').src = (ROLE_IMG[dkMode() ? 'dkjoker' : 'werewolf'] || '').replace('/roles/', '/roles/sm/');
   $('cardNav').classList.toggle('hidden', !state.me.canCard);
   $('cardMeta').textContent = state.me.callingCard ? '✓' : '';
@@ -790,8 +791,10 @@ function renderHeader() {
     }
   } else if (channel === 'wolf') {
     const wolves = (amMod() ? Object.entries(state.modView?.roles || {}).filter(([, r]) => r === 'werewolf' || r === 'joker' || DK_VILLAINS.includes(r)).map(([k]) => displayName(k)) : state.me.wolfmates);
-    title.textContent = dkMode() ? "🃏 Villains' hideout" : '🐺 Wolf den';
-    sub.textContent = (state.phase === 'night' ? 'Open now' : 'Closed until night') + ` · secret chat for the ${dkMode() ? 'villains' : 'werewolves'}${wolves.length ? ': ' + wolves.join(', ') : ''}`;
+    title.textContent = dkMode() ? '🎡 Amusement Mile' : '🐺 Wolf den';
+    sub.textContent = dkMode()
+      ? (state.phase === 'night' ? 'Open' : 'Closed until night') + " · where Gotham's villains meet to scheme"
+      : (state.phase === 'night' ? 'Open now' : 'Closed until night') + ` · secret chat for the werewolves${wolves.length ? ': ' + wolves.join(', ') : ''}`;
   }
 }
 
@@ -1012,14 +1015,14 @@ function renderComposer() {
       } else ph = a.enabled ? '🤖 Ask the AI about the rules, your role or what happened…' : '🤖 Ask about your role or the rules (the AI is offline)…';
     } else ph = 'Message the moderator privately…';
   } else if (channel === 'wolf') {
-    if (amMod()) ph = 'Message the wolves (as moderator)…';
+    if (amMod()) ph = dkMode() ? 'Message the villains (as moderator)…' : 'Message the wolves (as moderator)…';
     else if (state.phase !== 'night') {
       disabled = true;
-      ph = '🌙 The wolf den opens at night.';
+      ph = dkMode() ? '🌙 Amusement Mile opens at night.' : '🌙 The wolf den opens at night.';
     } else if (amMuted()) {
       disabled = true;
       ph = state.me.dead && state.dead?.includes(key(me)) ? '💀 You are dead. You can only talk to the moderator.' : '🔇 You are muted. You can only talk to the moderator.';
-    } else ph = 'Plan your target with the pack…';
+    } else ph = dkMode() ? 'Scheme with the villains…' : 'Plan your target with the pack…';
   }
   input.disabled = disabled;
   send.disabled = disabled;
@@ -1421,7 +1424,8 @@ function renderMessages() {
             : emptyState('🛡️', 'Your inbox is empty', 'Players who join will show up here.')
         );
       } else box.append(emptyState('🤫', 'Just you and the moderator', 'Nobody else can see what you write here. Switch on 🤖 AI to ask the AI helper about the rules or your role.'));
-    } else if (channel === 'lobby') box.append(emptyState('👋', 'The lobby is quiet', 'Say hello to the village!'));
+    } else if (channel === 'lobby') box.append(emptyState('👋', 'The lobby is quiet', dkMode() ? 'Say hello to Gotham!' : 'Say hello to the village!'));
+    else if (dkMode()) box.append(emptyState('🎡', 'Amusement Mile is quiet', "The rides are rusting and the lights are dead, but at night Gotham's villains gather here to plan their next move."));
     else box.append(emptyState('🐺', 'The den is quiet', 'At night, the werewolves can plan their target here before telling the moderator.'));
     return;
   }
@@ -2066,10 +2070,10 @@ socket.on('night:result', ({ victims, lines = [], killer = 'night' }) => {
         card.append(el('h2', '', victims.length === 1 ? `${victims[0]} was killed in the night` : `${victims.join(' and ')} were killed in the night`));
         card.append(killVideo(killer));
         for (const l of lines) card.append(el('p', 'death-line', l));
-        card.append(el('p', 'hint', victims.some((v) => key(v) === key(me)) ? 'You are dead. You can only talk to the moderator now.' : 'They can no longer speak in the village.'));
+        card.append(el('p', 'hint', victims.some((v) => key(v) === key(me)) ? 'You are dead. You can only talk to the moderator now.' : (dkMode() ? 'They can no longer speak in Gotham.' : 'They can no longer speak in the village.')));
       } else {
         card.append(el('h2', '', 'No victim'));
-        card.append(el('p', '', 'The village wakes up. Nobody died last night.'));
+        card.append(el('p', '', dkMode() ? 'Gotham wakes up. Nobody died last night.' : 'The village wakes up. Nobody died last night.'));
       }
       const actions = el('div', 'actions');
       actions.append(btn('btn-primary', 'Close', closeModal));
@@ -2346,7 +2350,7 @@ socket.on('death:shown', ({ victim, wolf }) => {
       card.append(el('div', 'note-icon', '☠️'));
       card.append(el('h2', '', `${victim} has died`));
       if (wolf) card.append(killVideo('wolfdeath'));
-      card.append(el('p', 'hint', key(victim) === key(me) ? 'You are dead. You can only talk to the moderator now.' : 'They can no longer speak in the village.'));
+      card.append(el('p', 'hint', key(victim) === key(me) ? 'You are dead. You can only talk to the moderator now.' : (dkMode() ? 'They can no longer speak in Gotham.' : 'They can no longer speak in the village.')));
       const actions = el('div', 'actions');
       actions.append(btn('btn-primary', 'Close', closeModal));
       card.append(actions);
@@ -2658,7 +2662,7 @@ function renderPhoneDock() {
   if (!state.moderator && !amMuted()) items.push({ id: 'claim', icon: '🛡️', label: 'Be mod', badge: '!', go: () => socket.emit('mod:claim') });
   items.push({ id: 'lobby', icon: '#', label: 'Lobby', on: channel === 'lobby', badge: pill(lobbyUnread), go: () => switchChannel('lobby') });
   items.push({ id: 'mod', icon: '🛡️', label: amMod() ? 'Inbox' : 'Mod', on: channel === 'mod', badge: pill(modUnread), go: () => switchChannel('mod') });
-  if (state.me.wolfAccess) items.push({ id: 'wolf', img: dkMode() ? 'dkjoker' : 'werewolf', label: dkMode() ? 'Villains' : 'Wolves', on: channel === 'wolf', badge: pill(wolfUnread), lock: state.phase !== 'night', go: () => switchChannel('wolf') });
+  if (state.me.wolfAccess) items.push({ id: 'wolf', img: dkMode() ? 'dkjoker' : 'werewolf', label: dkMode() ? 'Mile' : 'Wolves', on: channel === 'wolf', badge: pill(wolfUnread), lock: state.phase !== 'night', go: () => switchChannel('wolf') });
   if (state.me.canCard) items.push({ id: 'card', icon: '🃏', label: 'Card', go: () => openNoteEditor('card') });
   if (!amMod()) items.push({ id: 'manifesto', icon: '📜', label: 'Will', go: () => openNoteEditor('manifesto') });
   if (state.me.disguise) items.push({ id: 'disguise', icon: '🎭', label: 'Disguise', go: openDisguisePicker });

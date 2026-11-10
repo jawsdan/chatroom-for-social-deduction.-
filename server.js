@@ -627,7 +627,7 @@ function nightOutcome() {
 }
 const OUTCOME_TEXT = {
   killed: (o) => `${o.victim} will die`,
-  saved: (o) => `${o.target} was attacked but the Doctor saved them`,
+  saved: (o) => `${o.target} was attacked but ${dk() ? 'Thomas Wayne' : 'the Doctor'} saved them`,
   disagree: () => 'The wolves did not agree on one victim',
   nopick: () => 'The killer did not choose anyone',
   skipped: () => 'The killer chose not to kill anyone',
@@ -752,10 +752,12 @@ function addClue(kind, about, text) {
 // Pick a random funny death line, avoiding the last few used.
 let recentDeathLines = [];
 function deathLine(victim) {
-  const fresh = DEATH_LINES.map((_, i) => i).filter((i) => !recentDeathLines.includes(i));
+  // Each game mode has its own stories.
+  const lines = dk() ? DEATH_LINES.darkknight : DEATH_LINES.classic;
+  const fresh = lines.map((_, i) => i).filter((i) => !recentDeathLines.includes(i));
   const i = fresh[Math.floor(Math.random() * fresh.length)];
   recentDeathLines = [...recentDeathLines, i].slice(-10);
-  return DEATH_LINES[i].replace('{name}', victim);
+  return lines[i].replace(/\{name\}/g, victim);
 }
 function revealDeath({ victim, card, announce = true, line }) {
   if (announce) systemLobby(toArkham(victim) ? `🏚️ ${victim} was sent to Arkham Asylum.` : line || `☠️ ${victim} was found dead.`);
@@ -1438,7 +1440,7 @@ io.on('connection', (socket) => {
     const t = cleanText(text);
     if (!u || !t || !hasWolfAccess(socket.id)) return;
     if (!isMod(socket)) {
-      if (phase !== 'night') return socket.emit('notice', 'The wolf den only opens at night.');
+      if (phase !== 'night') return socket.emit('notice', dk() ? 'Amusement Mile only opens at night.' : 'The wolf den only opens at night.');
       if (mutedNames.has(key(u.name))) return socket.emit('notice', 'You are muted. You can only talk to the moderator.');
     }
     pushWolf(msg(u.name, t, { moderator: isMod(socket) }));
@@ -1468,7 +1470,7 @@ io.on('connection', (socket) => {
       scheduleBotActions();
     }
     io.emit('phase:changed', { phase });
-    systemLobby(p === 'night' ? 'Night falls over the village.' : 'The sun rises. It is day.');
+    systemLobby(p === 'night' ? (dk() ? 'Night falls over Gotham.' : 'Night falls over the village.') : dk() ? 'The sun rises over Gotham. It is day.' : 'The sun rises. It is day.');
     if (p === 'day' && wasNight) {
       // Settle the night: the agreed, unhealed victim dies.
       const outcome = nightOutcome();

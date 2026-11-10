@@ -32,8 +32,8 @@ const DK_ROLE_INFO = {
   doctor: 'Thomas Wayne (Gotham side). Each night pick one player to protect with the Protect button, yourself included. If The Joker picks that player, they survive. If Poison Ivy poisons you, you cannot protect anyone that night.',
   detective: 'The Batman (Gotham side). Each night pick one player to investigate. In the morning you learn their role. Careful: Clayface shows up as the role he chose as a disguise, and if Poison Ivy poisoned you that night your intel is wrong. You cannot investigate the same player twice.',
   officer: 'Commissioner Gordon (Gotham side). By day you may arrest one player (once per day, final). Everyone is told. The arrested player cannot vote that day and cannot use their ability the following night.',
-  dkjoker: 'The Joker (villain). You are the only one who kills: each night pick one victim with the Kill button, or kill nobody. Plan with the other villains in the hideout chat, which is open at night. Thomas Wayne can save your victim.',
-  harley: "Harley Quinn (villain, The Joker's sidekick). You have no ability. You win if The Joker wins, so help him stay hidden and steer the votes. You can talk with the villains in the hideout at night.",
+  dkjoker: 'The Joker (villain). You are the only one who kills: each night pick one victim with the Kill button, or kill nobody. Scheme with the other villains at Amusement Mile, the secret chat of the villains, which is open at night. Thomas Wayne can save your victim.',
+  harley: "Harley Quinn (villain, The Joker's sidekick). You have no ability. You win if The Joker wins, so help him stay hidden and steer the votes. You can talk with the villains at Amusement Mile at night.",
   ivy: 'Poison Ivy (villain). Each night pick one player to poison with the Poison button. If they have an ability it is confused that night: Thomas Wayne cannot protect, and The Batman gets wrong intel. You cannot poison other villains.',
   clayface: 'Clayface (villain). With the Disguise button you pick any role except The Batman. When The Batman investigates you, he sees that role instead of Clayface. You have no other ability.',
 };

@@ -41,7 +41,7 @@ npm test
 On the start menu the moderator can switch the game mode between **Original** and **The Dark Knight** (only between games; switching clears the roles). Everyone's screen gets the Batman look (the villains get The Joker's).
 
 - **Gotham's side:** Citizen (Civilian), **Thomas Wayne** (the Doctor), **The Batman** (the Detective) and **Commissioner Gordon** (the Officer). There is no Mother, Father or Son in this mode.
-- **The villains** share a hideout chat at night:
+- **The villains** meet at **Amusement Mile**, their secret chat, at night:
   - **The Joker** is the only one who kills: he picks a victim each night (or nobody).
   - **Harley Quinn** is his sidekick. She has no ability and wins if The Joker wins.
   - **Poison Ivy** poisons one player each night. A poisoned Thomas Wayne cannot protect that night (he is told), and a poisoned Batman gets wrong intel (he is not told).
@@ -70,6 +70,7 @@ On the start menu the moderator can switch the game mode between **Original** an
   - Role pictures live in `public/img/roles` (and `sm/`). To change one, replace the file and bump `ROLE_IMG_VERSION` in `public/art.js`.
 - **Officer (arrest)** — by day the Officer can arrest one player (final, once per day). Everyone is told. The arrested player cannot vote that day and cannot use their ability the following night (an arrested lone killer means no kill). The Officer gets a result the next morning. The Officer count is set in *Roles in this game* (0 by default).
 - **Night actions** — at night the Werewolves / Serial Killer pick someone to kill, the Doctor picks someone to heal (they're marked protected automatically) and the Detective picks someone to investigate. They can change their pick until morning. The moderator sees every pick in *Tonight's choices*, as a note in that player's chat and as a pop-up. Wolves also see their pack's picks. Picks and protections reset when the next night starts. Bots with roles pick at random.
+- **Morning stories** — each night death comes with one of 30 stories about how the body was found. The Dark Knight has its own 30, about how The Joker left the body (`deaths.js`).
 - **Deaths** — the moderator marks a player dead with 💀 (✨ brings them back). Dead players can only talk to the moderator. A guilty trial counts as a death too.
 - **Calling card** (Serial Killer only, 100 characters) — if the moderator kills the player the Serial Killer picked that night, the card pops up for everyone when day starts.
 - **Manifesto** (every player, 200 characters) — last words revealed when that player dies: at sunrise for a night death, right away otherwise.
