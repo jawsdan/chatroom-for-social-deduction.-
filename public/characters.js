@@ -33,4 +33,18 @@ window.CHARACTERS = [
     heightDk: 170,
     flip: true,
   },
+  {
+    id: 'joker',
+    name: 'The Joker',
+    desc: 'Why so serious? Shows up with a card up his sleeve.',
+    img: 'img/characters/joker.webp',
+    still: 'img/characters/joker-still.png',
+    height: 150,
+    spot: { day: { x: 345, y: 520 }, night: { x: 350, y: 530 } },
+    spotHd: { day: { x: 190, y: 600 }, night: { x: 150, y: 655 } },
+    heightHd: 165,
+    // The Dark Knight: on the rooftop by day, at the front of Amusement Mile by night.
+    spotDk: { day: { x: 760, y: 705 }, night: { x: 575, y: 695 } },
+    heightDk: 185,
+  },
 ];
