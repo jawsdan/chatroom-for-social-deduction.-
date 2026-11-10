@@ -2784,7 +2784,9 @@ function renderCharGrid() {
     b.disabled = !!holder;
     const pic = el('div', 'char-pic');
     pic.innerHTML = o.img ? `<img src="${o.img}" alt="" draggable="false">` : '<div class="char-none">🙂</div>';
-    b.append(pic, el('div', 'char-name', o.name), el('div', 'char-desc', holder ? `Taken by ${holder}` : o.desc));
+    b.append(pic, el('div', 'char-name', o.name));
+    // Only say something under the name when someone else already has this character.
+    if (holder) b.append(el('div', 'char-desc', `Taken by ${holder}`));
     if (mine === o.id) b.append(el('span', 'char-check', '✓'));
     b.onclick = () => pick(o.id);
     grid.append(b);
