@@ -10,44 +10,49 @@ window.SCENE_HD = (function () {
   // Bump this when a video file changes so browsers fetch the new one.
   const VERSION = 4;
   const SUFFIX = window.SCENE_HD ? '-hd' : '';
-  let videos = null;
-  function build(root) {
-    videos = {};
-    for (const phase of ['day', 'night']) {
-      const v = document.createElement('video');
-      v.className = `scene-video ${phase}`;
-      v.muted = true;
-      v.loop = true;
-      v.playsInline = true;
-      v.preload = 'auto';
-      v.setAttribute('muted', '');
-      v.setAttribute('playsinline', '');
-      v.poster = `video/${phase}${SUFFIX}-poster.jpg?v=${VERSION}`;
-      for (const [ext, type] of [['webm', 'video/webm'], ['mp4', 'video/mp4']]) {
-        const src = document.createElement('source');
-        src.src = `video/${phase}${SUFFIX}.${ext}?v=${VERSION}`;
-        src.type = type;
-        v.append(src);
-      }
-      root.append(v);
-      videos[phase] = v;
+  // Each game mode has its own day and night videos. The Dark Knight: Gotham rooftops by day, Amusement Mile by night.
+  const FILES = { classic: { day: `day${SUFFIX}`, night: `night${SUFFIX}` }, darkknight: { day: 'dk-day', night: 'dk-night' } };
+  const videos = {}; // "mode-phase" -> video, made the first time they're needed
+  let current = null;
+  function make(root, mode, phase) {
+    const v = document.createElement('video');
+    v.className = `scene-video ${phase} ${mode === 'darkknight' ? 'dk' : ''}`;
+    v.muted = true;
+    v.loop = true;
+    v.playsInline = true;
+    v.preload = 'auto';
+    v.setAttribute('muted', '');
+    v.setAttribute('playsinline', '');
+    const file = FILES[mode][phase];
+    v.poster = `video/${file}-poster.jpg?v=${VERSION}`;
+    for (const [ext, type] of [['webm', 'video/webm'], ['mp4', 'video/mp4']]) {
+      const src = document.createElement('source');
+      src.src = `video/${file}.${ext}?v=${VERSION}`;
+      src.type = type;
+      v.append(src);
     }
+    root.append(v);
+    return v;
   }
   window.setScene = function (phase) {
     const root = document.getElementById('scene');
     if (!root) return;
-    if (!videos) build(root);
-    const active = phase === 'night' ? 'night' : 'day';
+    const mode = window.SCENE_MODE === 'darkknight' ? 'darkknight' : 'classic';
+    phase = phase === 'night' ? 'night' : 'day';
+    // Load both phases of this mode so switching is instant.
+    for (const ph of ['day', 'night']) videos[`${mode}-${ph}`] ||= make(root, mode, ph);
+    current = `${mode}-${phase}`;
     for (const [name, v] of Object.entries(videos)) {
-      const on = name === active;
+      const on = name === current;
       v.classList.toggle('on', on);
       if (on) v.play().catch(() => {});
       else setTimeout(() => !v.classList.contains('on') && v.pause(), 1000); // pause after the fade
     }
+    root.classList.toggle('dk', mode === 'darkknight');
   };
   // Browsers pause background videos in hidden tabs; resume when the tab comes back.
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && videos) for (const v of Object.values(videos)) if (v.classList.contains('on')) v.play().catch(() => {});
+    if (!document.hidden && current && videos[current]) videos[current].play().catch(() => {});
   });
 })();
 
@@ -58,8 +63,7 @@ window.SCENE_HD = (function () {
 // cropped (object-fit: cover, anchored at the bottom) on phones.
 (function () {
   const HD = window.SCENE_HD;
-  const VIDEO_W = HD ? 1280 : 864;
-  const VIDEO_H = HD ? 720 : 576;
+
   const POS_X = { day: 0.5, night: 0.55 }; // matches the videos' object-position on phones
   const els = new Map(); // character id -> element
   let phase = 'day';
@@ -68,9 +72,12 @@ window.SCENE_HD = (function () {
   function place(el, c) {
     const cw = root.clientWidth;
     const ch = root.clientHeight;
-    const spots = (HD && c.spotHd) || c.spot;
+    const DK = window.SCENE_MODE === 'darkknight';
+    const spots = (DK && c.spotDk) || (HD && c.spotHd) || c.spot;
     const spot = spots[phase] || spots.day;
-    const baseH = (HD && c.heightHd) || c.height || 138;
+    const baseH = (DK && c.heightDk) || (HD && c.heightHd) || c.height || 138;
+    const VIDEO_W = DK || HD ? 1280 : 864;
+    const VIDEO_H = DK || HD ? 720 : 576;
     const video = root.querySelector('.scene-video');
     const stretched = video && getComputedStyle(video).objectFit === 'fill';
     let sx, sy, offX, offY;

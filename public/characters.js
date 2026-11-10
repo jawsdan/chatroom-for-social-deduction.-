@@ -14,6 +14,9 @@ window.CHARACTERS = [
     spot: { day: { x: 250, y: 452 }, night: { x: 236, y: 478 } },
     spotHd: { day: { x: 405, y: 585 }, night: { x: 290, y: 640 } },
     heightHd: 150,
+    // The Dark Knight: on the rooftop by day, at the Amusement Mile gate by night (1280x720).
+    spotDk: { day: { x: 330, y: 690 }, night: { x: 330, y: 650 } },
+    heightDk: 170,
   },
   {
     id: 'snout',
@@ -26,6 +29,8 @@ window.CHARACTERS = [
     spot: { day: { x: 625, y: 452 }, night: { x: 640, y: 482 } },
     spotHd: { day: { x: 880, y: 585 }, night: { x: 735, y: 640 } },
     heightHd: 150,
+    spotDk: { day: { x: 1150, y: 700 }, night: { x: 780, y: 650 } },
+    heightDk: 170,
     flip: true,
   },
 ];

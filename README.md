@@ -38,7 +38,7 @@ npm test
 
 ## Game mode: The Dark Knight
 
-On the start menu the moderator can switch the game mode between **Original** and **The Dark Knight** (only between games; switching clears the roles). Everyone's screen gets the Batman look (the villains get The Joker's).
+On the start menu the moderator can switch the game mode between **Original** and **The Dark Knight** (only between games; switching clears the roles). Everyone's screen gets the Batman look (the villains get The Joker's). The background is Gotham's rooftops by day and Amusement Mile in the rain by night (`dk-day` / `dk-night` in `public/video`; character spots are `spotDk` in `public/characters.js`).
 
 - **Gotham's side:** Citizen (Civilian), **Thomas Wayne** (the Doctor), **The Batman** (the Detective) and **Commissioner Gordon** (the Officer). There is no Mother, Father or Son in this mode.
 - **The villains** meet at **Amusement Mile**, their secret chat, at night:

@@ -59,6 +59,9 @@ function applyGameMode(mode) {
   mode = mode === 'darkknight' ? 'darkknight' : 'classic';
   if (mode === skinMode) return;
   skinMode = mode;
+  // The background videos follow the game mode too.
+  window.SCENE_MODE = mode;
+  window.setScene?.(currentPhase);
   for (const [k, skin] of Object.entries(DK_SKIN)) {
     const base = ROLE_BASE[k];
     ROLE[k] = dkMode() ? { ...base.role, label: skin.label, desc: skin.desc } : { ...base.role };

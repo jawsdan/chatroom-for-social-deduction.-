@@ -1803,3 +1803,11 @@ body.mode-dk #detectiveMode { display: none; }
 
 .chat-fx .fx-vignette { position: absolute; }
 .chat-fx.joker .fx-grade { background: linear-gradient(180deg, rgba(24, 6, 40, 0.5), rgba(14, 4, 26, 0.3) 50%, rgba(8, 20, 6, 0.5)); }
+
+/* The Dark Knight backgrounds are already moody: lighter filters so the scenes (and the night at Amusement Mile) stay visible. */
+.scene.dk ~ .chat-fx .fx-grade { -webkit-backdrop-filter: grayscale(0.25) brightness(0.9) contrast(1.1); backdrop-filter: grayscale(0.25) brightness(0.9) contrast(1.1); background: linear-gradient(180deg, rgba(8, 12, 40, 0.25), transparent 45%, rgba(2, 4, 14, 0.4)); }
+body.night .scene.dk ~ .chat-fx .fx-grade { -webkit-backdrop-filter: brightness(1.25) contrast(1.05); backdrop-filter: brightness(1.25) contrast(1.05); background: none; }
+.scene.dk ~ .chat-fx .fx-rain { display: none; } /* the videos have their own weather */
+.scene.dk ~ .chat-fx .fx-vignette { opacity: 0.6; }
+.scene.dk ~ .chat-fx.joker .fx-tint { opacity: 0.45; }
+body.night .scene.dk ~ .chat-fx .fx-searchlight { opacity: 0.5; }
