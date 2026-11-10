@@ -342,3 +342,37 @@ test('works against a fake Ollama server with lines split across chunks', async 
     srv.close();
   }
 });
+
+// ---------- Game mode: The Dark Knight ----------
+test('The Dark Knight: new names, villains know their team, Clayface knows his disguise, nothing leaks', () => {
+  const roles = new Map([['jack', 'dkjoker'], ['harleen', 'harley'], ['pam', 'ivy'], ['basil', 'clayface'], ['bruce', 'detective'], ['tom', 'doctor'], ['cora', 'civilian']]);
+  const names = ['Mona', 'Jack', 'Harleen', 'Pam', 'Basil', 'Bruce', 'Tom', 'Cora'];
+  const game = {
+    mode: 'darkknight', phase: 'night', nightNumber: 1, gameState: 'running', difficulty: 'normal', moderator: 'Mona',
+    players: names.map((n) => ({ name: n, key: n.toLowerCase(), moderator: n === 'Mona' })),
+    deathAt: new Map(), lobby: [], trial: null, abilityLog: new Map(), privateClues: new Map(), modThreads: new Map(), manifestos: new Map(), callingCards: new Map(),
+    nightActions: new Map([['jack', { kind: 'kill', target: 'Cora' }], ['pam', { kind: 'poison', target: 'Bruce' }]]),
+    displayRole: (k) => roles.get(String(k).toLowerCase()) || null,
+    roleOf: (k) => roles.get(String(k).toLowerCase()) || null,
+    isVillain: (k) => ['dkjoker', 'harley', 'ivy', 'clayface'].includes(roles.get(String(k).toLowerCase())),
+    disguiseOf: (k) => (roles.get(String(k).toLowerCase()) === 'clayface' ? 'doctor' : null),
+    wolfNames: () => ['Jack', 'Harleen', 'Pam', 'Basil'],
+    actionFor: () => null,
+  };
+  // The Batman: his own role under the new name, and nothing about the villains or tonight's poison.
+  const batman = ai.buildSystemPrompt(ai.playerView(game, 'Bruce'));
+  assert.match(batman, /Role: The Batman/);
+  assert.ok(batman.includes(ai.DK_ROLE_INFO.detective));
+  const part = gamePart(batman);
+  for (const line of part.split('\n').filter((l) => /Jack|Harleen|Pam|Basil/.test(l))) assert.ok(line.startsWith('Players:'), line);
+  assert.doesNotMatch(part, /poison|disguise|team/i);
+  assert.equal(ai.fixedAnswer('what does my role do?', ai.playerView(game, 'Bruce')), ai.DK_ROLE_INFO.detective);
+  // Clayface: his team and his disguise.
+  const clay = ai.buildSystemPrompt(ai.playerView(game, 'Basil'));
+  assert.match(clay, /Your disguise: The Batman sees you as Thomas Wayne/);
+  assert.match(clay, /Your team \(the other villains\): Jack \(The Joker\) picked Cora, Harleen \(Harley Quinn\), has not picked yet, Pam \(Poison Ivy\) picked Bruce/);
+  // A Citizen gets none of it.
+  const cit = gamePart(ai.buildSystemPrompt(ai.playerView(game, 'Cora')));
+  assert.match(cit, /Role: Citizen/);
+  assert.doesNotMatch(cit, /Joker|Harley|Ivy|Clayface|Batman|Wayne|poison|disguise|picked/i);
+});

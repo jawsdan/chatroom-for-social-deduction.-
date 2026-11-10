@@ -20,7 +20,26 @@ const ROLE_LABEL = {
   joker: 'Joker',
   vigilante: 'Vigilante',
   batman: 'Batman',
+  dkjoker: 'The Joker',
+  harley: 'Harley Quinn',
+  ivy: 'Poison Ivy',
+  clayface: 'Clayface',
 };
+// Game mode "The Dark Knight" renames the village roles.
+const DK_LABEL = { civilian: 'Citizen', doctor: 'Thomas Wayne', detective: 'The Batman', officer: 'Commissioner Gordon' };
+const DK_ROLE_INFO = {
+  civilian: 'Citizen (Gotham side). You have no night ability. Talk in the main lobby, work out who The Joker and his villains are, and vote Guilty in trials to send them to Arkham Asylum.',
+  doctor: 'Thomas Wayne (Gotham side). Each night pick one player to protect with the Protect button, yourself included. If The Joker picks that player, they survive. If Poison Ivy poisons you, you cannot protect anyone that night.',
+  detective: 'The Batman (Gotham side). Each night pick one player to investigate. In the morning you learn their role. Careful: Clayface shows up as the role he chose as a disguise, and if Poison Ivy poisoned you that night your intel is wrong. You cannot investigate the same player twice.',
+  officer: 'Commissioner Gordon (Gotham side). By day you may arrest one player (once per day, final). Everyone is told. The arrested player cannot vote that day and cannot use their ability the following night.',
+  dkjoker: 'The Joker (villain). You are the only one who kills: each night pick one victim with the Kill button, or kill nobody. Plan with the other villains in the hideout chat, which is open at night. Thomas Wayne can save your victim.',
+  harley: "Harley Quinn (villain, The Joker's sidekick). You have no ability. You win if The Joker wins, so help him stay hidden and steer the votes. You can talk with the villains in the hideout at night.",
+  ivy: 'Poison Ivy (villain). Each night pick one player to poison with the Poison button. If they have an ability it is confused that night: Thomas Wayne cannot protect, and The Batman gets wrong intel. You cannot poison other villains.',
+  clayface: 'Clayface (villain). With the Disguise button you pick any role except The Batman. When The Batman investigates you, he sees that role instead of Clayface. You have no other ability.',
+};
+const DK_RULES = 'The Dark Knight mode: the village is Gotham. The Joker is the only killer. Villains (The Joker, Harley Quinn, Poison Ivy, Clayface) are not killed: when voted Guilty they are sent to Arkham Asylum. There is no Mother, Father or Son in this mode.';
+const labelIn = (mode, r) => (mode === 'darkknight' && DK_LABEL[r]) || ROLE_LABEL[r] || r || 'no role yet';
+const infoIn = (mode, r) => (mode === 'darkknight' && DK_ROLE_INFO[r]) || ROLE_INFO[r];
 
 const ROLE_INFO = {
   civilian:
@@ -89,7 +108,7 @@ function fixedAnswer(question, view) {
 function myRoleAnswer(view) {
   if (!view || view.moderator) return 'You are the moderator: you run the game. ' + RULES.moderator;
   if (!view.role) return 'You don\'t have a role yet. You get one when the moderator starts the game.';
-  return ROLE_INFO[view.role] || `Your role is ${roleLabel(view.role)}.`;
+  return infoIn(view.mode, view.role) || `Your role is ${labelIn(view.mode, view.role)}.`;
 }
 
 // ---------- What one player is allowed to know ----------
@@ -113,6 +132,7 @@ function playerView(game, name) {
 
   const view = {
     name: me?.name || name,
+    mode: game.mode || 'classic',
     moderator: isMod,
     phase: game.phase,
     night: game.nightNumber,
@@ -131,6 +151,7 @@ function playerView(game, name) {
     myCard: '',
     action: null,
     pack: null,
+    disguise: null,
   };
   // The moderator gets the general rules only, never the game's secrets.
   if (isMod || !me) return view;
@@ -157,8 +178,8 @@ function playerView(game, name) {
   view.modChat = (game.modThreads.get(k) || [])
     .filter((m) => known(m.ts))
     .slice(-10)
-    .map((m) => `${m.from === me.name ? 'You' : m.moderator ? 'Moderator' : m.from}: ${modText(m)}`)
-    .filter(Boolean);
+    .filter((m) => modText(m))
+    .map((m) => `${m.from === me.name ? 'You' : m.moderator ? 'Moderator' : m.from}: ${modText(m)}`);
   view.myManifesto = game.manifestos.get(k) || '';
   if (view.role === 'serialkiller') view.myCard = game.callingCards.get(k) || '';
 
@@ -169,11 +190,12 @@ function playerView(game, name) {
   }
 
   // Wolves: their pack. Picks only while they are alive.
-  if (!hidden && ['werewolf', 'joker'].includes(game.roleOf(k))) {
+  if (!hidden && game.disguiseOf) view.disguise = game.disguiseOf(k);
+  if (!hidden && (game.isVillain ? game.isVillain(k) : ['werewolf', 'joker'].includes(game.roleOf(k)))) {
     const pack = game.wolfNames().filter((n) => n.toLowerCase() !== k);
     if (pack.length) {
       view.pack = pack.map((n) => {
-        const p = { name: n, role: roleLabel(game.displayRole(n.toLowerCase())) };
+        const p = { name: n, role: labelIn(view.mode, game.displayRole(n.toLowerCase())) };
         if (!dead && game.phase === 'night') {
           const pick = game.nightActions.get(n.toLowerCase());
           p.pick = pick?.skip ? 'nobody' : pick?.target || 'not chosen yet';
@@ -190,7 +212,7 @@ function clueLine(c) {
   return c.text;
 }
 function modText(m) {
-  if (m.role) return `Your secret role is ${roleLabel(m.role)}.`;
+  if (m.role) return ''; // the role is already given above, with the right name for the game mode
   if (m.check) return `Investigation result: ${m.check.target} is ${m.check.label || m.check.result}.`;
   if (m.action) return m.action.skip ? 'Night action: kill nobody.' : m.action.target ? `Night action: ${m.action.kind} ${m.action.target}.` : '';
   return m.text || '';
@@ -209,7 +231,7 @@ function buildSystemPrompt(view) {
     RULES_TEXT,
     '',
     '# Roles',
-    ROLES_TEXT,
+    view.mode === 'darkknight' ? DK_RULES + '\n' + Object.values(DK_ROLE_INFO).join('\n') : ROLES_TEXT,
     '',
     '# This player'
   );
@@ -218,7 +240,8 @@ function buildSystemPrompt(view) {
     return L.join('\n');
   }
   L.push(`Name: ${view.name}`);
-  L.push(`Role: ${view.role ? roleLabel(view.role) : 'none yet'}`);
+  L.push(`Role: ${view.role ? labelIn(view.mode, view.role) : 'none yet'}`);
+  if (view.disguise) L.push(`Your disguise: The Batman sees you as ${labelIn(view.mode, view.disguise)}.`);
   L.push(`Status: ${view.dead ? 'dead (can only talk to the moderator; knows only what happened before dying)' : 'alive'}`);
   L.push(`Game: ${view.gameState === 'running' ? `running, ${view.phase}${view.night ? `, night ${view.night} so far` : ''}` : view.gameState === 'assigning' ? 'the moderator is handing out roles' : 'not started'}`);
   L.push(`Difficulty: ${view.difficulty}`);
@@ -233,7 +256,7 @@ function buildSystemPrompt(view) {
     );
   }
   if (view.pack) {
-    L.push('Your pack (the other wolves): ' + view.pack.map((p) => `${p.name} (${p.role})${!p.pick ? '' : p.pick === 'not chosen yet' ? ', has not picked yet' : ' picked ' + p.pick}`).join(', '));
+    L.push((view.mode === 'darkknight' ? 'Your team (the other villains): ' : 'Your pack (the other wolves): ') + view.pack.map((p) => `${p.name} (${p.role})${!p.pick ? '' : p.pick === 'not chosen yet' ? ', has not picked yet' : ' picked ' + p.pick}`).join(', '));
   }
   if (view.myManifesto) L.push(`Your manifesto: "${view.myManifesto}"`);
   if (view.myCard) L.push(`Your calling card: "${view.myCard}"`);
@@ -370,4 +393,4 @@ class AiHelper {
   }
 }
 
-module.exports = { ROLE_INFO, ROLE_LABEL, RULES, fixedAnswer, myRoleAnswer, playerView, buildSystemPrompt, buildMessages, streamChat, AiHelper, OLLAMA_OPTIONS };
+module.exports = { DK_ROLE_INFO, DK_LABEL, ROLE_INFO, ROLE_LABEL, RULES, fixedAnswer, myRoleAnswer, playerView, buildSystemPrompt, buildMessages, streamChat, AiHelper, OLLAMA_OPTIONS };

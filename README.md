@@ -36,6 +36,21 @@ Run the tests (no Ollama needed, it is faked):
 npm test
 ```
 
+## Game mode: The Dark Knight
+
+On the start menu the moderator can switch the game mode between **Original** and **The Dark Knight** (only between games; switching clears the roles). Everyone's screen gets the Batman look (the villains get The Joker's).
+
+- **Gotham's side:** Citizen (Civilian), **Thomas Wayne** (the Doctor), **The Batman** (the Detective) and **Commissioner Gordon** (the Officer). There is no Mother, Father or Son in this mode.
+- **The villains** share a hideout chat at night:
+  - **The Joker** is the only one who kills: he picks a victim each night (or nobody).
+  - **Harley Quinn** is his sidekick. She has no ability and wins if The Joker wins.
+  - **Poison Ivy** poisons one player each night. A poisoned Thomas Wayne cannot protect that night (he is told), and a poisoned Batman gets wrong intel (he is not told).
+  - **Clayface** picks a disguise with the *Disguise* button: any role except The Batman. The Batman sees him as that role.
+- **The Batman's intel** names the role of the player he investigated (always automatic in this mode).
+- **Arkham:** villains are not killed. When they are voted Guilty (or removed by the moderator) everyone is told they were sent to Arkham Asylum; on *Hard* nothing is said.
+- **Roles:** random roles deal one Joker, the villains switched on in *Roles in this game* (Harley Quinn, Poison Ivy, Clayface) and the chosen number of Thomas Wayne / The Batman / Commissioner Gordon; everyone else is a Citizen. Handing out roles by hand needs one Joker.
+- Only The Joker kills, so once he is in Arkham there are no more night kills.
+
 ## Features
 
 - **Start menu** — the game waits in a start menu until the moderator presses *New game*. With random roles it starts right away; otherwise the moderator gives each player a role in the menu (players see *Waiting for the moderator to assign roles*) and presses *Start game*. A game needs at least one killer (Werewolf). The timer doesn't run until then. People can join at any time, also mid-game. *End game* wipes everything and returns to the start menu.
@@ -65,6 +80,7 @@ npm test
 - **Character select** — after entering a name you pick a character (or none). Your character stands by the campfire with your name above it, and turns into a ghost if you die. Each character can be picked by one player at a time. Tap your name card to change it. New characters are added in `public/characters.js` (and `CHARACTERS` in `server.js`).
 - **Detective results: Automatic or Manual** — in *Roles in this game* the moderator picks whether the Detective learns good/bad automatically at sunrise, or the moderator answers by hand.
 - **Detective checks** — when an Detective asks the moderator about someone, the moderator opens the Detective's tab, picks the player they asked about and clicks *Wolf* (or *Killer* when there is only one) or *Civilian*. The answer stays in the Detective's chat and is also saved, privately, in the Detective's clues bar.
+- **Batman & Joker filters** — the Batman and Joker screens put a film filter over the background: cold, dark colors with rain, searchlights and lightning for Batman; purple-and-green colors with neon laughter and falling cards for the Joker.
 - **Role themes** — each player's screen matches their own secret role: red with fangs and dripping blood for Werewolves, blood splatter for the Serial Killer, teal with a heartbeat line for the Doctor, police lights and caution tape for the Detective, and a village with clouds (fireflies at night) for Civilians. The moderator sees the plain look.
 - **Test bots** — the moderator can add 1–10 bots. Bots count as players, get roles and vote at random in trials. They don't count for wipe votes. *Remove bots* takes them out again.
 - **Wolf den** — a secret chat for the werewolves (when there are two or more). Wolves can only write in it at night. The moderator can always read it.

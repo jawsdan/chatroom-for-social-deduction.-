@@ -34,9 +34,9 @@ window.ART.scalesSmall = '<img class="role-img" src="img/trial-sm.webp" alt="" d
 new Image().src = 'img/trial.webp';
 
 // Role pictures (round badges in public/img/roles). Bump the version when a picture changes.
-window.ROLE_IMG_VERSION = 4;
+window.ROLE_IMG_VERSION = 5;
 window.ROLE_IMG = {};
-for (const r of ['civilian', 'werewolf', 'serialkiller', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman']) {
+for (const r of ['civilian', 'werewolf', 'serialkiller', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman', 'dkjoker', 'harley', 'ivy', 'clayface', 'citizen', 'thomaswayne', 'dkbatman', 'gordon']) {
   window.ROLE_IMG[r] = `img/roles/${r}.webp?v=${window.ROLE_IMG_VERSION}`;
   window.ART[r] = `<img class="role-img" src="${window.ROLE_IMG[r]}" alt="" draggable="false">`;
   new Image().src = window.ROLE_IMG[r]; // preload so pop-ups show instantly

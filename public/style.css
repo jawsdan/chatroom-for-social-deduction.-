@@ -1727,3 +1727,79 @@ body.fx-role-batman .ab-night, body.fx-role-vigilante .ab-night, body.fx-role-jo
   .pt-new { position: absolute; top: 5px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
   .pt-empty { font-size: 0.72rem; color: #e8eaf6; padding: 4px; }
 }
+
+/* =========================================================
+   Game mode: The Dark Knight
+   ========================================================= */
+.start-mode { margin: 10px 0 4px; text-align: left; }
+.start-mode .segmented { margin-top: 6px; }
+.start-mode-name { font-weight: 800; font-size: 1rem; margin-top: 2px; }
+body.mode-dk #detectiveMode { display: none; }
+.disguise-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.disguise-tile { flex-direction: column; justify-content: center; align-items: center; gap: 4px; min-height: 84px; padding: 8px 4px; border-radius: 14px; text-align: center; font-size: 0.8rem; line-height: 1.15; }
+.disguise-tile .ri { width: 38px; height: 38px; }
+#actionPop .ap-pick.on.poison, .ap-pick.on.poison { border-color: #15803d; background: #e3f6e8; }
+.action-target.poison { color: #15803d; }
+
+/* =========================================================
+   Batman & Joker: film filters over the scene
+   (fx-grade recolors the background video itself; everything stays behind the messages)
+   ========================================================= */
+.fx-grade, .fx-tint, .fx-halftone, .fx-rain, .fx-lightning { position: absolute; inset: 0; pointer-events: none; }
+
+/* --- Batman: cold moonlit Gotham --- */
+.chat-fx.batman { background: none; }
+.chat-fx.batman .fx-grade {
+  -webkit-backdrop-filter: grayscale(0.75) brightness(0.62) contrast(1.25); backdrop-filter: grayscale(0.75) brightness(0.62) contrast(1.25);
+  background: linear-gradient(180deg, rgba(8, 16, 52, 0.55), rgba(10, 18, 44, 0.3) 45%, rgba(2, 4, 14, 0.7));
+}
+.fx-role-batman .fx-vignette { background: radial-gradient(ellipse at center, transparent 48%, rgba(0, 2, 12, 0.72) 100%); animation: none; }
+.fx-rain {
+  background-image: repeating-linear-gradient(104deg, transparent 0 22px, rgba(190, 210, 255, 0.16) 22px 23px, transparent 23px 61px);
+  background-size: 180px 260px; animation: rainFall 0.55s linear infinite; opacity: 0.8; will-change: background-position;
+}
+.fx-rain.far { background-size: 120px 170px; opacity: 0.4; animation-duration: 0.85s; }
+@keyframes rainFall { from { background-position: 0 0; } to { background-position: -65px 260px; } }
+.fx-lightning { background: radial-gradient(ellipse at 70% 0%, rgba(200, 220, 255, 0.55), transparent 60%); opacity: 0; animation: lightning 13s linear infinite; will-change: opacity; }
+@keyframes lightning { 0%, 91%, 100% { opacity: 0; } 92% { opacity: 0.9; } 93% { opacity: 0.15; } 94.5% { opacity: 0.7; } 97% { opacity: 0; } }
+.fx-searchlight {
+  position: absolute; bottom: 0; width: 34vmin; height: 130vmin; margin-left: -17vmin; transform-origin: 50% 100%;
+  background: linear-gradient(0deg, rgba(250, 230, 150, 0.22), rgba(250, 230, 150, 0.05) 70%, transparent);
+  clip-path: polygon(46% 100%, 54% 100%, 100% 0, 0 0); filter: blur(6px);
+  animation: searchSweep var(--t) ease-in-out infinite alternate; will-change: transform;
+}
+@keyframes searchSweep { from { transform: rotate(var(--a)); } to { transform: rotate(var(--b)); } }
+.chat-fx.batman .bat-signal { opacity: 0.7; filter: drop-shadow(0 0 26px rgba(250, 220, 120, 0.55)); }
+
+/* --- Joker: purple-and-green madness --- */
+.chat-fx.joker { background: none; animation: jokerTwitch 9s steps(1) infinite; }
+@keyframes jokerTwitch { 0%, 96%, 100% { transform: none; filter: none; } 96.5% { transform: translate(5px, -3px) skewX(1.5deg); filter: hue-rotate(40deg); } 97.5% { transform: translate(-4px, 2px); filter: hue-rotate(-30deg); } 98.5% { transform: translate(2px, 1px) skewX(-1deg); } }
+.chat-fx.joker .fx-grade { -webkit-backdrop-filter: grayscale(0.55) brightness(0.6) contrast(1.3); backdrop-filter: grayscale(0.55) brightness(0.6) contrast(1.3); }
+.chat-fx.joker .fx-tint {
+  background: linear-gradient(125deg, rgba(147, 51, 234, 0.75) 0%, rgba(88, 28, 135, 0.55) 38%, rgba(34, 160, 60, 0.55) 72%, rgba(132, 204, 22, 0.6) 100%);
+  mix-blend-mode: color; background-size: 180% 180%; animation: tintDrift 16s ease-in-out infinite alternate;
+}
+@keyframes tintDrift { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
+.fx-halftone { background-image: radial-gradient(rgba(0, 0, 0, 0.55) 1.3px, transparent 1.6px); background-size: 7px 7px; opacity: 0.35; -webkit-mask-image: linear-gradient(120deg, #000, transparent 45%, transparent 60%, #000); mask-image: linear-gradient(120deg, #000, transparent 45%, transparent 60%, #000); }
+.fx-role-joker .fx-vignette { background: radial-gradient(ellipse at center, transparent 46%, rgba(46, 6, 70, 0.6) 82%, rgba(10, 30, 6, 0.75) 100%); animation: vignettePulse 4s ease-in-out infinite; }
+.fx-spot { position: absolute; top: -20vmin; width: 60vmin; height: 60vmin; border-radius: 50%; background: radial-gradient(circle, rgba(192, 80, 255, 0.4), transparent 65%); filter: blur(8px); animation: spotBob var(--t) ease-in-out infinite alternate; will-change: transform, opacity; }
+.fx-spot.green { top: auto; bottom: -16vmin; background: radial-gradient(circle, rgba(132, 204, 22, 0.36), transparent 65%); }
+@keyframes spotBob { from { transform: translate(-6vw, 0) scale(0.9); opacity: 0.55; } to { transform: translate(10vw, 8vh) scale(1.2); opacity: 1; } }
+.chat-fx.joker .haha {
+  color: var(--c); opacity: 0.8; font-family: 'Marker Felt', 'Chalkboard SE', 'Comic Sans MS', cursive; font-style: italic;
+  text-shadow: 0 0 6px var(--c), 0 0 18px var(--c), 0 2px 0 rgba(0, 0, 0, 0.6); -webkit-text-stroke: 0.5px rgba(0, 0, 0, 0.5);
+  animation: hahaNeon var(--t) ease-in-out var(--d) infinite;
+}
+@keyframes hahaNeon { 0%, 100% { transform: rotate(var(--r)) scale(0.95); opacity: 0.25; } 8% { opacity: 0.9; } 10% { opacity: 0.35; } 14%, 60% { opacity: 0.9; transform: rotate(calc(var(--r) * -0.6)) scale(1.12); } 80% { opacity: 0.5; } }
+.fx-card {
+  position: absolute; top: -70px; width: 34px; height: 48px; border-radius: 5px; background: #f6f1e4; color: #18121f; border: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45); display: grid; place-items: center; font-weight: 900; font-size: 20px; line-height: 1; opacity: 0.85;
+  animation: cardFall var(--t) linear var(--d) infinite; will-change: transform;
+}
+.fx-card.red { color: #c0122f; }
+.fx-card span { position: absolute; top: 3px; left: 4px; font-size: 10px; }
+@keyframes cardFall { from { transform: translateY(0) rotate(var(--r)) scale(var(--s)); } to { transform: translateY(calc(100vh + 140px)) rotate(calc(var(--r) + 540deg)) scale(var(--s)); } }
+@media (prefers-reduced-motion: reduce) { .fx-rain, .fx-lightning, .fx-searchlight, .fx-card, .fx-spot, .chat-fx.joker, .chat-fx.joker .fx-tint { animation: none; } }
+
+.chat-fx .fx-vignette { position: absolute; }
+.chat-fx.joker .fx-grade { background: linear-gradient(180deg, rgba(24, 6, 40, 0.5), rgba(14, 4, 26, 0.3) 50%, rgba(8, 20, 6, 0.5)); }
