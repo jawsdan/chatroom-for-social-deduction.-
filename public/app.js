@@ -2147,155 +2147,165 @@ let randomizeOnStart = true;
 let charAfterJoin = false;
 
 // ---------- Main menu (before a game) ----------
+// A simple stack of big buttons. Each one opens its own page with a Back button.
 let menuClosed = false; // the player went to the chat; a button in the chat brings the menu back
 let menuWasWaiting = false;
 let menuBots = 4;
-function menuSection(title, extraCls = '') {
-  const s = el('section', 'mm-sec ' + extraCls);
-  s.append(el('div', 'mm-title', title));
-  return s;
+let menuPage = 'home'; // 'home' | 'mode' | 'mod' | 'players' | 'roles'
+function menuGo(page) {
+  menuPage = page;
+  $('mainMenu').dataset.sig = '';
+  $('mmCard').scrollTop = 0;
+  renderMainMenu();
+}
+// A big menu button: icon, title and a small line under it.
+function menuTab(icon, title, sub, onClick, cls = '') {
+  const b = el('button', 'mm-tab ' + cls);
+  b.type = 'button';
+  const ic = el('span', 'mm-tab-icon');
+  if (icon instanceof Node) ic.append(icon);
+  else ic.textContent = icon;
+  const t = el('span', 'mm-tab-text');
+  t.append(el('b', '', title));
+  if (sub) t.append(el('span', '', sub));
+  b.append(ic, t, el('span', 'mm-tab-arrow', '›'));
+  b.onclick = onClick;
+  return b;
+}
+// What still stops the moderator from starting, or null.
+function menuStartProblem(players, cfg) {
+  if (!players.length) return 'Wait for players to join, or add some bots.';
+  const fam = !dkMode() && familyOn(cfg, players.length);
+  const special = dkMode() ? dkSpecial(cfg) : cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (fam ? 3 : 0);
+  if (randomizeOnStart && special > players.length) return `${special} special roles but only ${players.length} player${players.length === 1 ? '' : 's'}. Change the roles or add bots.`;
+  if (!dkMode() && randomizeOnStart && cfg.werewolf < 1) return 'Add at least one Werewolf in Roles.';
+  return null;
 }
 function renderMainMenu() {
   const menu = $('mainMenu');
   const waiting = !!me && state.gameState === 'waiting';
-  // Back from a game: the menu opens again.
-  if (waiting && !menuWasWaiting) menuClosed = false;
+  // Back from a game: the menu opens again, on its first page.
+  if (waiting && !menuWasWaiting) {
+    menuClosed = false;
+    menuPage = 'home';
+  }
   menuWasWaiting = waiting;
   const show = waiting && !menuClosed;
   menu.classList.toggle('hidden', !show);
   document.body.classList.toggle('menu-open', show);
   const rc = $('rolesCard');
-  if (!show) {
+  if (!show || menuPage !== 'roles' || !amMod()) {
     if (rc.parentElement !== $('sideRight')) $('sideRight').insertBefore(rc, $('modCard'));
+  }
+  if (!show) {
     menu.dataset.sig = '';
     return;
   }
   const players = state.users.filter((u) => !u.moderator);
   const mineChar = myCharacter();
   const cfg = state.modView?.roleConfig;
-  const sig = JSON.stringify([state.users, state.moderator, amMod(), state.mode, cfg, randomizeOnStart, menuBots, mineChar]);
+  // Pages only the moderator has.
+  if (!amMod() && (menuPage === 'mod' || menuPage === 'roles')) menuPage = 'home';
+  const sig = JSON.stringify([menuPage, state.users, state.moderator, amMod(), state.mode, cfg, randomizeOnStart, menuBots, mineChar]);
   if (menu.dataset.sig === sig) return;
   menu.dataset.sig = sig;
   const card = $('mmCard');
-  const scroll = card.scrollTop;
   card.innerHTML = '';
+  card.classList.toggle('mm-home', menuPage === 'home');
 
-  // Header
+  // Title
   const head = el('div', 'mm-head');
   const logo = el('div', 'mm-logo');
   logo.innerHTML = dkMode() ? ART.dkbatman : ART.night;
-  const htxt = el('div', 'mm-htxt');
-  htxt.append(el('h1', '', dkMode() ? 'The Dark Knight' : 'Village Chat'), el('div', 'mm-sub', 'Main menu · get everything ready, then start the game'));
-  const chatBtn = btn('btn-ghost mm-chat', '💬 Go to chat', () => {
-    menuClosed = true;
-    renderAll(false);
-  });
-  head.append(logo, htxt, chatBtn);
+  head.append(logo, el('h1', '', dkMode() ? 'The Dark Knight' : 'Village Chat'));
   card.append(head);
 
-  const grid = el('div', 'mm-grid');
-  const colA = el('div', 'mm-col');
-  const colB = el('div', 'mm-col');
+  const page = el('div', 'mm-page');
+  card.append(page);
+  const back = (title) => {
+    const row = el('div', 'mm-pagehead');
+    row.append(btn('btn-ghost mm-back', '← Back', () => menuGo('home')), el('h2', '', title));
+    page.append(row);
+  };
 
-  // You: your character
-  const you = menuSection('👤 You');
-  const youRow = el('div', 'mm-you');
-  const c = (window.CHARACTERS || []).find((x) => x.id === mineChar);
-  const pic = el('div', 'mm-char');
-  pic.innerHTML = c ? `<img src="${c.still || c.img}" alt="" draggable="false">` : '<span>🙂</span>';
-  const yt = el('div', 'mm-you-text');
-  yt.append(el('div', 'mm-you-name', me), el('div', 'mm-you-sub', c ? c.name : 'No character yet'));
-  youRow.append(pic, yt, btn('btn-soft', c ? '🔄 Change' : '✨ Choose character', openCharSelect));
-  you.append(youRow);
-  colA.append(you);
-
-  // Game mode
-  const mode = menuSection('🎮 Game mode');
-  const modes = el('div', 'mm-modes');
-  for (const [m, title, desc, art] of [
-    ['classic', 'Original', 'Werewolves hide in the village. Doctor, Detective, Officer and the family.', 'werewolf'],
-    ['darkknight', 'The Dark Knight', 'The Joker and his villains against Batman, Gordon and Thomas Wayne in Gotham.', 'dkjoker'],
-  ]) {
-    const on = (state.mode || 'classic') === m;
-    const b = el('button', 'mm-mode' + (on ? ' on' : ''));
-    b.type = 'button';
-    const img = el('img');
-    img.src = ROLE_IMG[art] || `img/roles/${art}.webp`;
-    img.alt = '';
-    const t = el('div', 'mm-mode-text');
-    t.append(el('b', '', title), el('span', '', desc));
-    b.append(img, t);
-    if (on) b.append(el('span', 'mm-tick', '✓'));
-    b.disabled = !amMod();
-    if (amMod()) b.onclick = () => socket.emit('mode:set', m);
-    modes.append(b);
-  }
-  mode.append(modes);
-  if (!amMod()) mode.append(el('p', 'mm-hint', 'The moderator picks the game mode.'));
-  colA.append(mode);
-
-  // Moderator
-  const modSec = menuSection('🛡️ Moderator');
-  if (!state.moderator) {
-    modSec.append(el('p', 'mm-hint', 'Nobody runs the game yet. The moderator hands out roles, switches day and night and starts trials.'));
-    modSec.append(btn('btn-primary btn-block', '🛡️ Become moderator', () => socket.emit('mod:claim')));
-  } else if (amMod()) {
-    const r = el('div', 'mm-mod');
-    r.append(el('div', 'mm-mod-name', '⭐ You run the game'));
-    modSec.append(r);
-    const others = state.users.filter((u) => !u.moderator && !u.bot);
-    if (others.length) {
+  if (menuPage === 'home') {
+    const c = (window.CHARACTERS || []).find((x) => x.id === mineChar);
+    // 1. Start game (or what's needed first)
+    if (!state.moderator) {
+      page.append(menuTab('🛡️', 'Become moderator', 'Someone has to run the game before it can start', () => socket.emit('mod:claim'), 'mm-main'));
+    } else if (amMod()) {
+      const problem = menuStartProblem(players, cfg);
+      const start = menuTab('▶', 'Start game', problem || `${players.length} player${players.length === 1 ? '' : 's'} · ${randomizeOnStart ? 'random roles' : 'you hand out the roles'}`, () => !problem && socket.emit('game:start', { randomize: randomizeOnStart }), 'mm-main');
+      start.disabled = !!problem;
+      page.append(start);
+    } else {
+      const w = el('div', 'mm-tab mm-main mm-waiting');
+      w.append(el('span', 'mm-tab-icon', '⏳'), Object.assign(el('span', 'mm-tab-text'), { innerHTML: '' }));
+      w.lastChild.append(el('b', '', 'Waiting to start'), el('span', '', `${state.moderator} starts the game`));
+      page.append(w);
+    }
+    // 2. Character
+    let charIcon = '🙂';
+    if (c) {
+      charIcon = el('img');
+      charIcon.src = c.still || c.img;
+      charIcon.alt = '';
+    }
+    page.append(menuTab(charIcon, 'Choose character', c ? c.name : 'No character yet', openCharSelect));
+    // 3. The rest
+    const modeIcon = el('img');
+    modeIcon.src = ROLE_IMG[dkMode() ? 'dkjoker' : 'werewolf'];
+    modeIcon.alt = '';
+    page.append(menuTab(modeIcon, 'Game mode', dkMode() ? 'The Dark Knight' : 'Original', () => menuGo('mode')));
+    page.append(menuTab('👥', amMod() ? 'Players & bots' : 'Players', `${players.length} joined${state.users.some((u) => u.bot) ? ' · with bots' : ''}`, () => menuGo('players')));
+    if (amMod()) {
+      page.append(menuTab('🎭', 'Roles', randomizeOnStart ? 'Random roles when the game starts' : 'You hand out the roles', () => menuGo('roles')));
+      page.append(menuTab('🛡️', 'Moderator', 'You run the game · hand over or step down', () => menuGo('mod')));
+    } else if (state.moderator) {
+      const m = el('p', 'mm-note', `🛡️ ${state.moderator} is the moderator.`);
+      page.append(m);
+    }
+    page.append(menuTab('💬', 'Go to chat', 'Talk while you wait', () => {
+      menuClosed = true;
+      renderAll(false);
+    }, 'mm-quiet'));
+  } else if (menuPage === 'mode') {
+    back('Game mode');
+    for (const [m, title, desc, art] of [
+      ['classic', 'Original', 'Werewolves hide in the village. Doctor, Detective, Officer and the family.', 'werewolf'],
+      ['darkknight', 'The Dark Knight', 'The Joker and his villains against Batman, Gordon and Thomas Wayne in Gotham.', 'dkjoker'],
+    ]) {
+      const on = (state.mode || 'classic') === m;
+      const img = el('img');
+      img.src = ROLE_IMG[art] || `img/roles/${art}.webp`;
+      img.alt = '';
+      const b = menuTab(img, title + (on ? '  ✓' : ''), desc, () => amMod() && socket.emit('mode:set', m), 'mm-mode' + (on ? ' on' : ''));
+      b.disabled = !amMod() && !on;
+      page.append(b);
+    }
+    if (!amMod()) page.append(el('p', 'mm-note', 'The moderator picks the game mode.'));
+  } else if (menuPage === 'players') {
+    back(amMod() ? 'Players & bots' : 'Players');
+    const chips = el('div', 'mm-players');
+    if (!players.length) chips.append(el('span', 'mm-note', 'Nobody yet. Share the link!'));
+    for (const u of players) {
+      const chip = el('span', 'mm-player' + (key(u.name) === key(me) ? ' me' : ''));
+      chip.append(avatar(u.name, 'sm'), document.createTextNode(u.name + (u.bot ? ' 🤖' : '')));
+      chips.append(chip);
+    }
+    page.append(chips);
+    if (amMod()) {
       const row = el('div', 'mm-row');
       const sel = el('select');
-      sel.setAttribute('aria-label', 'Hand the moderator role to');
-      for (const u of others) sel.append(Object.assign(el('option', '', u.name), { value: u.name }));
-      row.append(sel, btn('btn-soft', 'Hand over', () => socket.emit('mod:transfer', sel.value)));
-      modSec.append(row);
+      sel.setAttribute('aria-label', 'Number of bots');
+      for (let i = 1; i <= 10; i++) sel.append(Object.assign(el('option', '', String(i)), { value: String(i), selected: i === menuBots }));
+      sel.onchange = () => (menuBots = Number(sel.value));
+      row.append(sel, btn('btn-soft', '🤖 Add bots', () => socket.emit('bots:add', menuBots)));
+      if (state.users.some((u) => u.bot)) row.append(btn('btn-ghost', 'Remove bots', () => socket.emit('bots:remove')));
+      page.append(row, el('p', 'mm-note', 'Bots are fake players for testing. They get roles and vote.'));
     }
-    modSec.append(btn('btn-ghost btn-block', 'Step down', () => socket.emit('mod:stepDown')));
-  } else {
-    const r = el('div', 'mm-mod');
-    r.append(avatar(state.moderator, 'sm'), el('div', 'mm-mod-name', `${state.moderator} runs the game`));
-    modSec.append(r);
-  }
-  colA.append(modSec);
-
-  // Players and bots
-  const pl = menuSection(`👥 Players (${players.length})`);
-  const chips = el('div', 'mm-players');
-  if (!players.length) chips.append(el('span', 'mm-hint', 'Nobody yet. Share the link!'));
-  for (const u of players) {
-    const chip = el('span', 'mm-player' + (key(u.name) === key(me) ? ' me' : ''));
-    chip.append(avatar(u.name, 'sm'), document.createTextNode(u.name + (u.bot ? ' 🤖' : '')));
-    chips.append(chip);
-  }
-  pl.append(chips);
-  if (amMod()) {
-    const row = el('div', 'mm-row');
-    const sel = el('select');
-    sel.setAttribute('aria-label', 'Number of bots');
-    for (let i = 1; i <= 10; i++) sel.append(Object.assign(el('option', '', String(i)), { value: String(i), selected: i === menuBots }));
-    sel.onchange = () => (menuBots = Number(sel.value));
-    row.append(sel, btn('btn-soft', '🤖 Add bots', () => socket.emit('bots:add', menuBots)));
-    if (state.users.some((u) => u.bot)) row.append(btn('btn-ghost', 'Remove bots', () => socket.emit('bots:remove')));
-    pl.append(row, el('p', 'mm-hint', 'Bots are fake players for testing. They get roles and vote.'));
-  }
-  colB.append(pl);
-
-  // Roles (moderator): the same role setup as in the side panel, moved in here while the menu is open.
-  if (amMod() && cfg) {
-    const rs = menuSection('🎭 Roles in this game', 'mm-roles');
-    rs.append(rc);
-    colB.append(rs);
-  }
-  grid.append(colA, colB);
-  card.append(grid);
-
-  // Start
-  const foot = el('div', 'mm-foot');
-  if (amMod() && cfg) {
-    const fam = !dkMode() && familyOn(cfg, players.length);
-    const special = dkMode() ? dkSpecial(cfg) : cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (fam ? 3 : 0);
+  } else if (menuPage === 'roles') {
+    back('Roles');
     const lab = el('label', 'start-check');
     const cb = el('input');
     cb.type = 'checkbox';
@@ -2304,21 +2314,25 @@ function renderMainMenu() {
       randomizeOnStart = cb.checked;
       renderMainMenu();
     };
-    lab.append(cb, document.createTextNode(' Hand out random roles (untick to give roles yourself)'));
-    foot.append(lab);
-    const tooMany = randomizeOnStart && special > players.length;
-    const noKiller = !dkMode() && randomizeOnStart && cfg.werewolf < 1;
-    if (!players.length) foot.append(el('p', 'start-warn', 'Wait for players to join, or add some bots.'));
-    else if (tooMany) foot.append(el('p', 'start-warn', `You picked ${special} special roles but only ${players.length} player${players.length === 1 ? ' has' : 's have'} joined.`));
-    else if (noKiller) foot.append(el('p', 'start-warn', 'There needs to be at least one killer. Add a Werewolf.'));
-    const go = btn('btn-primary btn-lg btn-block mm-start', randomizeOnStart ? '▶ Start game' : '▶ Start: hand out roles', () => socket.emit('game:start', { randomize: randomizeOnStart }));
-    go.disabled = !players.length || tooMany || noKiller;
-    foot.append(go);
-  } else {
-    foot.append(el('p', 'mm-wait', state.moderator ? `⏳ Waiting for ${state.moderator} to start the game…` : '⏳ Someone needs to become the moderator to start a game.'));
+    lab.append(cb, document.createTextNode(' Hand out random roles when the game starts (untick to give them yourself)'));
+    page.append(lab);
+    const box = el('div', 'mm-roles');
+    box.append(rc);
+    page.append(box);
+  } else if (menuPage === 'mod') {
+    back('Moderator');
+    page.append(el('p', 'mm-note', '⭐ You run the game. You can also change this during the game from the side panel.'));
+    const others = state.users.filter((u) => !u.moderator && !u.bot);
+    if (others.length) {
+      const row = el('div', 'mm-row');
+      const sel = el('select');
+      sel.setAttribute('aria-label', 'Hand the moderator role to');
+      for (const u of others) sel.append(Object.assign(el('option', '', u.name), { value: u.name }));
+      row.append(sel, btn('btn-soft', 'Hand over', () => socket.emit('mod:transfer', sel.value)));
+      page.append(row);
+    }
+    page.append(btn('btn-ghost btn-block', 'Step down', () => socket.emit('mod:stepDown')));
   }
-  card.append(foot);
-  card.scrollTop = scroll;
 }
 
 socket.on('game:started', () => {

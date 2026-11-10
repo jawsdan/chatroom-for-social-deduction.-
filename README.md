@@ -53,7 +53,7 @@ On the start menu the moderator can switch the game mode between **Original** an
 
 ## Features
 
-- **Main menu** — before a game everyone sees a main menu: pick your character, see (or, as moderator, pick) the game mode, become the moderator or hand it over, add or remove test bots, set up the roles, and start the game. *Go to chat* closes it; a *Main menu* button in the lobby brings it back. After a game ends the menu opens again. Mid-game the moderator can still be changed from the side panel.
+- **Main menu** — before a game everyone sees a simple menu of big buttons, top to bottom: *Start game* (for the moderator; *Become moderator* when nobody runs the game, *Waiting to start* for players), *Choose character*, *Game mode*, *Players* (the moderator adds or removes bots there), *Roles* and *Moderator* (moderator only: role setup, hand over or step down) and *Go to chat*. Each opens its own page with a Back button. A *Main menu* button in the lobby brings it back, and it opens again when a game ends. Mid-game the moderator can still be changed from the side panel.
 - **Main lobby** — everyone who joins is here and can type. Players only have the main lobby and their private chat with the moderator.
 - **Moderator** — anyone can click *Become moderator* when the seat is empty. The moderator can step down or hand the role to someone else. The moderator can read and write in every chat.
 - **Talk to moderator** — every player has a private chat with the moderator. Nobody else sees it. The moderator sees one tab per player.
