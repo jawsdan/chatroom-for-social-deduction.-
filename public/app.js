@@ -218,8 +218,8 @@ $('joinForm').addEventListener('submit', (e) => {
     me = res.name;
     $('join').classList.add('hidden');
     $('app').classList.remove('hidden');
-    // Pick a character before playing.
-    openCharSelect();
+    // Before a game the main menu has the character picker; mid-game, pick one right away.
+    charAfterJoin = true;
   });
 });
 
@@ -236,6 +236,10 @@ socket.on('state', (s) => {
   clockOffset = s.serverNow - Date.now();
   tickPhaseTimer();
   applyGameMode(s.mode);
+  if (charAfterJoin) {
+    charAfterJoin = false;
+    if (s.gameState !== 'waiting') openCharSelect();
+  }
   if (channel === 'wolf' && !s.me.wolfAccess) channel = 'lobby';
   renderAll(false);
   // Players who picked a character stand by the fire.
@@ -712,6 +716,7 @@ function renderAll(redrawMessages = true) {
   renderActionPop();
   renderCluesBar();
   renderStartScreen();
+  renderMainMenu();
   renderModOverview();
   renderThreadTabs();
   renderComposer();
@@ -2139,12 +2144,203 @@ window.addEventListener('resize', () => state && renderCluesBar());
 // ---------- Start menu (before a game) ----------
 let startMinimized = false;
 let randomizeOnStart = true;
+let charAfterJoin = false;
+
+// ---------- Main menu (before a game) ----------
+let menuClosed = false; // the player went to the chat; a button in the chat brings the menu back
+let menuWasWaiting = false;
+let menuBots = 4;
+function menuSection(title, extraCls = '') {
+  const s = el('section', 'mm-sec ' + extraCls);
+  s.append(el('div', 'mm-title', title));
+  return s;
+}
+function renderMainMenu() {
+  const menu = $('mainMenu');
+  const waiting = !!me && state.gameState === 'waiting';
+  // Back from a game: the menu opens again.
+  if (waiting && !menuWasWaiting) menuClosed = false;
+  menuWasWaiting = waiting;
+  const show = waiting && !menuClosed;
+  menu.classList.toggle('hidden', !show);
+  document.body.classList.toggle('menu-open', show);
+  const rc = $('rolesCard');
+  if (!show) {
+    if (rc.parentElement !== $('sideRight')) $('sideRight').insertBefore(rc, $('modCard'));
+    menu.dataset.sig = '';
+    return;
+  }
+  const players = state.users.filter((u) => !u.moderator);
+  const mineChar = myCharacter();
+  const cfg = state.modView?.roleConfig;
+  const sig = JSON.stringify([state.users, state.moderator, amMod(), state.mode, cfg, randomizeOnStart, menuBots, mineChar]);
+  if (menu.dataset.sig === sig) return;
+  menu.dataset.sig = sig;
+  const card = $('mmCard');
+  const scroll = card.scrollTop;
+  card.innerHTML = '';
+
+  // Header
+  const head = el('div', 'mm-head');
+  const logo = el('div', 'mm-logo');
+  logo.innerHTML = dkMode() ? ART.dkbatman : ART.night;
+  const htxt = el('div', 'mm-htxt');
+  htxt.append(el('h1', '', dkMode() ? 'The Dark Knight' : 'Village Chat'), el('div', 'mm-sub', 'Main menu · get everything ready, then start the game'));
+  const chatBtn = btn('btn-ghost mm-chat', '💬 Go to chat', () => {
+    menuClosed = true;
+    renderAll(false);
+  });
+  head.append(logo, htxt, chatBtn);
+  card.append(head);
+
+  const grid = el('div', 'mm-grid');
+  const colA = el('div', 'mm-col');
+  const colB = el('div', 'mm-col');
+
+  // You: your character
+  const you = menuSection('👤 You');
+  const youRow = el('div', 'mm-you');
+  const c = (window.CHARACTERS || []).find((x) => x.id === mineChar);
+  const pic = el('div', 'mm-char');
+  pic.innerHTML = c ? `<img src="${c.still || c.img}" alt="" draggable="false">` : '<span>🙂</span>';
+  const yt = el('div', 'mm-you-text');
+  yt.append(el('div', 'mm-you-name', me), el('div', 'mm-you-sub', c ? c.name : 'No character yet'));
+  youRow.append(pic, yt, btn('btn-soft', c ? '🔄 Change' : '✨ Choose character', openCharSelect));
+  you.append(youRow);
+  colA.append(you);
+
+  // Game mode
+  const mode = menuSection('🎮 Game mode');
+  const modes = el('div', 'mm-modes');
+  for (const [m, title, desc, art] of [
+    ['classic', 'Original', 'Werewolves hide in the village. Doctor, Detective, Officer and the family.', 'werewolf'],
+    ['darkknight', 'The Dark Knight', 'The Joker and his villains against Batman, Gordon and Thomas Wayne in Gotham.', 'dkjoker'],
+  ]) {
+    const on = (state.mode || 'classic') === m;
+    const b = el('button', 'mm-mode' + (on ? ' on' : ''));
+    b.type = 'button';
+    const img = el('img');
+    img.src = ROLE_IMG[art] || `img/roles/${art}.webp`;
+    img.alt = '';
+    const t = el('div', 'mm-mode-text');
+    t.append(el('b', '', title), el('span', '', desc));
+    b.append(img, t);
+    if (on) b.append(el('span', 'mm-tick', '✓'));
+    b.disabled = !amMod();
+    if (amMod()) b.onclick = () => socket.emit('mode:set', m);
+    modes.append(b);
+  }
+  mode.append(modes);
+  if (!amMod()) mode.append(el('p', 'mm-hint', 'The moderator picks the game mode.'));
+  colA.append(mode);
+
+  // Moderator
+  const modSec = menuSection('🛡️ Moderator');
+  if (!state.moderator) {
+    modSec.append(el('p', 'mm-hint', 'Nobody runs the game yet. The moderator hands out roles, switches day and night and starts trials.'));
+    modSec.append(btn('btn-primary btn-block', '🛡️ Become moderator', () => socket.emit('mod:claim')));
+  } else if (amMod()) {
+    const r = el('div', 'mm-mod');
+    r.append(el('div', 'mm-mod-name', '⭐ You run the game'));
+    modSec.append(r);
+    const others = state.users.filter((u) => !u.moderator && !u.bot);
+    if (others.length) {
+      const row = el('div', 'mm-row');
+      const sel = el('select');
+      sel.setAttribute('aria-label', 'Hand the moderator role to');
+      for (const u of others) sel.append(Object.assign(el('option', '', u.name), { value: u.name }));
+      row.append(sel, btn('btn-soft', 'Hand over', () => socket.emit('mod:transfer', sel.value)));
+      modSec.append(row);
+    }
+    modSec.append(btn('btn-ghost btn-block', 'Step down', () => socket.emit('mod:stepDown')));
+  } else {
+    const r = el('div', 'mm-mod');
+    r.append(avatar(state.moderator, 'sm'), el('div', 'mm-mod-name', `${state.moderator} runs the game`));
+    modSec.append(r);
+  }
+  colA.append(modSec);
+
+  // Players and bots
+  const pl = menuSection(`👥 Players (${players.length})`);
+  const chips = el('div', 'mm-players');
+  if (!players.length) chips.append(el('span', 'mm-hint', 'Nobody yet. Share the link!'));
+  for (const u of players) {
+    const chip = el('span', 'mm-player' + (key(u.name) === key(me) ? ' me' : ''));
+    chip.append(avatar(u.name, 'sm'), document.createTextNode(u.name + (u.bot ? ' 🤖' : '')));
+    chips.append(chip);
+  }
+  pl.append(chips);
+  if (amMod()) {
+    const row = el('div', 'mm-row');
+    const sel = el('select');
+    sel.setAttribute('aria-label', 'Number of bots');
+    for (let i = 1; i <= 10; i++) sel.append(Object.assign(el('option', '', String(i)), { value: String(i), selected: i === menuBots }));
+    sel.onchange = () => (menuBots = Number(sel.value));
+    row.append(sel, btn('btn-soft', '🤖 Add bots', () => socket.emit('bots:add', menuBots)));
+    if (state.users.some((u) => u.bot)) row.append(btn('btn-ghost', 'Remove bots', () => socket.emit('bots:remove')));
+    pl.append(row, el('p', 'mm-hint', 'Bots are fake players for testing. They get roles and vote.'));
+  }
+  colB.append(pl);
+
+  // Roles (moderator): the same role setup as in the side panel, moved in here while the menu is open.
+  if (amMod() && cfg) {
+    const rs = menuSection('🎭 Roles in this game', 'mm-roles');
+    rs.append(rc);
+    colB.append(rs);
+  }
+  grid.append(colA, colB);
+  card.append(grid);
+
+  // Start
+  const foot = el('div', 'mm-foot');
+  if (amMod() && cfg) {
+    const fam = !dkMode() && familyOn(cfg, players.length);
+    const special = dkMode() ? dkSpecial(cfg) : cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (fam ? 3 : 0);
+    const lab = el('label', 'start-check');
+    const cb = el('input');
+    cb.type = 'checkbox';
+    cb.checked = randomizeOnStart;
+    cb.onchange = () => {
+      randomizeOnStart = cb.checked;
+      renderMainMenu();
+    };
+    lab.append(cb, document.createTextNode(' Hand out random roles (untick to give roles yourself)'));
+    foot.append(lab);
+    const tooMany = randomizeOnStart && special > players.length;
+    const noKiller = !dkMode() && randomizeOnStart && cfg.werewolf < 1;
+    if (!players.length) foot.append(el('p', 'start-warn', 'Wait for players to join, or add some bots.'));
+    else if (tooMany) foot.append(el('p', 'start-warn', `You picked ${special} special roles but only ${players.length} player${players.length === 1 ? ' has' : 's have'} joined.`));
+    else if (noKiller) foot.append(el('p', 'start-warn', 'There needs to be at least one killer. Add a Werewolf.'));
+    const go = btn('btn-primary btn-lg btn-block mm-start', randomizeOnStart ? '▶ Start game' : '▶ Start: hand out roles', () => socket.emit('game:start', { randomize: randomizeOnStart }));
+    go.disabled = !players.length || tooMany || noKiller;
+    foot.append(go);
+  } else {
+    foot.append(el('p', 'mm-wait', state.moderator ? `⏳ Waiting for ${state.moderator} to start the game…` : '⏳ Someone needs to become the moderator to start a game.'));
+  }
+  card.append(foot);
+  card.scrollTop = scroll;
+}
+
 socket.on('game:started', () => {
   startMinimized = false;
   toast('🎮 The game has started!');
 });
 function renderStartScreen() {
   const box = $('startScreen');
+  // Before a game the main menu does the job; in the chat there's only a button back to it.
+  if (state.gameState === 'waiting') {
+    const showBtn = menuClosed && channel === 'lobby';
+    box.classList.toggle('hidden', !showBtn);
+    document.body.classList.remove('start-open');
+    const sig = 'menu|' + showBtn + '|' + state.users.length;
+    if (box.dataset.sig === sig) return;
+    box.dataset.sig = sig;
+    box.innerHTML = '';
+    box.classList.add('minimized');
+    if (showBtn) box.append(btn('btn-primary', `🏠 Main menu (${state.users.filter((u) => !u.moderator).length} joined) ▸`, () => { menuClosed = false; renderAll(false); }));
+    return;
+  }
+  box.classList.remove('minimized');
   const show = state.gameState !== 'running' && channel === 'lobby';
   box.classList.toggle('hidden', !show);
   // On phones the open start menu gets the whole chat area (the floating panels step aside).
@@ -2634,7 +2830,7 @@ function closeCharSelect() {
 // After a reset the moderator picks a character again too.
 socket.on('game:reset', () => {
   toast('🔄 Everyone was kicked and the game was reset.');
-  openCharSelect();
+  menuClosed = false;
 });
 
 // ---------- Phone: fixed button menu (top left) and players list (top right) ----------

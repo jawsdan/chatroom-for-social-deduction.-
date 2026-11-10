@@ -53,7 +53,7 @@ On the start menu the moderator can switch the game mode between **Original** an
 
 ## Features
 
-- **Start menu** — the game waits in a start menu until the moderator presses *New game*. With random roles it starts right away; otherwise the moderator gives each player a role in the menu (players see *Waiting for the moderator to assign roles*) and presses *Start game*. A game needs at least one killer (Werewolf). The timer doesn't run until then. People can join at any time, also mid-game. *End game* wipes everything and returns to the start menu.
+- **Main menu** — before a game everyone sees a main menu: pick your character, see (or, as moderator, pick) the game mode, become the moderator or hand it over, add or remove test bots, set up the roles, and start the game. *Go to chat* closes it; a *Main menu* button in the lobby brings it back. After a game ends the menu opens again. Mid-game the moderator can still be changed from the side panel.
 - **Main lobby** — everyone who joins is here and can type. Players only have the main lobby and their private chat with the moderator.
 - **Moderator** — anyone can click *Become moderator* when the seat is empty. The moderator can step down or hand the role to someone else. The moderator can read and write in every chat.
 - **Talk to moderator** — every player has a private chat with the moderator. Nobody else sees it. The moderator sees one tab per player.
