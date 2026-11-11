@@ -237,6 +237,12 @@ socket.on('state', (s) => {
   clockOffset = s.serverNow - Date.now();
   tickPhaseTimer();
   applyGameMode(s.mode);
+  // The moderator picks the background for everyone.
+  const wantPix = s.display?.background !== 'video';
+  if (window.PixelScene && window.PixelScene.enabled() !== wantPix) {
+    window.PixelScene.setEnabled(wantPix);
+    window.setScene?.(currentPhase);
+  }
   window.PixelScene?.update(s);
   // Your own night pick shows only on your own screen.
   const act = s.me?.action;
@@ -1888,10 +1894,18 @@ function rnd(a, b) {
 }
 // The new family roles borrow the closest existing screen theme.
 const THEME_FOR = { officer: 'detective', mother: 'civilian', father: 'civilian', son: 'civilian' };
+// Role filters (the themed look of your screen): you can switch them off for yourself,
+// and the moderator can switch them off for everyone.
+let myFilters = true;
+try {
+  myFilters = localStorage.getItem('roleFilters') !== 'off';
+} catch {}
+const filtersOn = () => myFilters && state?.display?.filters !== false;
 function renderRoleFx() {
   let raw = !state || amMod() ? null : state.me.role || null;
   // The Dark Knight: all of Gotham gets the Batman look; the villains get The Joker's.
   if (state && dkMode()) raw = DK_VILLAINS.includes(raw) ? 'joker' : 'batman';
+  if (!filtersOn()) raw = null;
   const role = THEME_FOR[raw] || raw;
   if (role === fxRole) return;
   fxRole = role;
@@ -2555,7 +2569,7 @@ function renderMainMenu() {
   const cfg = state.modView?.roleConfig;
   // Pages only the moderator has.
   if (!amMod() && (menuPage === 'mod' || menuPage === 'roles')) menuPage = 'home';
-  const sig = JSON.stringify([menuPage, state.users, state.moderator, amMod(), state.mode, cfg, randomizeOnStart, menuBots, mineChar, state.gameState, state.modView?.detectiveMode, waiting]);
+  const sig = JSON.stringify([menuPage, state.users, state.moderator, amMod(), state.mode, cfg, randomizeOnStart, menuBots, mineChar, state.gameState, state.modView?.detectiveMode, waiting, state.display, myFilters]);
   if (menu.dataset.sig === sig) return;
   menu.dataset.sig = sig;
   const card = $('mmCard');
@@ -2617,14 +2631,26 @@ function renderMainMenu() {
       const m = el('p', 'mm-note', `🛡️ ${state.moderator} is the moderator.`);
       page.append(m);
     }
-    const pix = !!window.PixelScene?.enabled();
-    page.append(menuTab('🖼️', 'Background', pix ? 'Live pixel scene · tap for the videos' : 'Videos · tap for the live pixel scene', () => {
-      window.PixelScene.setEnabled(!pix);
-      window.setScene?.(currentPhase);
-      window.setFireCharacters?.(state.users.map((u) => ({ name: u.name, character: u.character, mod: u.moderator, dead: u.muted || state.dead?.includes(key(u.name)) })), state.phase, sceneInfo(state));
+    // Filters: your own switch, and the moderator's switch for everyone.
+    const modOff = state.display?.filters === false;
+    const ft = menuTab('✨', 'Filters', modOff ? 'Turned off for everyone by the moderator' : myFilters ? 'On · the look of your role on your screen · tap to turn off' : 'Off · tap to turn the look of your role back on', () => {
+      if (modOff) return;
+      myFilters = !myFilters;
+      try {
+        localStorage.setItem('roleFilters', myFilters ? 'on' : 'off');
+      } catch {}
+      fxRole = undefined;
+      renderRoleFx();
       $('mainMenu').dataset.sig = '';
       renderMainMenu();
-    }, 'mt-bg'));
+    }, 'mt-filters');
+    ft.disabled = modOff && !amMod();
+    page.append(ft);
+    if (amMod()) {
+      page.append(menuTab('🌐', 'Filters for everyone', modOff ? 'Off for all players · tap to allow them again' : 'Allowed · each player can still turn theirs off · tap to turn off for all', () => socket.emit('display:set', { filters: modOff }), 'mt-filters-all'));
+      const pix = state.display?.background !== 'video';
+      page.append(menuTab('🖼️', 'Background for everyone', pix ? 'Live pixel village · tap for the videos' : 'Videos · tap for the live pixel village', () => socket.emit('display:set', { background: pix ? 'video' : 'pixel' }), 'mt-bg'));
+    }
     if (waiting) page.append(menuTab('💬', 'Go to chat', 'Talk while you wait · tap your name to come back', closeMainMenu, 'mm-quiet mt-chat'));
   } else if (menuPage === 'mode') {
     back('Game mode');

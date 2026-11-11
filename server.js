@@ -19,6 +19,8 @@ const ROLES = ['civilian', 'werewolf', 'doctor', 'detective', 'officer', 'mother
 // Game mode "The Dark Knight": Citizen, Thomas Wayne (doctor), The Batman (detective), Commissioner Gordon (officer)
 // against The Joker (the only killer), Harley Quinn (sidekick), Poison Ivy (poisons) and Clayface (disguise).
 let gameMode = 'classic'; // 'classic' | 'darkknight'
+// Chosen by the moderator for everyone: the background (live pixel village or videos) and whether role filters are allowed.
+const display = { background: 'pixel', filters: true };
 const dk = () => gameMode === 'darkknight';
 const DK_VILLAINS = ['dkjoker', 'harley', 'ivy', 'clayface'];
 const DK_ROLES = ['civilian', 'doctor', 'detective', 'officer', ...DK_VILLAINS];
@@ -188,6 +190,7 @@ function broadcastState() {
     phaseStartedAt,
     nightNumber,
     mode: gameMode,
+    display,
     gameState,
     serverNow: Date.now(),
     trial: trialPublic,
@@ -1613,6 +1616,14 @@ io.on('connection', (socket) => {
       if (member) io.to(member.id).emit('seen', payload);
       if (moderatorId && moderatorId !== member?.id) io.to(moderatorId).emit('seen', payload);
     }
+  });
+
+  // ---- Look for everyone (moderator) ----
+  socket.on('display:set', (patch = {}) => {
+    if (!isMod(socket)) return;
+    if (['pixel', 'video'].includes(patch.background)) display.background = patch.background;
+    if (typeof patch.filters === 'boolean') display.filters = patch.filters;
+    broadcastState();
   });
 
   // ---- Game mode (only between games) ----

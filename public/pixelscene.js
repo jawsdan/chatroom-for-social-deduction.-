@@ -8,10 +8,9 @@
 // Switch it off in the main menu (Background) to get the videos back.
 (function () {
   const STORE = 'pixelScene';
+  // The moderator picks pixel village or videos for everyone (see app.js).
   let enabled = true;
-  try {
-    enabled = localStorage.getItem(STORE) !== 'off';
-  } catch {}
+  void STORE;
 
   let back = null;
   let front = null;
@@ -1109,9 +1108,6 @@
     personSprite,
     setEnabled(on) {
       enabled = !!on;
-      try {
-        localStorage.setItem(STORE, on ? 'on' : 'off');
-      } catch {}
     },
     // Where the plaza and the trial stand sit, in screen pixels (worked out from the chat area).
     setPlaza(cx, cy, rx, ry, st) {
