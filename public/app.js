@@ -3170,7 +3170,7 @@ function renderPhoneDock() {
   if (!amMod()) items.push({ id: 'manifesto', icon: '📜', label: 'Will', go: () => openNoteEditor('manifesto') });
   if (state.me.disguise) items.push({ id: 'disguise', icon: '🎭', label: 'Disguise', go: openDisguisePicker });
   if (!amMod() && (state.me.action || state.me.abilityLog?.length || state.me.role === 'batman')) items.push({ id: 'results', icon: '🔮', label: 'Results', on: resultsOpen, go: toggleResultsPop });
-  if (amMod()) items.push({ id: 'abilities', icon: '🎭', label: 'Roles', go: () => openPanel('left') });
+  if (amMod()) items.push({ id: 'abilities', icon: '💬', label: 'Chats', go: () => openPanel('left') });
   if (amMod()) {
     // The moderator's game panel: day/night, trials, roles, bots.
     items.push({ id: 'game', icon: '⚙️', label: 'Game', go: () => openPanel('right') });
