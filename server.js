@@ -843,7 +843,14 @@ function vigilanteOutcome() {
 function callingCardFor(victimName) {
   for (const [k, a] of nightActions) {
     if (a.kind === 'kill' && key(a.target) === key(victimName) && displayRole(k) === 'serialkiller') {
-      return callingCards.get(k) || null;
+      const card = callingCards.get(k) || null;
+      // The card is left with this victim, so it's used up: the killer writes a new one for the next.
+      if (card) {
+        callingCards.delete(k);
+        const u = userByName(k);
+        if (u) io.to(u.id).emit('notice', '🃏 Your calling card was left with ' + victimName + '. Write a new one for your next victim.');
+      }
+      return card;
     }
   }
   return null;
