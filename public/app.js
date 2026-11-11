@@ -2483,7 +2483,7 @@ function renderMainMenu() {
   const head = el('div', 'mm-head');
   const logo = el('div', 'mm-logo');
   logo.innerHTML = dkMode() ? ART.dkbatman : ART.night;
-  head.append(logo, el('h1', '', dkMode() ? 'The Dark Knight' : 'Village Chat'));
+  head.append(logo, el('h1', '', dkMode() ? 'The Dark Knight' : 'Village Chat'), el('div', 'mm-tagline', dkMode() ? 'Gotham needs a hero tonight' : 'Trust no one around the fire'));
   card.append(head);
 
   const page = el('div', 'mm-page');
@@ -2512,29 +2512,29 @@ function renderMainMenu() {
       w.lastChild.append(el('b', '', 'Waiting to start'), el('span', '', `${state.moderator} starts the game`));
       page.append(w);
     }
-    // 2. Character
+    // 2. Game mode, role overview, players, character
+    const modeIcon = el('img');
+    modeIcon.src = ROLE_IMG[dkMode() ? 'dkjoker' : 'werewolf'];
+    modeIcon.alt = '';
+    page.append(menuTab(modeIcon, 'Game mode', dkMode() ? 'The Dark Knight' : 'Original', () => menuGo('mode'), 'mt-mode'));
+    page.append(menuTab('📖', 'Role overview', 'Every role in this game mode and what it does', () => menuGo('overview'), 'mt-overview'));
+    page.append(menuTab('👥', amMod() ? 'Players & bots' : 'Players', `${players.length} joined${state.users.some((u) => u.bot) ? ' · with bots' : ''}`, () => menuGo('players'), 'mt-players'));
     let charIcon = '🙂';
     if (c) {
       charIcon = el('img');
       charIcon.src = c.still || c.img;
       charIcon.alt = '';
     }
-    page.append(menuTab(charIcon, 'Choose character', c ? c.name : 'No character yet', openCharSelect));
-    // 3. The rest
-    const modeIcon = el('img');
-    modeIcon.src = ROLE_IMG[dkMode() ? 'dkjoker' : 'werewolf'];
-    modeIcon.alt = '';
-    page.append(menuTab(modeIcon, 'Game mode', dkMode() ? 'The Dark Knight' : 'Original', () => menuGo('mode')));
-    page.append(menuTab('📖', 'Role overview', 'Every role in this game mode and what it does', () => menuGo('overview')));
-    page.append(menuTab('👥', amMod() ? 'Players & bots' : 'Players', `${players.length} joined${state.users.some((u) => u.bot) ? ' · with bots' : ''}`, () => menuGo('players')));
+    page.append(menuTab(charIcon, 'Choose character', c ? c.name : 'No character yet', openCharSelect, 'mt-char'));
+    // 3. Moderator only
     if (amMod()) {
-      page.append(menuTab('🎭', 'Roles', randomizeOnStart ? 'Random roles when the game starts' : 'You hand out the roles', () => menuGo('roles')));
-      page.append(menuTab('🛡️', 'Moderator', 'You run the game · hand over or step down', () => menuGo('mod')));
+      page.append(menuTab('🎭', 'Roles', randomizeOnStart ? 'Random roles when the game starts' : 'You hand out the roles', () => menuGo('roles'), 'mt-roles'));
+      page.append(menuTab('🛡️', 'Moderator', 'You run the game · hand over or step down', () => menuGo('mod'), 'mt-modr'));
     } else if (state.moderator) {
       const m = el('p', 'mm-note', `🛡️ ${state.moderator} is the moderator.`);
       page.append(m);
     }
-    if (waiting) page.append(menuTab('💬', 'Go to chat', 'Talk while you wait · tap your name to come back', closeMainMenu, 'mm-quiet'));
+    if (waiting) page.append(menuTab('💬', 'Go to chat', 'Talk while you wait · tap your name to come back', closeMainMenu, 'mm-quiet mt-chat'));
   } else if (menuPage === 'mode') {
     back('Game mode');
     for (const [m, title, desc, art] of [
