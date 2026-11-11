@@ -2568,7 +2568,7 @@ function renderMainMenu() {
   const mineChar = myCharacter();
   const cfg = state.modView?.roleConfig;
   // Pages only the moderator has.
-  if (!amMod() && (menuPage === 'mod' || menuPage === 'roles')) menuPage = 'home';
+  if (!amMod() && ['mod', 'roles', 'settings'].includes(menuPage)) menuPage = 'home';
   const sig = JSON.stringify([menuPage, state.users, state.moderator, amMod(), state.mode, cfg, randomizeOnStart, menuBots, mineChar, state.gameState, state.modView?.detectiveMode, waiting, state.display, myFilters]);
   if (menu.dataset.sig === sig) return;
   menu.dataset.sig = sig;
@@ -2587,7 +2587,9 @@ function renderMainMenu() {
   card.append(page);
   const back = (title) => {
     const row = el('div', 'mm-pagehead');
-    row.append(btn('btn-ghost mm-back', '← Back', () => menuGo('home')), el('h2', '', title));
+    // Pages inside the moderator's Game settings go back there.
+    const up = amMod() && ['roles', 'mode', 'mod'].includes(menuPage) ? 'settings' : 'home';
+    row.append(btn('btn-ghost mm-back', '← Back', () => menuGo(up)), el('h2', '', title));
     page.append(row);
   };
 
@@ -2609,12 +2611,12 @@ function renderMainMenu() {
       w.lastChild.append(el('b', '', 'Waiting to start'), el('span', '', `${state.moderator} starts the game`));
       page.append(w);
     }
-    // 2. Roles (moderator), game mode, role overview, players, character
-    if (amMod()) page.append(menuTab('🎭', 'Roles', randomizeOnStart ? 'Random roles when the game starts' : 'You hand out the roles', () => menuGo('roles'), 'mt-roles'));
+    // 2. Moderator: everything that changes the game sits in Game settings. Players see the game mode.
     const modeIcon = el('img');
     modeIcon.src = ROLE_IMG[dkMode() ? 'dkjoker' : 'werewolf'];
     modeIcon.alt = '';
-    page.append(menuTab(modeIcon, 'Game mode', dkMode() ? 'The Dark Knight' : 'Original', () => menuGo('mode'), 'mt-mode'));
+    if (amMod()) page.append(menuTab('⚙️', 'Game settings', `${dkMode() ? 'The Dark Knight' : 'Original'} · roles · filters · background · moderator`, () => menuGo('settings'), 'mt-settings'));
+    else page.append(menuTab(modeIcon, 'Game mode', dkMode() ? 'The Dark Knight' : 'Original', () => menuGo('mode'), 'mt-mode'));
     page.append(menuTab('📖', 'Role overview', 'Every role in this game mode and what it does', () => menuGo('overview'), 'mt-overview'));
     page.append(menuTab('👥', amMod() ? 'Players & bots' : 'Players', `${players.length} joined${state.users.some((u) => u.bot) ? ' · with bots' : ''}`, () => menuGo('players'), 'mt-players'));
     let charIcon = '🙂';
@@ -2624,10 +2626,7 @@ function renderMainMenu() {
       charIcon.alt = '';
     }
     page.append(menuTab(charIcon, 'Choose character', c ? c.name : 'No character yet', openCharSelect, 'mt-char'));
-    // 3. Moderator only
-    if (amMod()) {
-      page.append(menuTab('🛡️', 'Moderator', 'You run the game · hand over or step down', () => menuGo('mod'), 'mt-modr'));
-    } else if (state.moderator) {
+    if (!amMod() && state.moderator) {
       const m = el('p', 'mm-note', `🛡️ ${state.moderator} is the moderator.`);
       page.append(m);
     }
@@ -2646,12 +2645,19 @@ function renderMainMenu() {
     }, 'mt-filters');
     ft.disabled = modOff && !amMod();
     page.append(ft);
-    if (amMod()) {
-      page.append(menuTab('🌐', 'Filters for everyone', modOff ? 'Off for all players · tap to allow them again' : 'Allowed · each player can still turn theirs off · tap to turn off for all', () => socket.emit('display:set', { filters: modOff }), 'mt-filters-all'));
-      const pix = state.display?.background !== 'video';
-      page.append(menuTab('🖼️', 'Background for everyone', pix ? 'Live pixel village · tap for the videos' : 'Videos · tap for the live pixel village', () => socket.emit('display:set', { background: pix ? 'video' : 'pixel' }), 'mt-bg'));
-    }
     if (waiting) page.append(menuTab('💬', 'Go to chat', 'Talk while you wait · tap your name to come back', closeMainMenu, 'mm-quiet mt-chat'));
+  } else if (menuPage === 'settings') {
+    back('Game settings');
+    const modeIcon = el('img');
+    modeIcon.src = ROLE_IMG[dkMode() ? 'dkjoker' : 'werewolf'];
+    modeIcon.alt = '';
+    page.append(menuTab('🎭', 'Roles', randomizeOnStart ? 'Random roles when the game starts' : 'You hand out the roles', () => menuGo('roles'), 'mt-roles'));
+    page.append(menuTab(modeIcon, 'Game mode', dkMode() ? 'The Dark Knight' : 'Original', () => menuGo('mode'), 'mt-mode'));
+    const modOff = state.display?.filters === false;
+    page.append(menuTab('🌐', 'Filters for everyone', modOff ? 'Off for all players · tap to allow them again' : 'Allowed · each player can still turn theirs off · tap to turn off for all', () => socket.emit('display:set', { filters: modOff }), 'mt-filters-all'));
+    const pix = state.display?.background !== 'video';
+    page.append(menuTab('🖼️', 'Background for everyone', pix ? 'Live pixel village · tap for the videos' : 'Videos · tap for the live pixel village', () => socket.emit('display:set', { background: pix ? 'video' : 'pixel' }), 'mt-bg'));
+    page.append(menuTab('🛡️', 'Moderator', 'You run the game · hand over or step down', () => menuGo('mod'), 'mt-modr'));
   } else if (menuPage === 'mode') {
     back('Game mode');
     for (const [m, title, desc, art] of [

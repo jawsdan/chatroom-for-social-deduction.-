@@ -2213,3 +2213,4 @@ canvas.pixel-front.hidden { display: none; }
   .phone-dock.folded { grid-template-columns: auto; padding: 5px; }
   .phone-dock.folded .dock-btn { width: auto; padding: 0 12px; }
 }
+.mm-tab.mt-settings .mm-tab-icon { background: linear-gradient(135deg, #94a3b8, #334155); }
