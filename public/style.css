@@ -2038,3 +2038,26 @@ body.is-mod .side-left > .side-box, body.is-mod .side-left > .mod-tiles, body.is
 body.is-mod .side-left .nav-item, body.is-mod .mt-tile { background: color-mix(in srgb, #1d4ed8 14%, var(--surface)) !important; }
 body.is-mod .side-left .nav-item.selected { border-color: var(--mod-blue); background: color-mix(in srgb, var(--mod-blue) 30%, var(--surface)) !important; }
 body.is-mod .mt-badge { background: var(--mod-blue); }
+
+/* Roles box: roles side by side in a row (− count + under each), settings in the wide area below */
+.modal-card.desk-box.roles-box { width: min(900px, 100%); }
+.roles-box .rs-sec:not(.settings), .mm-roles .rs-sec:not(.settings) {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px;
+}
+.roles-box .rs-sec .rs-title, .mm-roles .rs-sec .rs-title { grid-column: 1 / -1; }
+.roles-box .rs-sec:not(.settings) .rs-row, .mm-roles .rs-sec:not(.settings) .rs-row {
+  flex-direction: column; justify-content: space-between; text-align: center; gap: 6px; padding: 10px 6px; min-height: 132px;
+}
+.roles-box .rs-sec:not(.settings) .rs-name, .mm-roles .rs-sec:not(.settings) .rs-name { flex: none; align-items: center; font-size: 0.86rem; line-height: 1.15; }
+.roles-box .rs-sec:not(.settings) .rs-icons .ri, .mm-roles .rs-sec:not(.settings) .rs-icons .ri { width: 40px; height: 40px; }
+.roles-box .rs-sec:not(.settings) .rs-step, .mm-roles .rs-sec:not(.settings) .rs-step { width: 100%; justify-content: space-between; padding: 0 4px; }
+.roles-box .rs-sec:not(.settings) .rs-step.fixed, .mm-roles .rs-sec:not(.settings) .rs-step.fixed { justify-content: center; }
+.roles-box .rs-sec:not(.settings) .rs-step.fixed .rs-btn, .mm-roles .rs-sec:not(.settings) .rs-step.fixed .rs-btn { display: none; }
+.roles-box .rs-sec:not(.settings) .rs-row .mini-seg, .mm-roles .rs-sec:not(.settings) .rs-row .mini-seg { font-size: 0.7rem; }
+.roles-box .rs-sec.settings { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.roles-box .rs-sec.settings .rs-title { grid-column: 1 / -1; }
+.roles-box .rs-hint { grid-column: 1 / -1; }
+@media (max-width: 760px) {
+  .roles-box .rs-sec:not(.settings), .mm-roles .rs-sec:not(.settings) { grid-template-columns: repeat(2, 1fr); }
+  .roles-box .rs-sec.settings { grid-template-columns: 1fr; }
+}
