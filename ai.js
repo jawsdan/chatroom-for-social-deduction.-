@@ -29,7 +29,7 @@ const ROLE_LABEL = {
 const DK_LABEL = { civilian: 'Citizen', doctor: 'Thomas Wayne', detective: 'The Batman', officer: 'Commissioner Gordon' };
 const DK_ROLE_INFO = {
   civilian: 'Citizen (Gotham side). You have no night ability. Talk in the main lobby, work out who The Joker and his villains are, and vote Guilty in trials to send them to Arkham Asylum.',
-  doctor: 'Thomas Wayne (Gotham side). Each night pick one player to protect with the Protect button, yourself included. If The Joker picks that player, they survive. If Poison Ivy poisons you, you cannot protect anyone that night.',
+  doctor: 'Thomas Wayne (Gotham side). Each night pick one player to protect with the Protect button. You can protect yourself, but not two nights in a row. If The Joker picks that player, they survive. If Poison Ivy poisons you, you cannot protect anyone that night.',
   detective: 'The Batman (Gotham side). Each night pick one player to investigate. In the morning you learn their role. Careful: Clayface shows up as the role he chose as a disguise, and if Poison Ivy poisoned you that night your intel is wrong. You cannot investigate the same player twice.',
   officer: 'Commissioner Gordon (Gotham side). By day you may arrest one player (once per day, final). Everyone is told. The arrested player cannot vote that day and cannot use their ability the following night.',
   dkjoker: 'The Joker (villain). You are the only one who kills: each night pick one victim with the Kill button, or kill nobody. Scheme with the other villains at Amusement Mile, the secret chat of the villains, which is open at night. Thomas Wayne can save your victim.',
@@ -49,7 +49,7 @@ const ROLE_INFO = {
   serialkiller:
     'Serial Killer (a lone werewolf, killer side). You work alone. Each night pick one victim with the Kill button, or kill nobody. You can write a calling card (100 characters) that is left with your victims. The Doctor can save your victim.',
   doctor:
-    'Doctor (village side). Each night pick one player to protect with the Protect button, yourself included. If the killers pick that player, they survive. Your result shows in your Ability results the next morning.',
+    'Doctor (village side). Each night pick one player to protect with the Protect button. You can protect yourself, but not two nights in a row. If the killers pick that player, they survive. Your result shows in your Ability results the next morning.',
   detective:
     'Detective (village side). Each night pick one player to investigate. In the morning you learn if they are good (Civilian) or bad (Wolf or Killer). You cannot investigate the same player twice.',
   officer:

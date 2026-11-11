@@ -28,7 +28,7 @@ const ROLE = {
   civilian: { label: 'Civilian', icon: '🧑‍🌾', color: 'var(--success)', desc: 'You have no special power, but your voice and your vote matter. Watch closely, find the killers and vote them out before it is too late.' },
   werewolf: { label: 'Werewolf', icon: '🐺', color: 'var(--danger)', desc: 'You hunt with your pack. Each night, plan in the wolf den and pick your victim with Kill. The whole pack must choose the same player. By day, blend in with the village.' },
   serialkiller: { label: 'Serial Killer', icon: '🔪', color: 'var(--danger)', desc: 'You work alone. Each night, choose your next victim with Kill, or let them live one more night. Leave your calling card behind, and never get caught.' },
-  doctor: { label: 'Doctor', icon: '🩺', color: '#0ea5e9', desc: 'Each night, choose one player to Protect, yourself included. If the killers come for them, they survive.' },
+  doctor: { label: 'Doctor', icon: '🩺', color: '#0ea5e9', desc: 'Each night, choose one player to Protect. If the killers come for them, they survive. You can protect yourself, but not two nights in a row.' },
   officer: { label: 'Officer', icon: '🚔', color: '#1d4ed8', desc: 'Each day you may arrest one player. They cannot vote that day and cannot use their ability the night after.' },
   detective: { label: 'Detective', icon: '👮', color: '#3b82f6', desc: 'Each night, choose one player to Investigate. In the morning you learn whether they are good or one of the killers.' },
   mother: { label: 'Mother', icon: '👩', color: '#b83b7a', desc: 'You are part of the family, on the village side. If your Son dies, grief turns you into the Joker and you join the wolves.' },
@@ -46,7 +46,7 @@ const ROLE = {
 // The Dark Knight renames the village roles and gives them new pictures.
 const DK_SKIN = {
   civilian: { label: 'Citizen', img: 'citizen', desc: 'You are an ordinary citizen of Gotham, and your city is rotting from the inside. Keep your eyes open, trust no smile, and vote the villains into Arkham before The Joker comes knocking on your door.' },
-  doctor: { label: 'Thomas Wayne', img: 'thomaswayne', desc: "You are Gotham's finest surgeon, and you refuse to let this city die. Each night, choose one player to Protect from The Joker. Beware Poison Ivy: her toxin leaves you too dizzy to save anyone that night." },
+  doctor: { label: 'Thomas Wayne', img: 'thomaswayne', desc: "You are Gotham's finest surgeon, and you refuse to let this city die. Each night, choose one player to Protect from The Joker (yourself too, but not two nights in a row). Beware Poison Ivy: her toxin leaves you too dizzy to save anyone that night." },
   detective: { label: 'The Batman', img: 'dkbatman', desc: "You are vengeance. You are the night. Each night, Investigate one player and learn who they really are. But trust nothing blindly: Clayface wears other faces, and Poison Ivy's toxin fills your head with false intel." },
   officer: { label: 'Commissioner Gordon', img: 'gordon', desc: "You are Gotham's last honest cop. Work with The Batman to expose The Joker and his crew. Each day you may Arrest one player: they cannot vote that day and cannot use their ability the night after." },
 };
@@ -3158,6 +3158,7 @@ function renderActionPop() {
   }
   const hint = { poison: 'Who do you want to poison? Their ability gets confused tonight.', interrogate: 'Who do you want to interrogate? If they are innocent, you lose this ability.', vigil: 'Who do you want to kill?', kill: 'Who do you want to kill?', heal: 'Who do you want to protect?', investigate: 'Who do you want to investigate?' }[a.kind];
   pop.append(el('div', 'rp-empty', a.skip ? 'You chose to kill nobody tonight. Tap someone to change.' : a.target ? `You chose ${a.target}. Tap someone else to change.` : hint));
+  if (a.noSelf) pop.append(el('div', 'rp-empty ap-noself', 'You protected yourself last night, so you can only protect someone else tonight.'));
   const list = el('div', 'rp-list');
   // Wolves: who in the pack picked whom, and how many votes each player has.
   const packSize = a.pack?.length ? a.pack.length + 1 : 0;

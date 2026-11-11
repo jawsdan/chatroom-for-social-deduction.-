@@ -61,6 +61,7 @@ let arrestedTonight = null; // lowercase name, blocked during the current night
 // Cleared when a new night starts.
 let nightActions = new Map();
 const autoProtected = new Map(); // doctor key -> target key they protected
+let selfHealedLastNight = new Set(); // doctors who protected themselves last night (they can't do it twice in a row)
 // Notes revealed on death: the Serial Killer's calling card and every other player's manifesto.
 const CARD_MAX = 100;
 const MANIFESTO_MAX = 200;
@@ -227,6 +228,7 @@ function broadcastState() {
     if (kind) {
       const mine = nightActions.get(key(u.name));
       s.me.action = { kind, target: mine?.target || null, skip: !!mine?.skip, targets: validTargets(u.name) };
+      if (kind === 'heal' && selfHealedLastNight.has(key(u.name))) s.me.action.noSelf = true;
       if (kind === 'investigate') {
         s.me.action.investigated = [...investigatedBy(u.name)]
           .map(([k, label]) => ({ name: userByName(k)?.name || k, label }))
@@ -345,6 +347,7 @@ function wipeEverything(reason) {
   startWolves = 0;
   killedNames = new Set();
   disguises = new Map();
+  selfHealedLastNight = new Set();
   deathAt = new Map();
   clues = [];
   privateClues = new Map();
@@ -457,7 +460,7 @@ function validTargets(actorName) {
     if (done.has(key(u.name))) return false;
     if (u.id === moderatorId || mutedNames.has(key(u.name))) return false;
     const self = key(u.name) === key(actorName);
-    if (kind === 'heal') return true; // the doctor may protect themselves
+    if (kind === 'heal') return !self || !selfHealedLastNight.has(key(actorName)); // themselves too, but not two nights in a row
     if (self) return false;
     if ((kind === 'kill' || kind === 'poison') && isWolfRole(roles.get(key(u.name)))) return false; // villains don't target each other
     return true;
@@ -1463,6 +1466,8 @@ io.on('connection', (socket) => {
       dayArrest = null;
       nightNumber++;
       // A fresh night: everyone picks again, and last night's protections end.
+      // Remember which doctors protected themselves, so they can't do it again tonight.
+      selfHealedLastNight = new Set([...nightActions].filter(([k, a]) => a.kind === 'heal' && a.target && key(a.target) === k).map(([k]) => k));
       actionMsgs = new Map();
       nightActions = new Map();
       autoProtected.clear();
