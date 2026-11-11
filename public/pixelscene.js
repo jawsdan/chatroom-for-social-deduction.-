@@ -1,9 +1,8 @@
 // A live pixel-art scene behind the chat, drawn in code (no video).
-// The scene reacts to the game: day and night, deaths, trials, arrests, clues and your own night action.
+// A village square seen from above: a round plaza with the fire in the middle, houses around it,
+// and every player standing in a ring. The Dark Knight turns it into a rainy Gotham square.
+// It reacts to the game: day and night, deaths, trials, arrests, clues and your own night action.
 // Only things everyone may know are shown to everyone; your own night pick only shows on your screen.
-//
-// It uses the same coordinates as the old videos, so the characters stand in the same spots:
-// Original 864x576 (drawn at 288x192, 3x), The Dark Knight 1280x720 (drawn at 320x180, 4x).
 // Switch it off in the main menu (Background) to get the videos back.
 (function () {
   const STORE = 'pixelScene';
@@ -16,18 +15,22 @@
   let ctx = null;
   let mode = 'classic';
   let phase = 'day';
-  let W = 288;
-  let H = 192;
-  let night = 0; // 0 = day, 1 = night (eased between them)
-  let layers = null; // pre-drawn still parts: { day, night }
+  let W = 320;
+  let H = 200;
+  let scale = 4; // screen pixels per scene pixel
+  let night = 0;
+  let layers = null;
   let running = false;
   let lastT = 0;
   let time = 0;
-  const fx = []; // timed effects
-  let particles = []; // fire, smoke, rain …
-  let state = { dead: 0, trial: false, guiltyFlash: 0 };
+  const fx = [];
+  let particles = [];
+  const state = { dead: 0, trial: false };
+  // The plaza in scene pixels (set from the chat area so the ring sits where the chat is).
+  let plaza = { cx: 160, cy: 110, rx: 60, ry: 30 };
+  let lights = []; // lanterns and windows that glow at night
 
-  // ---------- small helpers ----------
+  // ---------- helpers ----------
   function rng(seed) {
     return function () {
       seed |= 0;
@@ -39,17 +42,14 @@
   }
   const R = (c, x, y, w, h, col) => {
     c.fillStyle = col;
-    c.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+    c.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(w)), Math.max(1, Math.round(h)));
   };
   const P = (c, x, y, col) => R(c, x, y, 1, 1, col);
   const lerp = (a, b, t) => a + (b - a) * t;
-  function mix(c1, c2, t) {
-    const a = parseInt(c1.slice(1), 16);
-    const b = parseInt(c2.slice(1), 16);
-    const r = Math.round(lerp(a >> 16, b >> 16, t));
-    const g = Math.round(lerp((a >> 8) & 255, (b >> 8) & 255, t));
-    const bl = Math.round(lerp(a & 255, b & 255, t));
-    return `rgb(${r},${g},${bl})`;
+  function shade(hex, f) {
+    const n = parseInt(hex.slice(1), 16);
+    const c = (v) => Math.max(0, Math.min(255, Math.round(v * f)));
+    return `rgb(${c(n >> 16)},${c((n >> 8) & 255)},${c(n & 255)})`;
   }
   function off(w, h) {
     const c = document.createElement('canvas');
@@ -59,157 +59,216 @@
     x.imageSmoothingEnabled = false;
     return [c, x];
   }
-  // Sky in flat bands (pixel-art style gradient).
-  function sky(c, top, bottom, h, bands = 10) {
-    for (let i = 0; i < bands; i++) R(c, 0, (i * h) / bands, W, h / bands + 1, mix(top, bottom, i / (bands - 1)));
-  }
-  function pine(c, x, base, h, col, shade) {
-    const tiers = 3;
-    const tierH = h / tiers;
-    for (let i = 0; i < h; i++) {
-      const tier = Math.floor(i / tierH);
-      const inTier = (i % tierH) / tierH;
-      const w = Math.max(1, Math.round((h * 0.17 + tier * h * 0.09) * (0.3 + 0.7 * inTier)));
-      const y = base - h + i;
-      R(c, x - w, y, w, 1, col);
-      R(c, x, y, w + 1, 1, shade);
+  function ellipse(c, cx, cy, rx, ry, col) {
+    for (let y = -ry; y <= ry; y++) {
+      const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (y / ry) ** 2)));
+      R(c, cx - w, cy + y, w * 2 + 1, 1, col);
     }
-    R(c, x - 1, base, 2, Math.max(2, h * 0.12), '#3b2416');
   }
-  function ridge(c, r, y0, amp, step, col, fillTo) {
-    let y = y0;
-    for (let x = 0; x < W; x++) {
-      if (x % step === 0) y = Math.max(y0 - amp, Math.min(y0 + amp * 0.3, y + (r() - 0.5) * amp * 0.6));
-      R(c, x, y, 1, fillTo - y, col);
-    }
+  function disc(c, cx, cy, r, col) {
+    ellipse(c, cx, cy, r, r, col);
   }
 
-  // ---------- Original: a campfire clearing in the forest ----------
-  function drawClassic(isNight) {
-    const [c, x] = off(W, H);
-    const r = rng(7);
-    const N = isNight;
-    sky(x, N ? '#0b1030' : '#5fb4ec', N ? '#2b2560' : '#cdeeff', 110);
-    // far mountains, hills, tree line
-    ridge(x, rng(3), 70, 26, 6, N ? '#1b2048' : '#7f9fc4', 120);
-    ridge(x, rng(4), 88, 16, 4, N ? '#162a2a' : '#5f9a66', 125);
-    for (let i = 0; i < 46; i++) pine(x, (i * 6.7 + r() * 5) % W, 112 + r() * 8, 20 + r() * 14, N ? '#0e2418' : '#2e6b3c', N ? '#0a1a11' : '#245631');
-    // grass
-    R(x, 0, 118, W, H - 118, N ? '#1e3a26' : '#6fae4f');
-    for (let i = 0; i < 900; i++) P(x, r() * W, 118 + r() * (H - 118), N ? (r() < 0.5 ? '#173020' : '#264a30') : r() < 0.5 ? '#5e9a43' : '#84c25e');
-    // dirt clearing around the fire
-    for (let yy = -26; yy <= 26; yy++) {
-      const w = Math.sqrt(1 - (yy / 26) ** 2) * 92;
-      R(x, 144 - w, 162 + yy * 0.62, w * 2, 1, N ? '#3d3127' : '#b98d5c');
-    }
-    for (let i = 0; i < 260; i++) {
-      const a = r() * Math.PI * 2;
-      const d = Math.sqrt(r());
-      P(x, 144 + Math.cos(a) * 88 * d, 162 + Math.sin(a) * 15 * d, N ? '#2e251e' : '#a27a4e');
-    }
-    // stones around the fire
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * Math.PI * 2;
-      const sx = 144 + Math.cos(a) * 17;
-      const sy = 163 + Math.sin(a) * 6;
-      R(x, sx - 2, sy - 2, 5, 3, N ? '#3c3f4a' : '#8a8f99');
-      R(x, sx - 1, sy - 2, 3, 1, N ? '#555a66' : '#b4b9c2');
-    }
-    // logs in the fire
-    R(x, 135, 162, 18, 2, '#4a2b17');
-    R(x, 139, 160, 12, 2, '#5c3720');
-    // a stump and a log bench, rocks
-    R(x, 40, 150, 12, 9, N ? '#3a2a1c' : '#7a5232');
-    R(x, 40, 149, 12, 2, N ? '#5a4632' : '#c9a06a');
-    R(x, 214, 172, 30, 5, N ? '#3a2a1c' : '#7a5232');
-    R(x, 214, 171, 30, 1, N ? '#4f3a26' : '#9a6c42');
-    for (let i = 0; i < 9; i++) {
-      const rx = r() * W;
-      const ry = 130 + r() * 55;
-      if (Math.abs(rx - 144) < 100 && Math.abs(ry - 162) < 18) continue;
-      R(x, rx, ry, 4 + r() * 4, 2 + r() * 2, N ? '#2f343d' : '#8b919a');
-    }
-    // flowers by day
-    if (!N) for (let i = 0; i < 40; i++) P(x, r() * W, 125 + r() * 65, ['#f3d24c', '#ffffff', '#f08fb0'][i % 3]);
-    return c;
-  }
-
-  // ---------- The Dark Knight: Gotham ----------
-  function drawGotham(isNight) {
-    const [c, x] = off(W, H);
-    const r = rng(11);
-    const N = isNight;
-    sky(x, N ? '#070a18' : '#8f8a86', N ? '#1c2148' : '#e2cfae', 120, 12);
-    // far skyline
-    const far = rng(21);
-    for (let bx = 0; bx < W; ) {
-      const w = 6 + far() * 10;
-      const h = 40 + far() * 50;
-      R(x, bx, 120 - h, w, h + 40, N ? '#11152c' : '#7b7c86');
-      if (far() < 0.25) R(x, bx + w / 2 - 1, 120 - h - 8, 2, 8, N ? '#11152c' : '#7b7c86'); // spire
-      bx += w;
-    }
-    // near skyline with windows
-    const near = rng(31);
-    for (let bx = -4; bx < W; ) {
-      const w = 12 + near() * 18;
-      const h = 30 + near() * 55;
-      const top = 150 - h;
-      R(x, bx, top, w, h + 10, N ? '#0c0f1f' : '#56565f');
-      R(x, bx, top, w, 1, N ? '#1a1e36' : '#6d6d77');
-      for (let wy = top + 3; wy < 146; wy += 4) {
-        for (let wx = bx + 2; wx < bx + w - 2; wx += 3) {
-          const lit = N ? near() < 0.35 : near() < 0.06;
-          P(x, wx, wy, lit ? (N ? '#f6d36b' : '#cfd6dd') : N ? '#151a33' : '#45454d');
+  // ---------- pieces of the village ----------
+  const ROOFS = ['#b5532f', '#9c3f2a', '#5d7fa3', '#7a6a9a', '#3f7f5a', '#a77b3c', '#8c4b6b'];
+  function house(c, r, x, y, w, N, dk) {
+    // 3/4 view: a roof on top, the front wall below with a door and windows.
+    const roofH = Math.round(w * 0.55);
+    const wallH = Math.round(w * 0.42);
+    if (dk) {
+      // Gotham: dark brick block with a flat roof and lots of windows
+      const base = N ? ['#4a3a3a', '#3c3f4a', '#4b4036', '#353a45'][Math.floor(r() * 4)] : ['#8a5a4a', '#6a6f80', '#8b7356', '#5d6a80'][Math.floor(r() * 4)];
+      R(c, x, y, w, roofH, shade(base, N ? 0.55 : 1.1));
+      R(c, x, y, w, 1, shade(base, N ? 0.7 : 1.35));
+      R(c, x + 2, y + 2, 3, 3, N ? '#2a2c34' : '#5b5e66'); // roof vent
+      R(c, x, y + roofH, w, wallH + 4, shade(base, N ? 0.4 : 0.8));
+      for (let wy = y + roofH + 2; wy < y + roofH + wallH + 1; wy += 3) {
+        for (let wx = x + 2; wx < x + w - 2; wx += 3) {
+          const lit = r() < (N ? 0.5 : 0.08);
+          P(c, wx, wy, lit ? '#f6d36b' : N ? '#14161e' : '#2f323b');
+          if (lit && N) lights.push({ x: wx, y: wy, r: 4, col: 'rgba(255,210,110,A)', a: 0.25 });
         }
       }
-      if (near() < 0.3) {
-        // smokestack
-        R(x, bx + w * 0.6, top - 16, 3, 16, N ? '#151a33' : '#4a4a52');
-      }
-      bx += w + near() * 3;
+      R(c, x + w / 2 - 1, y + roofH + wallH, 3, 4, '#1a1a20');
+      return;
     }
-    // the rooftop we stand on
-    R(x, 0, 150, W, H - 150, N ? '#1b1d2a' : '#5f5a57');
-    R(x, 0, 150, W, 2, N ? '#2c2f44' : '#8a827c');
-    for (let i = 0; i < 500; i++) P(x, r() * W, 152 + r() * (H - 152), N ? '#151724' : '#544f4c');
-    for (let gx = 0; gx < W; gx += 16) R(x, gx, 152, 1, H - 152, N ? '#161825' : '#56514e');
-    // water tower
-    R(x, 248, 108, 22, 22, N ? '#20202c' : '#6b4d36');
-    R(x, 246, 106, 26, 3, N ? '#2a2a38' : '#7d5b40');
-    R(x, 250, 130, 2, 20, '#2a2a30');
-    R(x, 266, 130, 2, 20, '#2a2a30');
-    // gargoyle on the ledge (left)
-    const g = N ? '#2a2c38' : '#46464f';
-    R(x, 14, 140, 14, 10, g);
-    R(x, 22, 132, 8, 9, g);
-    R(x, 27, 129, 3, 4, g);
-    R(x, 8, 134, 8, 4, g);
-    R(x, 4, 131, 6, 3, g);
-    // the trash-can fire we all stand around (the "campfire" of Gotham)
-    R(x, 153, 156, 14, 14, N ? '#2e3036' : '#55585e');
-    R(x, 152, 155, 16, 2, N ? '#40434b' : '#757880');
-    R(x, 153, 160, 14, 1, '#24262b');
-    R(x, 153, 165, 14, 1, '#24262b');
-    // the Ferris wheel of Amusement Mile, far off (night only gets lights; the wheel turns)
+    const roof = ROOFS[Math.floor(r() * ROOFS.length)];
+    const wall = ['#e8dcc0', '#d9c8a0', '#cfc3ad', '#e3d3b4'][Math.floor(r() * 4)];
+    // shadow
+    R(c, x + 2, y + roofH + wallH, w, 2, 'rgba(0,0,0,0.25)');
+    // wall
+    R(c, x, y + roofH - 1, w, wallH + 1, N ? shade(wall, 0.45) : wall);
+    R(c, x, y + roofH - 1, 1, wallH + 1, N ? shade(wall, 0.35) : shade(wall, 0.85));
+    // timber beams
+    if (r() < 0.6) {
+      R(c, x + w / 3, y + roofH, 1, wallH, N ? '#2b1d14' : '#5a3a22');
+      R(c, x + (2 * w) / 3, y + roofH, 1, wallH, N ? '#2b1d14' : '#5a3a22');
+    }
+    // door and windows
+    R(c, x + w / 2 - 1, y + roofH + wallH - 4, 3, 4, N ? '#2a1a10' : '#6b4226');
+    for (const wx of [x + 2, x + w - 5]) {
+      const lit = N && r() < 0.75;
+      R(c, wx, y + roofH + 1, 3, 2, lit ? '#ffd66b' : N ? '#1d2233' : '#7fb6d6');
+      if (lit) lights.push({ x: wx + 1, y: y + roofH + 2, r: 6, col: 'rgba(255,200,100,A)', a: 0.3 });
+    }
+    // roof: two slopes with a ridge
+    for (let i = 0; i < roofH; i++) {
+      const inset = Math.round((i / roofH) * 0) ;
+      const col = i < roofH / 2 ? shade(roof, N ? 0.5 : 1.12) : shade(roof, N ? 0.4 : 0.9);
+      R(c, x - 1 + inset, y + i, w + 2 - inset * 2, 1, col);
+    }
+    R(c, x - 1, y + Math.floor(roofH / 2), w + 2, 1, shade(roof, N ? 0.3 : 0.7)); // ridge
+    // tile rows
+    for (let i = 2; i < roofH; i += 3) for (let tx = x + (i % 2); tx < x + w; tx += 3) P(c, tx, y + i, shade(roof, N ? 0.35 : 0.8));
+    // chimney
+    if (r() < 0.7) {
+      const cx = x + 2 + Math.floor(r() * (w - 6));
+      R(c, cx, y - 3, 3, 5, N ? '#3d3b40' : '#8a7f78');
+      R(c, cx, y - 3, 3, 1, N ? '#2a282c' : '#5f5752');
+    }
+  }
+  function tree(c, x, y, s, N) {
+    R(c, x + s * 0.2, y + s * 0.7, s * 1.1, s * 0.35, 'rgba(0,0,0,0.25)'); // shadow
+    R(c, x - 1, y + s * 0.4, 2, s * 0.5, N ? '#2a1a10' : '#5a3a22');
+    disc(c, x, y, s * 0.55, N ? '#0f2a1a' : '#2f7a3a');
+    disc(c, x - s * 0.15, y - s * 0.15, s * 0.38, N ? '#163a24' : '#3f9a4a');
+    disc(c, x - s * 0.22, y - s * 0.25, s * 0.16, N ? '#1d4a2e' : '#62b85a');
+  }
+  function lamp(c, x, y, N, dk) {
+    R(c, x, y - 9, 1, 10, dk ? '#22252e' : '#3b3326');
+    R(c, x - 1, y - 11, 3, 2, N ? '#ffe08a' : dk ? '#4a4f5c' : '#6b5a3a');
+    lights.push({ x, y: y - 10, r: 14, col: dk ? 'rgba(255,220,140,A)' : 'rgba(255,190,90,A)', a: 0.45 });
+  }
+
+  // ---------- the whole square ----------
+  function drawSquare(N) {
+    const [c, x] = off(W, H);
+    const dk = mode === 'darkknight';
+    const r = rng(dk ? 44 : 17);
+    if (N) lights = [];
+    const { cx, cy, rx, ry } = plaza;
+    // ground
+    if (dk) {
+      R(x, 0, 0, W, H, N ? '#1a1c24' : '#767782');
+      for (let i = 0; i < W * H * 0.05; i++) P(x, r() * W, r() * H, N ? '#20232d' : '#83848f');
+      // puddles
+      for (let i = 0; i < 14; i++) ellipse(x, r() * W, r() * H, 3 + r() * 6, 1 + r() * 2, N ? '#262c3e' : '#6a7383');
+    } else {
+      R(x, 0, 0, W, H, N ? '#18301f' : '#62a94a');
+      for (let i = 0; i < W * H * 0.08; i++) P(x, r() * W, r() * H, N ? (r() < 0.5 ? '#13281a' : '#1f3b27') : r() < 0.5 ? '#579a40' : '#76bd58');
+      for (let i = 0; i < 70; i++) P(x, r() * W, r() * H, N ? '#2a4a34' : ['#f3d24c', '#ffffff', '#f08fb0'][i % 3]);
+    }
+    // paths from the plaza outward (like spokes)
+    const pathCol = dk ? (N ? '#2a2c35' : '#6a6b73') : N ? '#3b3a35' : '#b89f7a';
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2 + Math.PI / 8;
+      for (let d = 0; d < Math.max(W, H); d += 1) {
+        const px = cx + Math.cos(a) * (rx + d);
+        const py = cy + Math.sin(a) * (ry + d * (ry / rx));
+        if (px < -4 || py < -4 || px > W + 4 || py > H + 4) break;
+        R(x, px - 2, py - 1, 5, 3, pathCol);
+      }
+    }
+    // the plaza: cobblestones
+    const base = dk ? (N ? '#2c2f3a' : '#787a84') : N ? '#3d3a44' : '#a3988c';
+    ellipse(x, cx, cy + 2, rx + 3, ry + 2, 'rgba(0,0,0,0.25)');
+    ellipse(x, cx, cy, rx + 3, ry + 2, dk ? (N ? '#22242c' : '#5e6068') : N ? '#2e2b33' : '#7d7368');
+    ellipse(x, cx, cy, rx, ry, base);
+    for (let yy = -ry; yy <= ry; yy += 2) {
+      const w = rx * Math.sqrt(Math.max(0, 1 - (yy / ry) ** 2));
+      for (let xx = -w + ((yy / 2) % 2 ? 2 : 0); xx < w - 1; xx += 4) {
+        const v = r();
+        R(x, cx + xx, cy + yy, 3, 1, v < 0.5 ? shade(base, 0.85) : shade(base, 1.12));
+      }
+    }
+    // inner ring around the fire
+    ellipse(x, cx, cy, rx * 0.32, ry * 0.32, shade(base, 0.8));
+    ellipse(x, cx, cy, rx * 0.27, ry * 0.27, dk ? (N ? '#1c1d24' : '#55565e') : N ? '#2a2620' : '#6b5a46');
+    if (dk) {
+      // the trash-can fire
+      R(x, cx - 4, cy - 7, 9, 8, N ? '#30333a' : '#585b62');
+      R(x, cx - 5, cy - 8, 11, 2, N ? '#454953' : '#787b83');
+    } else {
+      // fire pit stones and logs
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2;
+        R(x, cx + Math.cos(a) * 12 - 1, cy + Math.sin(a) * 6 - 1, 4, 3, N ? '#4a4e58' : '#8a8f99');
+      }
+      R(x, cx - 6, cy, 12, 2, '#4a2b17');
+      R(x, cx - 4, cy - 2, 8, 2, '#5c3720');
+    }
+    // houses and trees all around the plaza (not on the paths, not on the plaza)
+    const spots = [];
+    const tries = 260;
+    for (let i = 0; i < tries; i++) {
+      const a = r() * Math.PI * 2;
+      const dist = 1.35 + r() * 1.6;
+      const hx = cx + Math.cos(a) * rx * dist;
+      const hy = cy + Math.sin(a) * ry * dist * 1.25;
+      spots.push({ x: hx, y: hy, a });
+    }
+    // also scatter some to reach the screen corners
+    for (let i = 0; i < 80; i++) spots.push({ x: r() * W, y: r() * H, a: 0 });
+    const placed = [];
+    const onPath = (px, py) => {
+      const ang = Math.atan2((py - cy) / ry, (px - cx) / rx);
+      for (let k = 0; k < 8; k++) {
+        let d = Math.abs(ang - ((k / 8) * Math.PI * 2 + Math.PI / 8));
+        d = Math.min(d, Math.PI * 2 - d);
+        if (d < 0.16) return true;
+      }
+      return false;
+    };
+    const items = [];
+    for (const s of spots) {
+      const isHouse = r() < (dk ? 0.75 : 0.5);
+      const w = isHouse ? 14 + Math.floor(r() * 10) : 6 + r() * 5;
+      const h = isHouse ? w * 1.0 : w;
+      const bx = s.x - w / 2;
+      const by = s.y - h / 2;
+      if (bx < -w || by < -h || bx > W || by > H) continue;
+      // keep off the plaza and its rim (players stand there)
+      const ex = (s.x - cx) / (rx * 1.45);
+      const ey = (s.y + h * 0.3 - cy) / (ry * 1.9);
+      if (ex * ex + ey * ey < 1) continue;
+      if (onPath(s.x, s.y)) continue;
+      if (placed.some((p) => Math.abs(p.x - s.x) < (p.w + w) / 2 + 2 && Math.abs(p.y - s.y) < (p.h + h) / 2 + 2)) continue;
+      placed.push({ x: s.x, y: s.y, w, h });
+      items.push({ isHouse, bx, by, w, s });
+    }
+    items.sort((a, b) => a.by - b.by);
+    for (const it of items) {
+      if (it.isHouse) house(x, r, it.bx, it.by, it.w, N, dk);
+      else if (dk) {
+        // Gotham: a street lamp instead of a tree
+        if (N) lamp(x, it.s.x, it.s.y, N, dk);
+        else lamp(x, it.s.x, it.s.y, N, dk);
+      } else tree(x, it.s.x, it.s.y, it.w, N);
+    }
+    // lanterns at the plaza rim
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      lamp(x, cx + Math.cos(a) * (rx + 7), cy + Math.sin(a) * (ry + 5) + 2, N, dk);
+    }
+    if (!N) lights = lights.filter(() => false); // the day layer has no glowing lights
     return c;
   }
 
   // ---------- animated parts ----------
   function fireAt() {
-    return mode === 'darkknight' ? [160, 155] : [144, 160];
-  }
-  function spawnFire(dt) {
-    const [fx0, fy0] = fireAt();
-    const n = Math.round(dt * (mode === 'darkknight' ? 70 : 110));
-    for (let i = 0; i < n; i++) {
-      const spread = (Math.random() - 0.5) * (mode === 'darkknight' ? 12 : 18);
-      particles.push({ k: 'flame', x: fx0 + spread, y: fy0, vx: -spread * 0.6 + (Math.random() - 0.5) * 4, vy: -22 - Math.random() * 22, life: 0, max: 0.45 + Math.random() * 0.55 });
-    }
-    if (Math.random() < dt * (night ? 4 : 2)) particles.push({ k: 'smoke', x: fx0 + (Math.random() - 0.5) * 4, y: fy0 - 14, vx: 3 + Math.random() * 3, vy: -6 - Math.random() * 4, life: 0, max: 5 + Math.random() * 3 });
-    if (Math.random() < dt * 3) particles.push({ k: 'spark', x: fx0 + (Math.random() - 0.5) * 6, y: fy0 - 6, vx: (Math.random() - 0.5) * 14, vy: -26 - Math.random() * 20, life: 0, max: 1 + Math.random() });
+    return [plaza.cx, plaza.cy - (mode === 'darkknight' ? 8 : 1)];
   }
   const FLAME = ['#fff3b0', '#ffd34d', '#ff9a2e', '#f2552c', '#b8301e'];
+  function spawnFire(dt) {
+    const [fx0, fy0] = fireAt();
+    const n = Math.round(dt * 130);
+    for (let i = 0; i < n; i++) {
+      const spread = (Math.random() - 0.5) * 14;
+      particles.push({ k: 'flame', x: fx0 + spread, y: fy0, vx: -spread * 0.55, vy: -16 - Math.random() * 16, life: 0, max: 0.5 + Math.random() * 0.55 });
+    }
+    if (Math.random() < dt * 2.5) particles.push({ k: 'smoke', x: fx0, y: fy0 - 10, vx: 2 + Math.random() * 3, vy: -5 - Math.random() * 3, life: 0, max: 4 + Math.random() * 3 });
+    if (Math.random() < dt * 3) particles.push({ k: 'spark', x: fx0 + (Math.random() - 0.5) * 4, y: fy0 - 4, vx: (Math.random() - 0.5) * 10, vy: -18 - Math.random() * 14, life: 0, max: 1 + Math.random() });
+  }
   function drawParticles(dt) {
     const next = [];
     for (const p of particles) {
@@ -219,176 +278,109 @@
       p.y += p.vy * dt;
       const t = p.life / p.max;
       if (p.k === 'flame') {
-        const col = FLAME[Math.min(FLAME.length - 1, Math.floor(t * FLAME.length))];
-        const s = t < 0.35 ? 3 : t < 0.7 ? 2 : 1;
-        R(ctx, p.x, p.y, s, s, col);
-      } else if (p.k === 'smoke') {
-        ctx.globalAlpha = (1 - t) * 0.35;
-        const s = 2 + t * 6;
+        const s = t < 0.3 ? 3 : t < 0.65 ? 2 : 1;
+        R(ctx, p.x - s / 2, p.y, s, s, FLAME[Math.min(4, Math.floor(t * 5))]);
+      }
+      else if (p.k === 'smoke') {
+        ctx.globalAlpha = (1 - t) * 0.3;
+        const s = 2 + t * 5;
         R(ctx, p.x - s / 2, p.y - s / 2, s, s, '#9aa0aa');
         ctx.globalAlpha = 1;
       } else if (p.k === 'spark') {
         if (Math.random() < 0.85) P(ctx, p.x, p.y, '#ffd34d');
       } else if (p.k === 'rain') {
-        R(ctx, p.x, p.y, 1, 3, 'rgba(170,190,230,0.55)');
-        if (p.y > H) continue;
+        R(ctx, p.x, p.y, 1, 2, 'rgba(170,190,230,0.5)');
+        if (p.y > p.end) {
+          if (Math.random() < 0.3) next.push({ k: 'splash', x: p.x, y: p.end, vx: 0, vy: 0, life: 0, max: 0.2 });
+          continue;
+        }
+      } else if (p.k === 'splash') {
+        P(ctx, p.x - 1, p.y, 'rgba(190,210,240,0.6)');
+        P(ctx, p.x + 1, p.y, 'rgba(190,210,240,0.6)');
       } else if (p.k === 'confetti') {
         p.vy += 30 * dt;
         R(ctx, p.x, p.y, 2, 1, p.col);
-      } else if (p.k === 'feather') {
-        p.vx = Math.sin(p.life * 3) * 8;
-        R(ctx, p.x, p.y, 2, 1, '#e8e2cf');
+      } else if (p.k === 'leaf') {
+        p.vx = Math.sin(p.life * 2 + p.seed) * 6 + 6;
+        R(ctx, p.x, p.y, 2, 1, p.col);
       }
       next.push(p);
     }
     particles = next;
   }
-  function disc(cx, cy, r, col) {
-    for (let y = -r; y <= r; y++) {
-      const w = Math.round(Math.sqrt(r * r - y * y));
-      R(ctx, cx - w, cy + y, w * 2 + 1, 1, col);
-    }
-  }
   function glow(x, y, rad, col, a) {
+    if (a <= 0) return;
     const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
     g.addColorStop(0, col.replace('A', a));
     g.addColorStop(1, col.replace('A', 0));
     ctx.fillStyle = g;
     ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
   }
-  // Fixed stars (seeded) that twinkle.
-  const STARS = (() => {
-    const r = rng(99);
-    return Array.from({ length: 70 }, () => ({ x: r() * 320, y: r() * 85, p: r() * 6 }));
-  })();
+  // Cloud shadows drift over the village by day.
   const CLOUDS = (() => {
     const r = rng(5);
-    return Array.from({ length: 5 }, () => ({ x: r() * 320, y: 8 + r() * 40, w: 18 + r() * 26, s: 2 + r() * 3 }));
+    return Array.from({ length: 4 }, () => ({ x: r() * 400, y: r() * 300, w: 40 + r() * 50, s: 3 + r() * 3 }));
   })();
-  function drawSky() {
-    if (night > 0.05) {
-      ctx.globalAlpha = night;
-      for (const s of STARS) if (Math.sin(time * 2 + s.p * 5) > -0.6) P(ctx, s.x, s.y, '#fff7d6');
-      ctx.globalAlpha = 1;
-    }
-    // sun and moon move across as the day turns
-    const sunY = lerp(22, 140, night);
-    if (night < 0.95) {
-      glow(W * 0.8, sunY, 26, 'rgba(255,230,140,A)', 0.5 * (1 - night));
-      disc(Math.round(W * 0.8), Math.round(sunY), 8, '#ffe066');
-      disc(Math.round(W * 0.8) - 2, Math.round(sunY) - 2, 4, '#fff3b0');
-    }
-    const moonY = lerp(140, 24, night);
-    if (night > 0.05) {
-      glow(W * 0.2, moonY, 22, 'rgba(220,230,255,A)', 0.35 * night);
-      disc(Math.round(W * 0.2), Math.round(moonY), 8, '#f2efd8');
-      disc(Math.round(W * 0.2) + 4, Math.round(moonY) - 3, 7, mode === 'darkknight' ? '#0a0e20' : '#10153a'); // crescent bite
-      P(ctx, Math.round(W * 0.2) - 4, Math.round(moonY) + 2, '#d6d2b8');
-      P(ctx, Math.round(W * 0.2) - 2, Math.round(moonY) + 5, '#d6d2b8');
-    }
-    // clouds drift by day
-    if (night < 0.9) {
-      ctx.globalAlpha = 1 - night;
+  function drawWeather(dt) {
+    if (night < 0.9 && mode === 'classic') {
+      ctx.globalAlpha = 0.12 * (1 - night);
       for (const cl of CLOUDS) {
-        const cx = ((cl.x + time * cl.s) % (W + 60)) - 40;
-        R(ctx, cx, cl.y, cl.w, 4, '#ffffff');
-        R(ctx, cx + cl.w * 0.2, cl.y - 3, cl.w * 0.5, 3, '#ffffff');
-        R(ctx, cx + 2, cl.y + 4, cl.w - 4, 2, '#dbe8f3');
+        const x = ((cl.x + time * cl.s) % (W + cl.w * 2)) - cl.w;
+        ellipse(ctx, x, (cl.y % H), cl.w / 2, cl.w / 5, '#0c1a10');
       }
       ctx.globalAlpha = 1;
+      // falling leaves
+      if (Math.random() < dt * 0.8) particles.push({ k: 'leaf', x: -4, y: Math.random() * H, vx: 6, vy: 3, life: 0, max: 30, seed: Math.random() * 6, col: ['#c8a83a', '#9fc35a', '#c0672f'][Math.floor(Math.random() * 3)] });
     }
-  }
-  // The Ferris wheel of Amusement Mile (The Dark Knight).
-  function drawWheel() {
-    const cx = 205;
-    const cy = 92;
-    const rad = 30;
-    const col = night > 0.5 ? '#2a2540' : '#4d4a52';
-    for (let a = 0; a < Math.PI * 2; a += 0.05) P(ctx, cx + Math.cos(a) * rad, cy + Math.sin(a) * rad, col);
-    const rot = time * 0.25;
-    for (let i = 0; i < 8; i++) {
-      const a = rot + (i / 8) * Math.PI * 2;
-      for (let d = 0; d < rad; d += 1.5) P(ctx, cx + Math.cos(a) * d, cy + Math.sin(a) * d, col);
-      const lx = cx + Math.cos(a) * rad;
-      const ly = cy + Math.sin(a) * rad;
-      R(ctx, lx - 2, ly, 4, 3, col);
-      if (night > 0.3) {
-        ctx.globalAlpha = night;
-        P(ctx, lx, ly - 1, i % 2 ? '#a3e635' : '#c084fc');
-        ctx.globalAlpha = 1;
+    if (mode === 'darkknight') {
+      const n = Math.round(dt * (night > 0.5 ? 220 : 90));
+      for (let i = 0; i < n; i++) {
+        const x = Math.random() * (W + 30);
+        particles.push({ k: 'rain', x, y: -3, vx: -20, vy: 160 + Math.random() * 50, life: 0, max: 3, end: Math.random() * H });
       }
     }
-    R(ctx, cx - 1, cy, 2, 60, col);
-    R(ctx, cx - 14, cy + 58, 28, 2, col);
-    // the neon sign at the gate
-    if (night > 0.3) {
-      const flick = Math.sin(time * 13) > -0.85 ? 1 : 0.2;
-      ctx.globalAlpha = night * flick;
-      // "HA HA" neon on top of a building, far left
-      const sx = 20;
-      const sy = 60;
-      R(ctx, sx, sy, 34, 1, '#a3e635');
-      R(ctx, sx, sy + 9, 34, 1, '#a3e635');
-      R(ctx, sx, sy, 1, 10, '#c084fc');
-      R(ctx, sx + 33, sy, 1, 10, '#c084fc');
-      for (let i = 0; i < 6; i++) R(ctx, sx + 4 + i * 5, sy + 3, 3, 3, i % 2 ? '#c084fc' : '#a3e635');
-      ctx.globalAlpha = 1;
-    }
   }
-  // The bat signal in the clouds (The Dark Knight, night).
-  function drawBatSignal() {
-    if (night < 0.3) return;
-    ctx.globalAlpha = night * 0.85;
-    glow(70, 30, 20, 'rgba(255,240,170,A)', 0.55);
-    ctx.globalAlpha = night;
-    const bx = 70;
-    const by = 30;
-    R(ctx, bx - 8, by - 1, 16, 3, '#111');
-    R(ctx, bx - 4, by - 3, 8, 6, '#111');
-    R(ctx, bx - 1, by - 5, 1, 2, '#111');
-    R(ctx, bx + 1, by - 5, 1, 2, '#111');
-    R(ctx, bx - 10, by + 1, 3, 2, '#111');
-    R(ctx, bx + 7, by + 1, 3, 2, '#111');
-    ctx.globalAlpha = 1;
-  }
-  // Fireflies (night) and birds (day) in the forest.
-  const FLIES = Array.from({ length: 14 }, (_, i) => ({ x: (i * 37) % 288, y: 120 + ((i * 53) % 60), p: i }));
+  // Fireflies over the grass at night (Original).
+  const FLIES = Array.from({ length: 18 }, (_, i) => ({ x: (i * 53) % 320, y: (i * 37) % 200, p: i }));
   function drawLife() {
     if (mode === 'classic' && night > 0.4) {
       ctx.globalAlpha = night;
       for (const f of FLIES) {
         if (Math.sin(time * 2.2 + f.p) < 0.2) continue;
-        P(ctx, f.x + Math.sin(time * 0.7 + f.p) * 8, f.y + Math.cos(time * 0.9 + f.p) * 4, '#d9f99d');
+        P(ctx, (f.x + Math.sin(time * 0.7 + f.p) * 8) % W, (f.y + Math.cos(time * 0.9 + f.p) * 4) % H, '#d9f99d');
       }
       ctx.globalAlpha = 1;
     }
-    if (night < 0.6) {
-      // a little flock crossing now and then
-      const t = (time % 26) / 26;
-      if (t < 0.5) {
-        const bx = lerp(-20, W + 20, t * 2);
-        for (let i = 0; i < 4; i++) {
-          const x = bx - i * 7;
-          const y = 30 + i * 3 + Math.sin(time * 4 + i) * 2;
-          const up = Math.sin(time * 10 + i) > 0;
-          P(ctx, x - 1, y - (up ? 1 : 0), '#2a2a2a');
-          P(ctx, x, y, '#2a2a2a');
-          P(ctx, x + 1, y - (up ? 1 : 0), '#2a2a2a');
-        }
+    // birds fly over by day, bats at night
+    const t = (time % 22) / 22;
+    if (t < 0.45) {
+      const bx = lerp(-20, W + 20, t / 0.45);
+      const bat = night > 0.5;
+      for (let i = 0; i < 4; i++) {
+        const x = bx - i * 7;
+        const y = 18 + i * 4 + Math.sin(time * 4 + i) * 2;
+        const up = Math.sin(time * (bat ? 16 : 10) + i) > 0;
+        const col = bat ? '#05060a' : '#2a2a2a';
+        P(ctx, x - 1, y - (up ? 1 : 0), col);
+        P(ctx, x, y, col);
+        P(ctx, x + 1, y - (up ? 1 : 0), col);
       }
     }
   }
-  // Graves for every player who has died (Original).
+  // A small graveyard in the top-left corner: one stone per dead player.
   function drawGraves() {
-    if (mode !== 'classic') return;
-    const n = Math.min(state.dead, 10);
+    const n = Math.min(state.dead, 12);
+    if (!n) return;
+    const gx0 = 6;
+    const gy0 = 8;
+    R(ctx, gx0 - 3, gy0 - 4, 6 * 7 + 4, Math.ceil(n / 6) * 10 + 4, night > 0.5 ? 'rgba(10,12,20,0.35)' : 'rgba(60,40,20,0.25)');
     for (let i = 0; i < n; i++) {
-      const gx = 8 + (i % 5) * 9;
-      const gy = 170 + Math.floor(i / 5) * 10;
-      R(ctx, gx, gy - 7, 6, 8, night > 0.5 ? '#5d6270' : '#9aa0aa');
-      R(ctx, gx + 1, gy - 8, 4, 1, night > 0.5 ? '#5d6270' : '#9aa0aa');
-      R(ctx, gx + 2, gy - 5, 2, 1, '#3a3d46');
-      R(ctx, gx + 1, gy, 4, 1, '#3b5f2f');
+      const gx = gx0 + (i % 6) * 7;
+      const gy = gy0 + Math.floor(i / 6) * 10;
+      R(ctx, gx, gy, 5, 6, night > 0.5 ? '#5d6270' : '#9aa0aa');
+      R(ctx, gx + 1, gy - 1, 3, 1, night > 0.5 ? '#5d6270' : '#9aa0aa');
+      R(ctx, gx + 2, gy + 1, 1, 3, '#3a3d46');
+      R(ctx, gx + 1, gy + 2, 3, 1, '#3a3d46');
     }
   }
 
@@ -399,6 +391,7 @@
   function drawFx(dt) {
     let shake = 0;
     let flash = 0;
+    const [fx0, fy0] = fireAt();
     for (let i = fx.length - 1; i >= 0; i--) {
       const e = fx[i];
       e.t += dt;
@@ -408,96 +401,76 @@
         continue;
       }
       if (e.kind === 'lightning') {
-        flash = Math.max(flash, p < 0.08 || (p > 0.15 && p < 0.22) ? 0.75 : 0);
+        flash = Math.max(flash, p < 0.08 || (p > 0.15 && p < 0.22) ? 0.7 : 0);
         shake = Math.max(shake, p < 0.3 ? 2 : 0);
-        if (p < 0.25) {
-          // a bolt from the sky
-          let lx = e.x;
-          for (let y = 0; y < 110; y += 4) {
-            const nx = lx + (Math.random() - 0.5) * 8;
-            R(ctx, Math.min(lx, nx), y, Math.abs(nx - lx) + 1, 4, '#f5f7ff');
-            lx = nx;
-          }
-        }
       } else if (e.kind === 'crows') {
         for (let k = 0; k < 7; k++) {
           const x = lerp(-30 - k * 12, W + 40, p) + Math.sin(e.t * 3 + k) * 4;
-          const y = 40 + k * 4 + Math.sin(e.t * 5 + k * 2) * 3;
+          const y = 20 + k * 5 + Math.sin(e.t * 5 + k * 2) * 3;
           const up = Math.sin(e.t * 14 + k) > 0;
           R(ctx, x - 2, y - (up ? 2 : 0), 2, 1, '#111');
           R(ctx, x, y, 2, 2, '#111');
           R(ctx, x + 2, y - (up ? 2 : 0), 2, 1, '#111');
+          R(ctx, x + 1, y + 20, 2, 1, 'rgba(0,0,0,0.2)');
         }
       } else if (e.kind === 'note') {
-        // a paper note flutters down to the fire
-        const [fx0, fy0] = fireAt();
-        const x = fx0 + 40 + Math.sin(e.t * 3) * 14 * (1 - p);
-        const y = lerp(-10, fy0 + 6, Math.min(1, p * 1.4));
-        R(ctx, x, y, 7, 5, '#f4ecd2');
-        R(ctx, x + 1, y + 1, 5, 1, '#9b8b6a');
-        R(ctx, x + 1, y + 3, 4, 1, '#9b8b6a');
+        const x = fx0 + 18 + Math.sin(e.t * 3) * 10 * (1 - p);
+        const y = lerp(-10, fy0 + 4, Math.min(1, p * 1.4));
+        R(ctx, x, y, 6, 4, '#f4ecd2');
+        R(ctx, x + 1, y + 1, 4, 1, '#9b8b6a');
         if (p > 0.7) glow(x + 3, y + 2, 8, 'rgba(255,240,180,A)', 0.4 * (1 - p) * 3);
       } else if (e.kind === 'police') {
         const on = Math.floor(e.t * 6) % 2;
-        ctx.globalAlpha = 0.28 * (1 - p);
+        ctx.globalAlpha = 0.25 * (1 - p);
         R(ctx, 0, 0, W / 2, H, on ? '#ff2a2a' : '#2a5cff');
         R(ctx, W / 2, 0, W / 2, H, on ? '#2a5cff' : '#ff2a2a');
         ctx.globalAlpha = 1;
-      } else if (e.kind === 'confetti' && e.t < dt * 1.5) {
-        for (let k = 0; k < 60; k++) particles.push({ k: 'confetti', x: Math.random() * W, y: -Math.random() * 30, vx: (Math.random() - 0.5) * 20, vy: 10 + Math.random() * 20, life: 0, max: 4, col: ['#facc15', '#22c55e', '#38bdf8', '#f472b6', '#ffffff'][k % 5] });
+      } else if (e.kind === 'confetti' && !e.done) {
+        e.done = true;
+        for (let k = 0; k < 70; k++) particles.push({ k: 'confetti', x: Math.random() * W, y: -Math.random() * 30, vx: (Math.random() - 0.5) * 20, vy: 10 + Math.random() * 20, life: 0, max: 4, col: ['#facc15', '#22c55e', '#38bdf8', '#f472b6', '#ffffff'][k % 5] });
       } else if (e.kind === 'paws') {
-        // only on the wolf's own screen: paw prints creeping across the ground
-        const n = Math.floor(p * 14);
+        // only on the wolf's own screen: paw prints creeping across the square
+        const n = Math.floor(p * 16);
         for (let k = 0; k < n; k++) {
-          const x = 20 + k * ((W - 40) / 14);
-          const y = 178 - (k % 2) * 5;
-          ctx.globalAlpha = Math.min(1, (1 - p) * 3) * 0.8;
+          const x = lerp(12, W - 12, k / 16);
+          const y = H - 18 - (k % 2) * 5 - Math.sin(k / 3) * 10;
+          ctx.globalAlpha = Math.min(1, (1 - p) * 3) * 0.85;
           R(ctx, x, y, 3, 2, '#7f1d1d');
           P(ctx, x - 1, y - 2, '#7f1d1d');
           P(ctx, x + 1, y - 3, '#7f1d1d');
           P(ctx, x + 3, y - 2, '#7f1d1d');
           ctx.globalAlpha = 1;
         }
-        // red eyes in the dark
-        if (Math.sin(e.t * 8) > -0.7) {
-          P(ctx, 60, 112, '#ff3030');
-          P(ctx, 63, 112, '#ff3030');
-          P(ctx, 230, 108, '#ff3030');
-          P(ctx, 233, 108, '#ff3030');
-        }
       } else if (e.kind === 'shield') {
-        const [fx0, fy0] = fireAt();
-        const rad = 10 + p * 50;
+        const rad = 8 + p * 50;
         ctx.globalAlpha = (1 - p) * 0.9;
-        for (let a = 0; a < Math.PI * 2; a += 0.08) P(ctx, fx0 + Math.cos(a) * rad, fy0 - 10 + Math.sin(a) * rad * 0.5, '#5eead4');
-        R(ctx, fx0 - 1, fy0 - 26, 3, 9, '#5eead4');
-        R(ctx, fx0 - 4, fy0 - 23, 9, 3, '#5eead4');
+        for (let a = 0; a < Math.PI * 2; a += 0.08) P(ctx, fx0 + Math.cos(a) * rad, fy0 + Math.sin(a) * rad * 0.5, '#5eead4');
         ctx.globalAlpha = 1;
       } else if (e.kind === 'magnify') {
-        const x = lerp(30, W - 30, p);
-        const y = 150 + Math.sin(p * Math.PI * 3) * 10;
-        ctx.globalAlpha = 0.25 * Math.sin(p * Math.PI);
-        glow(x, y, 26, 'rgba(255,255,220,A)', 1);
+        const a = p * Math.PI * 2;
+        const x = plaza.cx + Math.cos(a) * plaza.rx * 0.9;
+        const y = plaza.cy + Math.sin(a) * plaza.ry * 0.9;
+        ctx.globalAlpha = 0.3 * Math.sin(p * Math.PI);
+        glow(x, y, 18, 'rgba(255,255,220,A)', 1);
         ctx.globalAlpha = Math.sin(p * Math.PI);
-        for (let a = 0; a < Math.PI * 2; a += 0.15) P(ctx, x + Math.cos(a) * 7, y + Math.sin(a) * 7, '#e5e7eb');
-        R(ctx, x + 5, y + 5, 2, 2, '#9ca3af');
-        R(ctx, x + 7, y + 7, 2, 2, '#9ca3af');
+        for (let b = 0; b < Math.PI * 2; b += 0.15) P(ctx, x + Math.cos(b) * 5, y + Math.sin(b) * 5, '#e5e7eb');
+        R(ctx, x + 4, y + 4, 2, 2, '#9ca3af');
         ctx.globalAlpha = 1;
       } else if (e.kind === 'poison') {
         ctx.globalAlpha = 0.35 * Math.sin(p * Math.PI);
         for (let k = 0; k < 40; k++) {
-          const x = (k * 29 + e.t * 12 * (k % 3 + 1)) % W;
-          const y = 140 + Math.sin(e.t * 2 + k) * 20 + (k % 5) * 6;
+          const x = (k * 29 + e.t * 12 * ((k % 3) + 1)) % W;
+          const y = (k * 47) % H + Math.sin(e.t * 2 + k) * 6;
           R(ctx, x, y, 4, 3, k % 2 ? '#22c55e' : '#86efac');
         }
         ctx.globalAlpha = 1;
       } else if (e.kind === 'crosshair') {
-        const x = W / 2 + Math.sin(e.t * 1.7) * 60;
-        const y = 150 + Math.cos(e.t * 2.3) * 12;
+        const x = plaza.cx + Math.sin(e.t * 1.7) * plaza.rx;
+        const y = plaza.cy + Math.cos(e.t * 2.3) * plaza.ry;
         ctx.globalAlpha = Math.sin(p * Math.PI);
-        for (let a = 0; a < Math.PI * 2; a += 0.12) P(ctx, x + Math.cos(a) * 9, y + Math.sin(a) * 9, '#ef4444');
-        R(ctx, x - 13, y, 26, 1, '#ef4444');
-        R(ctx, x, y - 13, 1, 26, '#ef4444');
+        for (let a = 0; a < Math.PI * 2; a += 0.12) P(ctx, x + Math.cos(a) * 7, y + Math.sin(a) * 7, '#ef4444');
+        R(ctx, x - 10, y, 20, 1, '#ef4444');
+        R(ctx, x, y - 10, 1, 20, '#ef4444');
         ctx.globalAlpha = 1;
       } else if (e.kind === 'flash') {
         flash = Math.max(flash, (1 - p) * (e.a || 0.5));
@@ -510,71 +483,56 @@
   function frame(now) {
     if (!running) return;
     requestAnimationFrame(frame);
-    const dt = Math.min(0.1, (now - (lastT || now)) / 1000);
-    // ~30 frames a second is plenty for pixel art
     if (now - lastT < 30) return;
+    const dt = lastT ? Math.min(0.1, (now - lastT) / 1000) : 0.03;
     lastT = now;
     time += dt;
     const target = phase === 'night' ? 1 : 0;
     night += (target - night) * Math.min(1, dt * 1.5);
     if (Math.abs(target - night) < 0.002) night = target;
 
-    const shakeInfo = { shake: 0 };
-    ctx.save();
     ctx.clearRect(0, 0, W, H);
-    // still layers, cross-faded between day and night
-    // sky first, then sun/moon/stars/clouds, then the land in front of them
-    ctx.drawImage(layers.day, 0, 0, W, layers.skyH, 0, 0, W, layers.skyH);
+    ctx.drawImage(layers.day, 0, 0);
     if (night > 0) {
       ctx.globalAlpha = night;
-      ctx.drawImage(layers.night, 0, 0, W, layers.skyH, 0, 0, W, layers.skyH);
+      ctx.drawImage(layers.night, 0, 0);
       ctx.globalAlpha = 1;
+      // windows and lanterns glow (they flicker a little)
+      for (const l of lights) glow(l.x, l.y, l.r, l.col, l.a * night * (0.85 + Math.sin(time * 3 + l.x) * 0.15));
     }
-    drawSky();
-    ctx.drawImage(layers.dayLand, 0, 0);
-    if (night > 0) {
-      ctx.globalAlpha = night;
-      ctx.drawImage(layers.nightLand, 0, 0);
-      ctx.globalAlpha = 1;
-    }
-    if (mode === 'darkknight') {
-      drawBatSignal();
-      drawWheel();
-    }
-    drawLife();
     drawGraves();
-    // the fire and its light
+    drawLife();
     spawnFire(dt);
     const [fx0, fy0] = fireAt();
-    glow(fx0, fy0 - 6, 40 + night * 50 + Math.sin(time * 9) * 3, 'rgba(255,150,60,A)', 0.18 + night * 0.35);
-    // rain over Gotham
-    if (mode === 'darkknight') {
-      const n = Math.round(dt * (night > 0.5 ? 260 : 80));
-      for (let i = 0; i < n; i++) particles.push({ k: 'rain', x: Math.random() * (W + 40), y: -4, vx: -30, vy: 180 + Math.random() * 60, life: 0, max: 2 });
-    }
+    glow(fx0, fy0, 26 + night * 34 + Math.sin(time * 9) * 2, 'rgba(255,150,60,A)', 0.2 + night * 0.38);
+    drawWeather(dt);
     drawParticles(dt);
-    // a trial: a spotlight from above onto the middle
+    // a trial: a spotlight on the square
     if (state.trial) {
-      ctx.globalAlpha = 0.18 + Math.sin(time * 2) * 0.04;
-      ctx.fillStyle = '#fff7d6';
-      ctx.beginPath();
-      ctx.moveTo(fx0 - 6, 0);
-      ctx.lineTo(fx0 + 6, 0);
-      ctx.lineTo(fx0 + 40, H);
-      ctx.lineTo(fx0 - 40, H);
-      ctx.fill();
+      ctx.globalAlpha = 0.16 + Math.sin(time * 2) * 0.04;
+      ellipse(ctx, plaza.cx, plaza.cy, plaza.rx * 0.9, plaza.ry * 0.9, '#fff7d6');
+      ctx.globalAlpha = 1;
+    }
+    // The Dark Knight at night: the bat signal sweeps over the square
+    if (mode === 'darkknight' && night > 0.3) {
+      const bx = plaza.cx + Math.sin(time * 0.35) * W * 0.35;
+      const by = H * 0.25 + Math.cos(time * 0.27) * H * 0.12;
+      glow(bx, by, 26, 'rgba(255,240,170,A)', 0.35 * night);
+      ctx.globalAlpha = 0.55 * night;
+      R(ctx, bx - 7, by - 1, 14, 3, '#0a0a0a');
+      R(ctx, bx - 3, by - 3, 6, 6, '#0a0a0a');
+      R(ctx, bx - 9, by + 1, 3, 2, '#0a0a0a');
+      R(ctx, bx + 6, by + 1, 3, 2, '#0a0a0a');
       ctx.globalAlpha = 1;
     }
     const { shake, flash } = drawFx(dt);
-    ctx.restore();
-    if (shake) canvas.style.transform = `translate(${(Math.random() - 0.5) * shake * 2}px, ${(Math.random() - 0.5) * shake * 2}px)`;
-    else if (canvas.style.transform) canvas.style.transform = '';
     if (flash) {
       ctx.globalAlpha = flash;
       R(ctx, 0, 0, W, H, '#ffffff');
       ctx.globalAlpha = 1;
     }
-    void shakeInfo;
+    if (shake) canvas.style.transform = `translate(${(Math.random() - 0.5) * shake * 4}px, ${(Math.random() - 0.5) * shake * 4}px)`;
+    else if (canvas.style.transform) canvas.style.transform = '';
   }
   function start() {
     if (running) return;
@@ -591,38 +549,70 @@
     else start();
   });
 
-  // Copy of a layer with the sky bands made see-through.
-  function landOf(src, [top, bottom], skyH) {
-    const [c, x] = off(W, H);
-    x.drawImage(src, 0, 0);
-    const img = x.getImageData(0, 0, W, H);
-    const bands = mode === 'darkknight' ? 12 : 10;
-    const sky = new Set();
-    for (let i = 0; i < bands; i++) {
-      const m = mix(top, bottom, i / (bands - 1)).match(/\d+/g).map(Number);
-      sky.add(m.join(','));
-    }
-    for (let y = 0; y < skyH; y++) {
-      for (let xx = 0; xx < W; xx++) {
-        const o = (y * W + xx) * 4;
-        if (sky.has(img.data[o] + ',' + img.data[o + 1] + ',' + img.data[o + 2])) img.data[o + 3] = 0;
-      }
-    }
-    x.putImageData(img, 0, 0);
-    return c;
-  }
-  function build(newMode) {
-    mode = newMode;
-    [W, H] = mode === 'darkknight' ? [320, 180] : [288, 192];
+  let buildKey = '';
+  function build() {
+    const root = canvas.parentElement;
+    const cw = root.clientWidth || innerWidth;
+    const ch = root.clientHeight || innerHeight;
+    // Chunky pixels: about 4 screen pixels per scene pixel (a bit less on phones).
+    scale = cw < 600 ? 3 : 4;
+    W = Math.ceil(cw / scale);
+    H = Math.ceil(ch / scale);
+    const key = [mode, W, H, plaza.cx | 0, plaza.cy | 0, plaza.rx | 0].join(',');
+    if (key === buildKey && layers) return;
+    buildKey = key;
     canvas.width = W;
     canvas.height = H;
     ctx.imageSmoothingEnabled = false;
-    const draw = mode === 'darkknight' ? drawGotham : drawClassic;
-    layers = { day: draw(false), night: draw(true), skyH: mode === 'darkknight' ? 120 : 110 };
-    // The land: everything that isn't plain sky (so the sun, moon and stars sit behind hills and buildings).
-    layers.dayLand = landOf(layers.day, mode === 'darkknight' ? ['#8f8a86', '#e2cfae'] : ['#5fb4ec', '#cdeeff'], layers.skyH);
-    layers.nightLand = landOf(layers.night, mode === 'darkknight' ? ['#070a18', '#1c2148'] : ['#0b1030', '#2b2560'], layers.skyH);
+    const day = drawSquare(false);
+    const nightLayer = drawSquare(true);
+    layers = { day, night: nightLayer };
     particles = [];
+  }
+
+  // A small pixel villager for players without a character. Same look for the same name.
+  const personCache = new Map();
+  function personSprite(name) {
+    if (personCache.has(name)) return personCache.get(name);
+    let h = 0;
+    for (const ch of String(name).toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const r = rng(h);
+    const skin = ['#f1c9a5', '#d9a77c', '#a8714a', '#7a4b2c', '#f5d7bd'][Math.floor(r() * 5)];
+    const hair = ['#2b1d14', '#5a3a22', '#c8a14a', '#8b3a1e', '#1a1a1a', '#d7d2c8'][Math.floor(r() * 6)];
+    const shirt = ['#c0392b', '#2e86c1', '#27ae60', '#8e44ad', '#d68910', '#16a085', '#7f8c8d', '#c2185b'][Math.floor(r() * 8)];
+    const pants = ['#2c3e50', '#5d4037', '#37474f', '#4e342e'][Math.floor(r() * 4)];
+    const hat = r() < 0.35;
+    const [c, x] = off(12, 22);
+    const o = '#1b1b22';
+    // head with outline
+    R(x, 3, 2, 6, 6, o);
+    R(x, 4, 3, 4, 4, skin);
+    R(x, 4, 2, 4, 2, hair);
+    R(x, 3, 3, 1, 2, hair);
+    R(x, 8, 3, 1, 2, hair);
+    P(x, 5, 5, o);
+    P(x, 7, 5, o);
+    if (hat) {
+      R(x, 2, 1, 8, 1, '#2a2a2a');
+      R(x, 4, 0, 4, 1, '#2a2a2a');
+    }
+    // body
+    R(x, 2, 8, 8, 8, o);
+    R(x, 3, 9, 6, 6, shirt);
+    R(x, 3, 9, 1, 6, shade(shirt, 0.8));
+    R(x, 1, 9, 2, 5, o);
+    R(x, 9, 9, 2, 5, o);
+    P(x, 1, 13, skin);
+    P(x, 10, 13, skin);
+    // legs
+    R(x, 3, 16, 6, 5, o);
+    R(x, 4, 16, 2, 4, pants);
+    R(x, 6, 16, 2, 4, pants);
+    R(x, 3, 21, 3, 1, o);
+    R(x, 6, 21, 3, 1, o);
+    const url = c.toDataURL();
+    personCache.set(name, url);
+    return url;
   }
 
   window.PixelScene = {
@@ -630,11 +620,23 @@
     get active() {
       return enabled && !!canvas && !canvas.classList.contains('hidden');
     },
+    get scale() {
+      return scale;
+    },
+    get plaza() {
+      return plaza;
+    },
+    personSprite,
     setEnabled(on) {
       enabled = !!on;
       try {
         localStorage.setItem(STORE, on ? 'on' : 'off');
       } catch {}
+    },
+    // Where the plaza sits, in screen pixels relative to the scene (from the chat area).
+    setPlaza(cx, cy, rx, ry) {
+      plaza = { cx: Math.round(cx / scale), cy: Math.round(cy / scale), rx: Math.round(rx / scale), ry: Math.round(ry / scale) };
+      if (canvas && !canvas.classList.contains('hidden')) build();
     },
     show(root, newMode, newPhase) {
       if (!canvas) {
@@ -643,12 +645,14 @@
         canvas.setAttribute('aria-hidden', 'true');
         ctx = canvas.getContext('2d');
         root.prepend(canvas);
+        new ResizeObserver(() => !canvas.classList.contains('hidden') && build()).observe(root);
       }
       canvas.classList.remove('hidden');
       canvas.classList.add('on');
-      if (newMode !== mode || !layers) build(newMode);
-      if (!layers) build(newMode);
+      if (newMode !== mode) buildKey = '';
+      mode = newMode;
       phase = newPhase;
+      build();
       start();
     },
     hide() {
@@ -657,21 +661,15 @@
       canvas.classList.remove('on');
       stop();
     },
-    // What everyone may see, from the shared game state.
     update(s) {
       if (!s) return;
       state.dead = (s.dead || []).length;
       state.trial = !!s.trial?.open;
     },
-    // Game events. Private ones (your own night pick) are only sent by your own screen.
-    event(kind, data) {
+    event(kind) {
       if (!canvas || canvas.classList.contains('hidden')) return;
-      const [fx0] = fireAt();
-      if (kind === 'death') {
-        addFx('lightning', { dur: 1.4, x: fx0 + (Math.random() - 0.5) * 120 });
-        addFx('crows', { dur: 5 });
-      } else if (kind === 'guilty') {
-        addFx('lightning', { dur: 1.4, x: fx0 });
+      if (kind === 'death' || kind === 'guilty') {
+        addFx('lightning', { dur: 1.4 });
         addFx('crows', { dur: 5 });
       } else if (kind === 'innocent') addFx('confetti', { dur: 3 });
       else if (kind === 'arrest') addFx('police', { dur: 5 });
@@ -679,11 +677,11 @@
       else if (kind === 'start') {
         addFx('flash', { dur: 0.8, a: 0.4 });
         addFx('confetti', { dur: 3 });
-      } else if (kind === 'my-kill' || kind === 'my-vigil') addFx(kind === 'my-kill' ? 'paws' : 'crosshair', { dur: 4 });
+      } else if (kind === 'my-kill') addFx('paws', { dur: 4 });
+      else if (kind === 'my-vigil') addFx('crosshair', { dur: 4 });
       else if (kind === 'my-heal') addFx('shield', { dur: 2 });
       else if (kind === 'my-investigate' || kind === 'my-interrogate') addFx('magnify', { dur: 3 });
       else if (kind === 'my-poison') addFx('poison', { dur: 4 });
-      void data;
     },
   };
 })();

@@ -2157,3 +2157,9 @@ canvas.pixel-scene { image-rendering: pixelated; image-rendering: crisp-edges; }
 .mm-tab.mt-bg .mm-tab-icon { background: linear-gradient(135deg, #22d3ee, #0e7490); }
 /* Phones: the pixel scene is stretched across the width (like the spots), and cropped from the top. */
 @media (max-width: 760px) { canvas.pixel-scene { object-fit: cover; object-position: center bottom; } }
+/* Pixel village square: players in a ring */
+.firekeeper.ring .fk-name { font-size: 0.72rem; padding: 1px 8px; }
+.firekeeper.ring.plain .fk-img { image-rendering: pixelated; }
+canvas.pixel-scene { object-fit: fill !important; }
+/* The Dark Knight with the pixel square: only a light filter by day */
+.scene.dk:has(canvas.pixel-scene.on) ~ .chat-fx .fx-grade { -webkit-backdrop-filter: none; backdrop-filter: none; background: linear-gradient(180deg, rgba(8, 12, 40, 0.15), transparent 50%, rgba(2, 4, 14, 0.25)); }

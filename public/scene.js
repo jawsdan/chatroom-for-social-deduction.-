@@ -148,8 +148,116 @@ window.SCENE_HD = (function () {
     }
   }
 
-  // list: [{ name, character, dead }]
+  // ---------- The pixel village square: everyone stands in a ring around the fire ----------
+  const ringEls = new Map(); // player name -> element
+  let ringList = [];
+  function ringLayout() {
+    root = document.getElementById('scene');
+    if (!root || !window.PixelScene?.active) return;
+    const sr = root.getBoundingClientRect();
+    const chat = document.querySelector('.chat');
+    const cr = chat ? chat.getBoundingClientRect() : sr;
+    const composer = document.getElementById('composer');
+    const bottom = (composer ? composer.getBoundingClientRect().top : cr.bottom) - sr.top;
+    const head = document.querySelector('.chat-header');
+    const top = (head ? head.getBoundingClientRect().bottom : cr.top) - sr.top;
+    const left = cr.left - sr.left;
+    const width = cr.width;
+    const phone = width < 600;
+    // The plaza: as wide as the chat allows, flattened like a view from above at an angle.
+    const rx = Math.min(width * (phone ? 0.4 : 0.4), (bottom - top) * 0.78);
+    const ry = Math.min(rx * 0.56, (bottom - top) * 0.32);
+    const cx = left + width / 2;
+    const cy = top + (bottom - top) * (phone ? 0.62 : 0.6);
+    window.PixelScene.setPlaza(cx, cy, rx, ry);
+    const n = ringList.length;
+    // Size so neighbours don't overlap: the ring's length shared by everyone.
+    const ringLen = Math.PI * (3 * (rx + ry) - Math.sqrt((3 * rx + ry) * (rx + 3 * ry))) * 0.92;
+    const h = Math.max(40, Math.min(phone ? 66 : 104, (ringLen / Math.max(n, 6)) * 1.15));
+    // Even spacing along the edge of the oval (not by angle, which bunches people up on the sides).
+    const steps = 720;
+    const cum = [0];
+    for (let k = 1; k <= steps; k++) {
+      const a0 = Math.PI / 2 + ((k - 1) / steps) * Math.PI * 2;
+      const a1 = Math.PI / 2 + (k / steps) * Math.PI * 2;
+      cum.push(cum[k - 1] + Math.hypot((Math.cos(a1) - Math.cos(a0)) * rx, (Math.sin(a1) - Math.sin(a0)) * ry));
+    }
+    const total = cum[steps];
+    const angleAt = (frac) => {
+      const want = frac * total;
+      let k = 0;
+      while (k < steps && cum[k + 1] < want) k++;
+      return Math.PI / 2 + (k / steps) * Math.PI * 2;
+    };
+    ringList.forEach((p, i) => {
+      const el = ringEls.get(p.name);
+      if (!el) return;
+      // Start at the bottom so the first players face you; go round evenly.
+      const a = angleAt(i / Math.max(n, 1));
+      const x = cx + Math.cos(a) * rx * 0.92;
+      const y = cy + Math.sin(a) * ry * 0.92;
+      const depth = 0.82 + 0.18 * ((Math.sin(a) + 1) / 2); // further back = a little smaller
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.style.zIndex = String(10 + Math.round(y));
+      el.style.setProperty('--fk-h', h * depth + 'px');
+    });
+  }
+  function setRing(list, newPhase) {
+    root = document.getElementById('scene');
+    if (!root.dataset.ringInit) {
+      root.dataset.ringInit = '1';
+      window.addEventListener('resize', ringLayout);
+      new ResizeObserver(ringLayout).observe(root);
+    }
+    // Hide the side-view characters while the ring is up.
+    for (const el of els.values()) el.remove();
+    els.clear();
+    ringList = list.filter((p) => !p.mod);
+    const names = new Set(ringList.map((p) => p.name));
+    for (const [name, el] of ringEls) {
+      if (!names.has(name)) {
+        el.remove();
+        ringEls.delete(name);
+      }
+    }
+    for (const p of ringList) {
+      const c = p.character && (window.CHARACTERS || []).find((x) => x.id === p.character);
+      const img = c ? c.img : window.PixelScene.personSprite(p.name);
+      let el = ringEls.get(p.name);
+      const fresh = !el || el.dataset.img !== img;
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'firekeeper ring';
+        el.innerHTML = '<div class="fk-poof"></div><img class="fk-img" alt="" draggable="false"><div class="fk-name"></div>';
+        root.append(el);
+        ringEls.set(p.name, el);
+      }
+      el.dataset.img = img;
+      el.querySelector('.fk-img').src = img;
+      el.classList.toggle('flip', !!c?.flip);
+      el.classList.toggle('plain', !c);
+      el.querySelector('.fk-name').textContent = p.name;
+      el.classList.toggle('dead', !!p.dead);
+      if (fresh) {
+        el.classList.remove('spawn');
+        void el.offsetWidth;
+        el.classList.add('spawn');
+      }
+    }
+    ringLayout();
+    void newPhase;
+  }
+  function clearRing() {
+    for (const el of ringEls.values()) el.remove();
+    ringEls.clear();
+    ringList = [];
+  }
+
+  // list: [{ name, character, dead, mod }]
   window.setFireCharacters = function (list, newPhase) {
+    if (window.PixelScene?.active) return setRing(list, newPhase);
+    clearRing();
     root = document.getElementById('scene');
     if (!root) return;
     if (!root.dataset.fkInit) {

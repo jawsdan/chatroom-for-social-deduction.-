@@ -251,7 +251,7 @@ socket.on('state', (s) => {
   renderAll(false);
   // Players who picked a character stand by the fire.
   window.setFireCharacters?.(
-    s.users.map((u) => ({ name: u.name, character: u.character, dead: u.muted || s.dead?.includes(key(u.name)) })),
+    s.users.map((u) => ({ name: u.name, character: u.character, mod: u.moderator, dead: u.muted || s.dead?.includes(key(u.name)) })),
     s.phase
   );
   if (!$('charSelect').classList.contains('hidden')) renderCharGrid();
@@ -2553,7 +2553,7 @@ function renderMainMenu() {
     page.append(menuTab('🖼️', 'Background', pix ? 'Live pixel scene · tap for the videos' : 'Videos · tap for the live pixel scene', () => {
       window.PixelScene.setEnabled(!pix);
       window.setScene?.(currentPhase);
-      window.setFireCharacters?.(state.users.map((u) => ({ name: u.name, character: u.character, dead: u.muted || state.dead?.includes(key(u.name)) })), state.phase);
+      window.setFireCharacters?.(state.users.map((u) => ({ name: u.name, character: u.character, mod: u.moderator, dead: u.muted || state.dead?.includes(key(u.name)) })), state.phase);
       $('mainMenu').dataset.sig = '';
       renderMainMenu();
     }, 'mt-bg'));
