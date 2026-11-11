@@ -148,12 +148,16 @@ window.SCENE_HD = (function () {
     }
   }
 
-  // ---------- The pixel village square: everyone stands in a ring around the fire ----------
+  // ---------- The village square: everyone stands in a ring around the fire ----------
+  // Players walk home at night, step onto the stand when they are on trial, show their vote
+  // above their head, and what they say in the lobby pops up as a speech bubble.
   const ringEls = new Map(); // player name -> element
   let ringList = [];
+  let ringInfo = {};
   function ringLayout() {
     root = document.getElementById('scene');
     if (!root || !window.PixelScene?.active) return;
+    const PS = window.PixelScene;
     const sr = root.getBoundingClientRect();
     const chat = document.querySelector('.chat');
     const cr = chat ? chat.getBoundingClientRect() : sr;
@@ -165,15 +169,17 @@ window.SCENE_HD = (function () {
     const width = cr.width;
     const phone = width < 600;
     // The plaza: as wide as the chat allows, flattened like a view from above at an angle.
-    const rx = Math.min(width * (phone ? 0.4 : 0.4), (bottom - top) * 0.78);
+    const rx = Math.min(width * 0.4, (bottom - top) * 0.78);
     const ry = Math.min(rx * 0.56, (bottom - top) * 0.32);
     const cx = left + width / 2;
     const cy = top + (bottom - top) * (phone ? 0.62 : 0.6);
-    window.PixelScene.setPlaza(cx, cy, rx, ry);
     const n = ringList.length;
     // Size so neighbours don't overlap: the ring's length shared by everyone.
     const ringLen = Math.PI * (3 * (rx + ry) - Math.sqrt((3 * rx + ry) * (rx + 3 * ry))) * 0.92;
     const h = Math.max(40, Math.min(phone ? 66 : 104, (ringLen / Math.max(n, 6)) * 1.15));
+    // The stand for the accused: just behind the fire.
+    const stand = { x: cx, y: cy - ry * 0.42, h };
+    PS.setPlaza(cx, cy, rx, ry, stand);
     // Even spacing along the edge of the oval (not by angle, which bunches people up on the sides).
     const steps = 720;
     const cum = [0];
@@ -182,28 +188,87 @@ window.SCENE_HD = (function () {
       const a1 = Math.PI / 2 + (k / steps) * Math.PI * 2;
       cum.push(cum[k - 1] + Math.hypot((Math.cos(a1) - Math.cos(a0)) * rx, (Math.sin(a1) - Math.sin(a0)) * ry));
     }
-    const total = cum[steps];
     const angleAt = (frac) => {
-      const want = frac * total;
+      const want = frac * cum[steps];
       let k = 0;
       while (k < steps && cum[k + 1] < want) k++;
       return Math.PI / 2 + (k / steps) * Math.PI * 2;
     };
+    const doors = PS.doors;
+    const trial = ringInfo.trial;
+    const exec = PS.exec;
+    const execT = exec ? performance.now() - exec.t : 0;
+    const nightHome = ringInfo.phase === 'night' && ringInfo.running && !trial?.open && !exec;
     ringList.forEach((p, i) => {
       const el = ringEls.get(p.name);
       if (!el) return;
-      // Start at the bottom so the first players face you; go round evenly.
       const a = angleAt(i / Math.max(n, 1));
-      const x = cx + Math.cos(a) * rx * 0.92;
-      const y = cy + Math.sin(a) * ry * 0.92;
-      const depth = 0.82 + 0.18 * ((Math.sin(a) + 1) / 2); // further back = a little smaller
+      let x = cx + Math.cos(a) * rx * 0.92;
+      let y = cy + Math.sin(a) * ry * 0.92;
+      let size = h * (0.82 + 0.18 * ((Math.sin(a) + 1) / 2)); // further back = a little smaller
+      let home = false;
+      const onStand = (exec && exec.name === p.name) || (!exec && trial?.open && trial.accused === p.name);
+      if (onStand) {
+        x = stand.x;
+        y = stand.y;
+        size = h;
+      } else if (nightHome && !p.dead && doors.length) {
+        // Walk to the nearest house and go inside for the night. Ghosts stay out.
+        const want = Math.atan2(Math.sin(a) , Math.cos(a));
+        let best = doors[0];
+        let bd = 9;
+        for (const d of doors) {
+          const diff = Math.abs(((d.a - want + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+          if (diff < bd) [bd, best] = [diff, d];
+        }
+        x = best.x;
+        y = best.y;
+        size = h * 0.8;
+        home = true;
+      }
+      // What happens to the accused once the verdict is in.
+      const guilty = exec && exec.name === p.name && exec.kind === 'guilty';
+      el.classList.toggle('hanged', !!guilty && execT > 500 && !document.body.classList.contains('mode-dk'));
+      el.classList.toggle('caged', !!guilty && execT > 500 && document.body.classList.contains('mode-dk'));
+      el.classList.toggle('home', home);
+      // Walk (bob) while moving to a new place.
+      const moved = el._x != null && Math.hypot(el._x - x, el._y - y) > 14;
+      if (el._x == null) el.classList.add('noanim');
+      el._x = x;
+      el._y = y;
       el.style.left = x + 'px';
       el.style.top = y + 'px';
       el.style.zIndex = String(10 + Math.round(y));
-      el.style.setProperty('--fk-h', h * depth + 'px');
+      el.style.setProperty('--fk-h', size + 'px');
+      if (moved) {
+        el.classList.add('walk');
+        clearTimeout(el._walk);
+        el._walk = setTimeout(() => el.classList.remove('walk'), 950);
+      }
+      requestAnimationFrame(() => el.classList.remove('noanim'));
+      // A badge over the head: "voted" while voting is open, the vote itself when the verdict is in.
+      const badge = el.querySelector('.fk-badge');
+      let text = '';
+      let cls = '';
+      const shown = exec?.votes?.find((v) => v.name === p.name);
+      if (shown) [text, cls] = shown.vote === 'guilty' ? ['Guilty', 'bad'] : ['Innocent', 'good'];
+      else if (trial?.open && trial.votes?.some((v) => v.name === p.name)) [text, cls] = ['✓ voted', ''];
+      badge.textContent = text;
+      badge.className = 'fk-badge ' + cls + (text ? ' on' : '');
     });
   }
-  function setRing(list, newPhase) {
+  window.sceneRelayout = ringLayout;
+  // What someone says in the lobby shows as a speech bubble over their head for a few seconds.
+  window.sceneSay = function (name, text) {
+    const el = ringEls.get(name);
+    if (!el || !text) return;
+    const b = el.querySelector('.fk-say');
+    b.textContent = text.length > 70 ? text.slice(0, 68) + '…' : text;
+    b.classList.add('on');
+    clearTimeout(el._say);
+    el._say = setTimeout(() => b.classList.remove('on'), 4500);
+  };
+  function setRing(list, newPhase, info) {
     root = document.getElementById('scene');
     if (!root.dataset.ringInit) {
       root.dataset.ringInit = '1';
@@ -214,6 +279,7 @@ window.SCENE_HD = (function () {
     for (const el of els.values()) el.remove();
     els.clear();
     ringList = list.filter((p) => !p.mod);
+    ringInfo = { phase: newPhase, ...(info || {}) };
     const names = new Set(ringList.map((p) => p.name));
     for (const [name, el] of ringEls) {
       if (!names.has(name)) {
@@ -221,7 +287,7 @@ window.SCENE_HD = (function () {
         ringEls.delete(name);
       }
     }
-    for (const p of ringList) {
+    ringList.forEach((p, i) => {
       const c = p.character && (window.CHARACTERS || []).find((x) => x.id === p.character);
       const img = c ? c.img : window.PixelScene.personSprite(p.name);
       let el = ringEls.get(p.name);
@@ -229,12 +295,13 @@ window.SCENE_HD = (function () {
       if (!el) {
         el = document.createElement('div');
         el.className = 'firekeeper ring';
-        el.innerHTML = '<div class="fk-poof"></div><img class="fk-img" alt="" draggable="false"><div class="fk-name"></div>';
+        el.innerHTML = '<div class="fk-poof"></div><img class="fk-img" alt="" draggable="false"><div class="fk-name"></div><div class="fk-badge"></div><div class="fk-say"></div>';
+        el.style.setProperty('--idle', -(i * 0.37) + 's');
         root.append(el);
         ringEls.set(p.name, el);
       }
       el.dataset.img = img;
-      el.querySelector('.fk-img').src = img;
+      if (fresh) el.querySelector('.fk-img').src = img;
       el.classList.toggle('flip', !!c?.flip);
       el.classList.toggle('plain', !c);
       el.querySelector('.fk-name').textContent = p.name;
@@ -243,10 +310,10 @@ window.SCENE_HD = (function () {
         el.classList.remove('spawn');
         void el.offsetWidth;
         el.classList.add('spawn');
+        setTimeout(() => el.classList.remove('spawn'), 1100);
       }
-    }
+    });
     ringLayout();
-    void newPhase;
   }
   function clearRing() {
     for (const el of ringEls.values()) el.remove();
@@ -255,8 +322,8 @@ window.SCENE_HD = (function () {
   }
 
   // list: [{ name, character, dead, mod }]
-  window.setFireCharacters = function (list, newPhase) {
-    if (window.PixelScene?.active) return setRing(list, newPhase);
+  window.setFireCharacters = function (list, newPhase, info) {
+    if (window.PixelScene?.active) return setRing(list, newPhase, info);
     clearRing();
     root = document.getElementById('scene');
     if (!root) return;

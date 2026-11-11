@@ -252,7 +252,8 @@ socket.on('state', (s) => {
   // Players who picked a character stand by the fire.
   window.setFireCharacters?.(
     s.users.map((u) => ({ name: u.name, character: u.character, mod: u.moderator, dead: u.muted || s.dead?.includes(key(u.name)) })),
-    s.phase
+    s.phase,
+    sceneInfo(s)
   );
   if (!$('charSelect').classList.contains('hidden')) renderCharGrid();
   maybeShowTrialPopup();
@@ -282,6 +283,7 @@ socket.on('lobby:history', (list) => {
 socket.on('lobby:message', (m) => {
   lobbyMsgs.push(m);
   if (m.system && /^🚔/.test(m.text || '')) window.PixelScene?.event('arrest');
+  if (!m.system && !m.clue && m.from) window.sceneSay?.(m.from, m.text);
   if (channel === 'lobby') appendMessage(m);
   else if (!m.system) {
     lobbyUnread++;
@@ -468,13 +470,15 @@ socket.on('role:assigned', ({ role }) => {
 });
 socket.on('role:cleared', () => toast('New game: all roles were cleared.'));
 
-socket.on('trial:started', () => {
+socket.on('trial:started', ({ accused } = {}) => {
+  window.PixelScene?.event('trial', { accused });
   trialPopupShownFor = null;
 });
 socket.on('trial:cleared', closeModal);
 socket.on('trial:result', (r) => {
-  window.PixelScene?.event(r.result === 'guilty' ? 'guilty' : 'innocent');
-  openModal((card) => {
+  window.PixelScene?.event(r.result === 'guilty' ? 'guilty' : 'innocent', { accused: r.accused, votes: r.votes });
+  // Let the village square play the verdict first, then show the result.
+  const showResult = () => openModal((card) => {
     const art = el('div', 'art');
     art.innerHTML = ART.scales;
     card.append(art);
@@ -501,6 +505,8 @@ socket.on('trial:result', (r) => {
     actions.append(btn('btn-primary', 'Close', closeModal));
     card.append(actions);
   });
+  if (window.PixelScene?.active) setTimeout(showResult, r.result === 'guilty' ? 3600 : 1600);
+  else showResult();
 });
 
 // ---------- Phase ----------
@@ -692,6 +698,57 @@ function openRolePicker(name) {
   });
 }
 
+// ---------- "Seen by" ----------
+let seenLobby = {}; // name -> newest lobby message id they have seen
+let seenMod = {}; // thread -> { name -> id }
+const seenSent = {};
+socket.on('seen:all', (all) => {
+  seenLobby = all.lobby || {};
+  seenMod = all.mod || {};
+  renderSeen();
+});
+socket.on('seen', ({ channel: ch, thread, name, id }) => {
+  if (ch === 'lobby') seenLobby[name] = id;
+  else (seenMod[thread] ||= {})[name] = id;
+  renderSeen();
+});
+// The newest real message in the chat I'm looking at (not AI answers).
+function lastRealMessage() {
+  const list = channel === 'lobby' ? lobbyMsgs : channel === 'mod' ? (amMod() ? modThreads[selectedThread] || [] : myThread) : [];
+  for (let i = list.length - 1; i >= 0; i--) if (Number.isInteger(list[i].id)) return list[i];
+  return null;
+}
+// Tell the server I've seen the newest message, when I'm really looking at the chat.
+function markSeen() {
+  if (!state || document.hidden || $('app').classList.contains('hidden') || document.body.classList.contains('menu-open')) return;
+  if (channel !== 'lobby' && channel !== 'mod') return;
+  const last = lastRealMessage();
+  if (!last) return;
+  const thread = channel === 'mod' ? (amMod() ? selectedThread : key(me)) : '';
+  if (channel === 'mod' && !thread) return;
+  const k = channel + '|' + thread;
+  if ((seenSent[k] || 0) >= last.id) return;
+  seenSent[k] = last.id;
+  socket.emit('seen', { channel, thread, id: last.id });
+}
+document.addEventListener('visibilitychange', () => { markSeen(); });
+// "Seen by Ann, Bo" under the newest message.
+function renderSeen() {
+  const box = $('messages');
+  box.querySelector('.seen-line')?.remove();
+  if (!state || (channel !== 'lobby' && channel !== 'mod')) return;
+  const last = lastRealMessage();
+  if (!last) return;
+  const map = channel === 'lobby' ? seenLobby : seenMod[amMod() ? selectedThread : key(me)] || {};
+  const online = new Set(state.users.map((u) => u.name));
+  const names = Object.entries(map).filter(([n, id]) => id >= last.id && key(n) !== key(me) && key(n) !== key(last.from || '') && online.has(n)).map(([n]) => n);
+  if (!names.length) return;
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  const shown = names.slice(0, 6).join(', ') + (names.length > 6 ? ` +${names.length - 6}` : '');
+  box.append(el('div', 'seen-line', `✓ Seen by ${shown}`));
+  if (nearBottom) box.scrollTop = box.scrollHeight;
+}
+
 // ---------- Channels ----------
 function switchChannel(c) {
   channel = c;
@@ -740,6 +797,7 @@ function renderAll(redrawMessages = true) {
   renderThreadTabs();
   renderComposer();
   renderPanel();
+  markSeen();
   renderModTiles();
   refreshLiveModal();
   updateAbilityBox();
@@ -1704,6 +1762,8 @@ function renderMessages() {
     return;
   }
   for (const m of list) appendMessage(m, false);
+  renderSeen();
+  markSeen();
   box.scrollTop = box.scrollHeight;
   requestAnimationFrame(() => (box.style.scrollBehavior = ''));
 }
@@ -1792,6 +1852,10 @@ function appendMessage(m, live = true) {
   if (m.id != null) node.dataset.mid = m.id;
   if (!live) node.style.animation = 'none';
   box.append(node);
+  if (live) {
+    renderSeen();
+    markSeen();
+  }
   if (live && (nearBottom || key(m.from || '') === key(me))) box.scrollTop = box.scrollHeight;
 }
 
@@ -2414,6 +2478,10 @@ let startMinimized = false;
 let randomizeOnStart = true;
 let charAfterJoin = false;
 let lastScenePick = null;
+// What the village square needs to know (all of it public): is a game running, and who is on trial.
+function sceneInfo(s) {
+  return { running: s.gameState === 'running', trial: s.trial ? { accused: s.trial.accused, open: s.trial.open, votes: s.trial.votes } : null };
+}
 
 // ---------- Main menu (before a game) ----------
 // A simple stack of big buttons. Each one opens its own page with a Back button.
@@ -2553,7 +2621,7 @@ function renderMainMenu() {
     page.append(menuTab('🖼️', 'Background', pix ? 'Live pixel scene · tap for the videos' : 'Videos · tap for the live pixel scene', () => {
       window.PixelScene.setEnabled(!pix);
       window.setScene?.(currentPhase);
-      window.setFireCharacters?.(state.users.map((u) => ({ name: u.name, character: u.character, mod: u.moderator, dead: u.muted || state.dead?.includes(key(u.name)) })), state.phase);
+      window.setFireCharacters?.(state.users.map((u) => ({ name: u.name, character: u.character, mod: u.moderator, dead: u.muted || state.dead?.includes(key(u.name)) })), state.phase, sceneInfo(state));
       $('mainMenu').dataset.sig = '';
       renderMainMenu();
     }, 'mt-bg'));

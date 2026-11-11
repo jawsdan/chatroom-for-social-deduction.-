@@ -1,8 +1,10 @@
-// A live pixel-art scene behind the chat, drawn in code (no video).
-// A village square seen from above: a round plaza with the fire in the middle, houses around it,
-// and every player standing in a ring. The Dark Knight turns it into a rainy Gotham square.
+// The live village square behind the chat, drawn in code (no video, no image files).
+// A round plaza seen from above with the fire in the middle, houses, trees and paths around it.
+// The Dark Knight turns it into a rainy Gotham square. Players stand in a ring (see scene.js),
+// walk home at night and step onto the stand when they are on trial.
 // It reacts to the game: day and night, deaths, trials, arrests, clues and your own night action.
 // Only things everyone may know are shown to everyone; your own night pick only shows on your screen.
+// Two layers: "back" under the players (ground, houses, fire) and "front" over them (rain, rope, cage, effects).
 // Switch it off in the main menu (Background) to get the videos back.
 (function () {
   const STORE = 'pixelScene';
@@ -11,24 +13,29 @@
     enabled = localStorage.getItem(STORE) !== 'off';
   } catch {}
 
-  let canvas = null;
-  let ctx = null;
+  let back = null;
+  let front = null;
+  let bx = null; // back context
+  let fx2 = null; // front context
   let mode = 'classic';
   let phase = 'day';
-  let W = 320;
-  let H = 200;
-  let scale = 4; // screen pixels per scene pixel
+  let W = 1280; // size in CSS pixels
+  let H = 720;
+  let q = 1; // canvas pixels per CSS pixel
   let night = 0;
-  let layers = null;
+  let bg = null; // the still village (day)
+  let lightLayer = null; // windows and lamps, added at night
+  let vignette = null;
   let running = false;
   let lastT = 0;
   let time = 0;
-  const fx = [];
+  const effects = [];
   let particles = [];
-  const state = { dead: 0, trial: false };
-  // The plaza in scene pixels (set from the chat area so the ring sits where the chat is).
-  let plaza = { cx: 160, cy: 110, rx: 60, ry: 30 };
-  let lights = []; // lanterns and windows that glow at night
+  const game = { dead: 0, trialOpen: false };
+  let plaza = { cx: 640, cy: 400, rx: 300, ry: 160 };
+  let houses = []; // { x, y, w, door: {x, y}, chimney: {x, y} }
+  let stand = { x: 640, y: 330, h: 90 }; // where the accused stands (set by scene.js)
+  let exec = null; // { name, kind: 'guilty' | 'innocent', t } while a verdict plays out
 
   // ---------- helpers ----------
   function rng(seed) {
@@ -40,236 +47,488 @@
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   }
-  const R = (c, x, y, w, h, col) => {
-    c.fillStyle = col;
-    c.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(w)), Math.max(1, Math.round(h)));
-  };
-  const P = (c, x, y, col) => R(c, x, y, 1, 1, col);
   const lerp = (a, b, t) => a + (b - a) * t;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const ease = (t) => t * t * (3 - 2 * t);
   function shade(hex, f) {
     const n = parseInt(hex.slice(1), 16);
-    const c = (v) => Math.max(0, Math.min(255, Math.round(v * f)));
+    const c = (v) => clamp(Math.round(v * f), 0, 255);
     return `rgb(${c(n >> 16)},${c((n >> 8) & 255)},${c(n & 255)})`;
   }
-  function off(w, h) {
+  function layer(w = W, h = H) {
     const c = document.createElement('canvas');
-    c.width = w;
-    c.height = h;
+    c.width = Math.ceil(w * q);
+    c.height = Math.ceil(h * q);
     const x = c.getContext('2d');
-    x.imageSmoothingEnabled = false;
+    x.scale(q, q);
     return [c, x];
   }
-  function ellipse(c, cx, cy, rx, ry, col) {
-    for (let y = -ry; y <= ry; y++) {
-      const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (y / ry) ** 2)));
-      R(c, cx - w, cy + y, w * 2 + 1, 1, col);
+  function ell(c, x, y, rx, ry, fill, stroke, lw = 2) {
+    c.beginPath();
+    c.ellipse(x, y, Math.max(0.1, rx), Math.max(0.1, ry), 0, 0, Math.PI * 2);
+    if (fill) {
+      c.fillStyle = fill;
+      c.fill();
+    }
+    if (stroke) {
+      c.strokeStyle = stroke;
+      c.lineWidth = lw;
+      c.stroke();
     }
   }
-  function disc(c, cx, cy, r, col) {
-    ellipse(c, cx, cy, r, r, col);
+  function poly(c, pts, fill, stroke, lw = 2) {
+    c.beginPath();
+    pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)));
+    c.closePath();
+    if (fill) {
+      c.fillStyle = fill;
+      c.fill();
+    }
+    if (stroke) {
+      c.strokeStyle = stroke;
+      c.lineWidth = lw;
+      c.lineJoin = 'round';
+      c.stroke();
+    }
   }
+  function rrect(c, x, y, w, h, r, fill, stroke, lw = 2) {
+    c.beginPath();
+    c.roundRect(x, y, w, h, r);
+    if (fill) {
+      c.fillStyle = fill;
+      c.fill();
+    }
+    if (stroke) {
+      c.strokeStyle = stroke;
+      c.lineWidth = lw;
+      c.stroke();
+    }
+  }
+  function glow(c, x, y, r, rgb, a) {
+    if (a <= 0 || r <= 0) return;
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(${rgb},${a})`);
+    g.addColorStop(1, `rgba(${rgb},0)`);
+    c.fillStyle = g;
+    c.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  const INK = '#2a1c14';
 
-  // ---------- pieces of the village ----------
-  const ROOFS = ['#b5532f', '#9c3f2a', '#5d7fa3', '#7a6a9a', '#3f7f5a', '#a77b3c', '#8c4b6b'];
-  function house(c, r, x, y, w, N, dk) {
-    // 3/4 view: a roof on top, the front wall below with a door and windows.
-    const roofH = Math.round(w * 0.55);
-    const wallH = Math.round(w * 0.42);
-    if (dk) {
-      // Gotham: dark brick block with a flat roof and lots of windows
-      const base = N ? ['#4a3a3a', '#3c3f4a', '#4b4036', '#353a45'][Math.floor(r() * 4)] : ['#8a5a4a', '#6a6f80', '#8b7356', '#5d6a80'][Math.floor(r() * 4)];
-      R(c, x, y, w, roofH, shade(base, N ? 0.55 : 1.1));
-      R(c, x, y, w, 1, shade(base, N ? 0.7 : 1.35));
-      R(c, x + 2, y + 2, 3, 3, N ? '#2a2c34' : '#5b5e66'); // roof vent
-      R(c, x, y + roofH, w, wallH + 4, shade(base, N ? 0.4 : 0.8));
-      for (let wy = y + roofH + 2; wy < y + roofH + wallH + 1; wy += 3) {
-        for (let wx = x + 2; wx < x + w - 2; wx += 3) {
-          const lit = r() < (N ? 0.5 : 0.08);
-          P(c, wx, wy, lit ? '#f6d36b' : N ? '#14161e' : '#2f323b');
-          if (lit && N) lights.push({ x: wx, y: wy, r: 4, col: 'rgba(255,210,110,A)', a: 0.25 });
-        }
-      }
-      R(c, x + w / 2 - 1, y + roofH + wallH, 3, 4, '#1a1a20');
-      return;
-    }
+  // ---------- pieces ----------
+  const ROOFS = ['#c65b3a', '#a84a35', '#5f86ad', '#7d6aa6', '#4a8a63', '#b98a3e', '#9a5278'];
+  const WALLS = ['#f1e4c8', '#e6d5ae', '#ddd2bd', '#efdcbb'];
+  function drawHouse(c, r, hs, lights) {
+    const { x, y, w } = hs;
+    const wallH = w * 0.4;
+    const roofH = w * 0.5;
+    const L = x - w / 2;
     const roof = ROOFS[Math.floor(r() * ROOFS.length)];
-    const wall = ['#e8dcc0', '#d9c8a0', '#cfc3ad', '#e3d3b4'][Math.floor(r() * 4)];
-    // shadow
-    R(c, x + 2, y + roofH + wallH, w, 2, 'rgba(0,0,0,0.25)');
+    const wall = WALLS[Math.floor(r() * WALLS.length)];
+    ell(c, x + 6, y + wallH + 3, w * 0.62, w * 0.14, 'rgba(0,0,0,0.22)');
     // wall
-    R(c, x, y + roofH - 1, w, wallH + 1, N ? shade(wall, 0.45) : wall);
-    R(c, x, y + roofH - 1, 1, wallH + 1, N ? shade(wall, 0.35) : shade(wall, 0.85));
+    const wg = c.createLinearGradient(0, y, 0, y + wallH);
+    wg.addColorStop(0, shade(wall, 0.86));
+    wg.addColorStop(1, wall);
+    rrect(c, L, y - 2, w, wallH + 2, 3, wg, INK, 2);
     // timber beams
-    if (r() < 0.6) {
-      R(c, x + w / 3, y + roofH, 1, wallH, N ? '#2b1d14' : '#5a3a22');
-      R(c, x + (2 * w) / 3, y + roofH, 1, wallH, N ? '#2b1d14' : '#5a3a22');
+    c.strokeStyle = '#6b4a2e';
+    c.lineWidth = 3;
+    c.beginPath();
+    for (const fx of [0.3, 0.7]) {
+      c.moveTo(L + w * fx, y);
+      c.lineTo(L + w * fx, y + wallH);
     }
-    // door and windows
-    R(c, x + w / 2 - 1, y + roofH + wallH - 4, 3, 4, N ? '#2a1a10' : '#6b4226');
-    for (const wx of [x + 2, x + w - 5]) {
-      const lit = N && r() < 0.75;
-      R(c, wx, y + roofH + 1, 3, 2, lit ? '#ffd66b' : N ? '#1d2233' : '#7fb6d6');
-      if (lit) lights.push({ x: wx + 1, y: y + roofH + 2, r: 6, col: 'rgba(255,200,100,A)', a: 0.3 });
+    c.stroke();
+    // door
+    const dw = w * 0.16;
+    rrect(c, x - dw / 2, y + wallH - dw * 1.7, dw, dw * 1.7, [dw / 2, dw / 2, 0, 0], '#7a4a28', INK, 2);
+    ell(c, x + dw * 0.22, y + wallH - dw * 0.8, 1.6, 1.6, '#f2c94c');
+    // windows
+    for (const fx of [0.15, 0.85]) {
+      const wx = L + w * fx - w * 0.07;
+      const wy = y + wallH * 0.22;
+      rrect(c, wx, wy, w * 0.14, w * 0.15, 2, '#8fc4e0', INK, 2);
+      c.strokeStyle = INK;
+      c.lineWidth = 1;
+      c.beginPath();
+      c.moveTo(wx + w * 0.07, wy);
+      c.lineTo(wx + w * 0.07, wy + w * 0.15);
+      c.stroke();
+      if (r() < 0.8) lights.push({ kind: 'win', x: wx, y: wy, w: w * 0.14, h: w * 0.15 });
     }
-    // roof: two slopes with a ridge
-    for (let i = 0; i < roofH; i++) {
-      const inset = Math.round((i / roofH) * 0) ;
-      const col = i < roofH / 2 ? shade(roof, N ? 0.5 : 1.12) : shade(roof, N ? 0.4 : 0.9);
-      R(c, x - 1 + inset, y + i, w + 2 - inset * 2, 1, col);
+    // roof (the front slope) with rows of tiles
+    const pts = [
+      [L - w * 0.07, y + 2],
+      [L + w * 0.13, y - roofH],
+      [L + w * 0.87, y - roofH],
+      [L + w * 1.07, y + 2],
+    ];
+    const rg = c.createLinearGradient(0, y - roofH, 0, y);
+    rg.addColorStop(0, shade(roof, 1.18));
+    rg.addColorStop(1, shade(roof, 0.82));
+    poly(c, pts, rg, null);
+    c.save();
+    c.beginPath();
+    pts.forEach(([px, py], i) => (i ? c.lineTo(px, py) : c.moveTo(px, py)));
+    c.closePath();
+    c.clip();
+    c.strokeStyle = shade(roof, 0.66);
+    c.lineWidth = 1.2;
+    for (let ty = y - roofH + 8, row = 0; ty < y + 2; ty += 8, row++) {
+      c.beginPath();
+      c.moveTo(L - w * 0.1, ty);
+      c.lineTo(L + w * 1.1, ty);
+      c.stroke();
+      for (let tx = L - w * 0.1 + (row % 2 ? 6 : 0); tx < L + w * 1.1; tx += 12) {
+        c.beginPath();
+        c.moveTo(tx, ty - 8);
+        c.lineTo(tx, ty);
+        c.stroke();
+      }
     }
-    R(c, x - 1, y + Math.floor(roofH / 2), w + 2, 1, shade(roof, N ? 0.3 : 0.7)); // ridge
-    // tile rows
-    for (let i = 2; i < roofH; i += 3) for (let tx = x + (i % 2); tx < x + w; tx += 3) P(c, tx, y + i, shade(roof, N ? 0.35 : 0.8));
+    c.restore();
+    poly(c, pts, null, INK, 2);
+    c.strokeStyle = shade(roof, 1.4);
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(L + w * 0.15, y - roofH + 2);
+    c.lineTo(L + w * 0.85, y - roofH + 2);
+    c.stroke();
     // chimney
-    if (r() < 0.7) {
-      const cx = x + 2 + Math.floor(r() * (w - 6));
-      R(c, cx, y - 3, 3, 5, N ? '#3d3b40' : '#8a7f78');
-      R(c, cx, y - 3, 3, 1, N ? '#2a282c' : '#5f5752');
+    const cx = L + w * (0.25 + r() * 0.5);
+    rrect(c, cx - 6, y - roofH - 12, 12, 20, 2, '#9a8d86', INK, 2);
+    rrect(c, cx - 8, y - roofH - 15, 16, 5, 2, '#7d726c', INK, 2);
+    hs.chimney = { x: cx, y: y - roofH - 16 };
+    hs.door = { x, y: y + wallH + 6 };
+  }
+  function drawBlock(c, r, hs, lights) {
+    // Gotham: a brick block with a flat roof.
+    const { x, y, w } = hs;
+    const wallH = w * 0.62;
+    const roofH = w * 0.42;
+    const L = x - w / 2;
+    const base = ['#8a5a4a', '#6f7488', '#8b7356', '#5f6c84', '#7a5560'][Math.floor(r() * 5)];
+    ell(c, x + 8, y + wallH + 3, w * 0.62, w * 0.13, 'rgba(0,0,0,0.3)');
+    // front wall with a grid of windows
+    const wg = c.createLinearGradient(0, y, 0, y + wallH);
+    wg.addColorStop(0, shade(base, 0.7));
+    wg.addColorStop(1, shade(base, 0.9));
+    rrect(c, L, y, w, wallH, 2, wg, '#15161c', 2);
+    const cols = Math.max(2, Math.round(w / 22));
+    const rows = Math.max(2, Math.round(wallH / 20));
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < rows; j++) {
+        const wx = L + (w / cols) * (i + 0.5) - 5;
+        const wy = y + 6 + ((wallH - 18) / rows) * j;
+        if (j === rows - 1 && i === Math.floor(cols / 2)) {
+          rrect(c, wx - 1, wy - 1, 12, wallH - (wy - y) + 1, 1, '#22232b', '#0e0f14', 1.5); // door
+          continue;
+        }
+        rrect(c, wx, wy, 10, 11, 1, '#39404f', '#15161c', 1.2);
+        if (r() < 0.45) lights.push({ kind: 'win', x: wx, y: wy, w: 10, h: 11 });
+      }
     }
+    // flat roof
+    const rg = c.createLinearGradient(0, y - roofH, 0, y);
+    rg.addColorStop(0, shade(base, 1.05));
+    rg.addColorStop(1, shade(base, 0.8));
+    rrect(c, L - 3, y - roofH, w + 6, roofH + 2, 2, rg, '#15161c', 2);
+    rrect(c, L + 2, y - roofH + 5, w - 4, roofH - 8, 2, null, 'rgba(0,0,0,0.25)', 1.5);
+    // things on the roof
+    if (r() < 0.6) rrect(c, L + w * 0.15, y - roofH * 0.7, w * 0.2, roofH * 0.35, 2, '#8b8f99', '#15161c', 1.5);
+    if (r() < 0.5) {
+      const tx = L + w * 0.68;
+      ell(c, tx, y - roofH * 0.45, w * 0.1, w * 0.06, '#6b4d36', '#15161c', 1.5); // water tank
+      ell(c, tx, y - roofH * 0.6, w * 0.1, w * 0.05, '#7d5b40', '#15161c', 1.5);
+    }
+    if (r() < 0.35) lights.push({ kind: 'neon', x: L + 4, y: y + 3, w: w - 8, h: 5, col: r() < 0.5 ? '192,132,252' : '163,230,53' });
+    hs.chimney = null;
+    hs.door = { x, y: y + wallH + 6 };
   }
-  function tree(c, x, y, s, N) {
-    R(c, x + s * 0.2, y + s * 0.7, s * 1.1, s * 0.35, 'rgba(0,0,0,0.25)'); // shadow
-    R(c, x - 1, y + s * 0.4, 2, s * 0.5, N ? '#2a1a10' : '#5a3a22');
-    disc(c, x, y, s * 0.55, N ? '#0f2a1a' : '#2f7a3a');
-    disc(c, x - s * 0.15, y - s * 0.15, s * 0.38, N ? '#163a24' : '#3f9a4a');
-    disc(c, x - s * 0.22, y - s * 0.25, s * 0.16, N ? '#1d4a2e' : '#62b85a');
+  function drawTree(c, r, x, y, s) {
+    ell(c, x + s * 0.15, y + s * 0.55, s * 0.6, s * 0.2, 'rgba(0,0,0,0.2)');
+    rrect(c, x - s * 0.08, y + s * 0.1, s * 0.16, s * 0.45, 2, '#6b4426', INK, 1.5);
+    const g = c.createRadialGradient(x - s * 0.2, y - s * 0.35, s * 0.05, x, y - s * 0.1, s * 0.7);
+    const hue = r();
+    g.addColorStop(0, hue < 0.5 ? '#7ccf6a' : '#8fd06a');
+    g.addColorStop(1, hue < 0.5 ? '#2f7a3a' : '#3a8a3f');
+    ell(c, x, y - s * 0.12, s * 0.5, s * 0.46, g, '#1f4f29', 2);
+    ell(c, x - s * 0.3, y + s * 0.05, s * 0.28, s * 0.24, g, '#1f4f29', 2);
+    ell(c, x + s * 0.3, y + s * 0.04, s * 0.27, s * 0.23, g, '#1f4f29', 2);
+    ell(c, x - s * 0.14, y - s * 0.3, s * 0.14, s * 0.09, 'rgba(255,255,255,0.22)');
   }
-  function lamp(c, x, y, N, dk) {
-    R(c, x, y - 9, 1, 10, dk ? '#22252e' : '#3b3326');
-    R(c, x - 1, y - 11, 3, 2, N ? '#ffe08a' : dk ? '#4a4f5c' : '#6b5a3a');
-    lights.push({ x, y: y - 10, r: 14, col: dk ? 'rgba(255,220,140,A)' : 'rgba(255,190,90,A)', a: 0.45 });
+  function drawLamp(c, x, y, lights, dk) {
+    ell(c, x + 2, y + 1, 7, 2.5, 'rgba(0,0,0,0.22)');
+    rrect(c, x - 1.5, y - 34, 3, 35, 1, dk ? '#2b2e38' : '#4a3b28', null);
+    rrect(c, x - 5, y - 44, 10, 11, 3, dk ? '#565c6b' : '#7a6541', dk ? '#15161c' : INK, 1.5);
+    ell(c, x, y - 38.5, 2.6, 3.2, '#fff1b8');
+    lights.push({ kind: 'lamp', x, y: y - 38, r: dk ? 80 : 70, col: dk ? '255,225,150' : '255,190,95' });
   }
 
-  // ---------- the whole square ----------
-  function drawSquare(N) {
-    const [c, x] = off(W, H);
+  // ---------- the whole village ----------
+  function buildVillage() {
     const dk = mode === 'darkknight';
     const r = rng(dk ? 44 : 17);
-    if (N) lights = [];
+    const [c, x] = layer();
+    const [lc, lx] = layer();
+    const lights = [];
     const { cx, cy, rx, ry } = plaza;
     // ground
+    const gg = x.createRadialGradient(cx, cy, rx * 0.4, cx, cy, Math.max(W, H) * 0.8);
     if (dk) {
-      R(x, 0, 0, W, H, N ? '#1a1c24' : '#767782');
-      for (let i = 0; i < W * H * 0.05; i++) P(x, r() * W, r() * H, N ? '#20232d' : '#83848f');
-      // puddles
-      for (let i = 0; i < 14; i++) ellipse(x, r() * W, r() * H, 3 + r() * 6, 1 + r() * 2, N ? '#262c3e' : '#6a7383');
+      gg.addColorStop(0, '#7e8090');
+      gg.addColorStop(1, '#5a5c6a');
     } else {
-      R(x, 0, 0, W, H, N ? '#18301f' : '#62a94a');
-      for (let i = 0; i < W * H * 0.08; i++) P(x, r() * W, r() * H, N ? (r() < 0.5 ? '#13281a' : '#1f3b27') : r() < 0.5 ? '#579a40' : '#76bd58');
-      for (let i = 0; i < 70; i++) P(x, r() * W, r() * H, N ? '#2a4a34' : ['#f3d24c', '#ffffff', '#f08fb0'][i % 3]);
+      gg.addColorStop(0, '#7cc45c');
+      gg.addColorStop(1, '#4f9a44');
     }
-    // paths from the plaza outward (like spokes)
-    const pathCol = dk ? (N ? '#2a2c35' : '#6a6b73') : N ? '#3b3a35' : '#b89f7a';
-    for (let k = 0; k < 8; k++) {
-      const a = (k / 8) * Math.PI * 2 + Math.PI / 8;
-      for (let d = 0; d < Math.max(W, H); d += 1) {
-        const px = cx + Math.cos(a) * (rx + d);
-        const py = cy + Math.sin(a) * (ry + d * (ry / rx));
-        if (px < -4 || py < -4 || px > W + 4 || py > H + 4) break;
-        R(x, px - 2, py - 1, 5, 3, pathCol);
-      }
-    }
-    // the plaza: cobblestones
-    const base = dk ? (N ? '#2c2f3a' : '#787a84') : N ? '#3d3a44' : '#a3988c';
-    ellipse(x, cx, cy + 2, rx + 3, ry + 2, 'rgba(0,0,0,0.25)');
-    ellipse(x, cx, cy, rx + 3, ry + 2, dk ? (N ? '#22242c' : '#5e6068') : N ? '#2e2b33' : '#7d7368');
-    ellipse(x, cx, cy, rx, ry, base);
-    for (let yy = -ry; yy <= ry; yy += 2) {
-      const w = rx * Math.sqrt(Math.max(0, 1 - (yy / ry) ** 2));
-      for (let xx = -w + ((yy / 2) % 2 ? 2 : 0); xx < w - 1; xx += 4) {
-        const v = r();
-        R(x, cx + xx, cy + yy, 3, 1, v < 0.5 ? shade(base, 0.85) : shade(base, 1.12));
-      }
-    }
-    // inner ring around the fire
-    ellipse(x, cx, cy, rx * 0.32, ry * 0.32, shade(base, 0.8));
-    ellipse(x, cx, cy, rx * 0.27, ry * 0.27, dk ? (N ? '#1c1d24' : '#55565e') : N ? '#2a2620' : '#6b5a46');
+    x.fillStyle = gg;
+    x.fillRect(0, 0, W, H);
+    const area = W * H;
     if (dk) {
-      // the trash-can fire
-      R(x, cx - 4, cy - 7, 9, 8, N ? '#30333a' : '#585b62');
-      R(x, cx - 5, cy - 8, 11, 2, N ? '#454953' : '#787b83');
+      // cracks and stains on the asphalt, then puddles
+      for (let i = 0; i < area / 9000; i++) ell(x, r() * W, r() * H, 14 + r() * 40, 6 + r() * 16, 'rgba(40,42,54,0.18)');
+      x.strokeStyle = 'rgba(30,32,40,0.35)';
+      x.lineWidth = 1;
+      for (let i = 0; i < area / 16000; i++) {
+        let px = r() * W;
+        let py = r() * H;
+        x.beginPath();
+        x.moveTo(px, py);
+        for (let k = 0; k < 4; k++) {
+          px += (r() - 0.5) * 40;
+          py += (r() - 0.5) * 30;
+          x.lineTo(px, py);
+        }
+        x.stroke();
+      }
     } else {
-      // fire pit stones and logs
-      for (let i = 0; i < 10; i++) {
-        const a = (i / 10) * Math.PI * 2;
-        R(x, cx + Math.cos(a) * 12 - 1, cy + Math.sin(a) * 6 - 1, 4, 3, N ? '#4a4e58' : '#8a8f99');
+      // tufts of grass and flowers
+      for (let i = 0; i < area / 260; i++) {
+        const px = r() * W;
+        const py = r() * H;
+        x.strokeStyle = r() < 0.5 ? 'rgba(46,110,52,0.5)' : 'rgba(150,215,110,0.5)';
+        x.lineWidth = 1.2;
+        x.beginPath();
+        x.moveTo(px, py);
+        x.lineTo(px + (r() - 0.5) * 3, py - 3 - r() * 4);
+        x.stroke();
       }
-      R(x, cx - 6, cy, 12, 2, '#4a2b17');
-      R(x, cx - 4, cy - 2, 8, 2, '#5c3720');
+      for (let i = 0; i < area / 7000; i++) ell(x, r() * W, r() * H, 12 + r() * 30, 6 + r() * 12, 'rgba(60,130,60,0.18)');
     }
-    // houses and trees all around the plaza (not on the paths, not on the plaza)
-    const spots = [];
-    const tries = 260;
-    for (let i = 0; i < tries; i++) {
-      const a = r() * Math.PI * 2;
-      const dist = 1.35 + r() * 1.6;
-      const hx = cx + Math.cos(a) * rx * dist;
-      const hy = cy + Math.sin(a) * ry * dist * 1.25;
-      spots.push({ x: hx, y: hy, a });
-    }
-    // also scatter some to reach the screen corners
-    for (let i = 0; i < 80; i++) spots.push({ x: r() * W, y: r() * H, a: 0 });
-    const placed = [];
-    const onPath = (px, py) => {
-      const ang = Math.atan2((py - cy) / ry, (px - cx) / rx);
-      for (let k = 0; k < 8; k++) {
-        let d = Math.abs(ang - ((k / 8) * Math.PI * 2 + Math.PI / 8));
-        d = Math.min(d, Math.PI * 2 - d);
-        if (d < 0.16) return true;
+    // paths from the plaza outward, like spokes
+    const SPOKES = 8;
+    const spokeAngle = (k) => (k / SPOKES) * Math.PI * 2 + Math.PI / SPOKES;
+    for (const [lw, col] of dk ? [[40, '#4a4c58'], [34, '#8d8f9c']] : [[40, '#a98f63'], [33, '#d9c08f']]) {
+      x.strokeStyle = col;
+      x.lineWidth = lw * clamp(rx / 300, 0.6, 1);
+      x.lineCap = 'round';
+      for (let k = 0; k < SPOKES; k++) {
+        const a = spokeAngle(k);
+        const far = Math.max(W, H);
+        x.beginPath();
+        x.moveTo(cx + Math.cos(a) * rx * 0.95, cy + Math.sin(a) * ry * 0.95);
+        const bend = (k % 2 ? 1 : -1) * 0.12;
+        x.quadraticCurveTo(cx + Math.cos(a + bend) * (rx + far * 0.3), cy + Math.sin(a + bend) * (ry + far * 0.3 * (ry / rx)), cx + Math.cos(a) * (rx + far), cy + Math.sin(a) * (ry + far) * (ry / rx) * 1.6);
+        x.stroke();
       }
-      return false;
+    }
+    if (dk) {
+      // dashed road lines
+      x.strokeStyle = 'rgba(240,220,140,0.55)';
+      x.lineWidth = 2;
+      x.setLineDash([12, 14]);
+      for (let k = 0; k < SPOKES; k += 2) {
+        const a = spokeAngle(k);
+        x.beginPath();
+        x.moveTo(cx + Math.cos(a) * rx * 1.1, cy + Math.sin(a) * ry * 1.1);
+        x.lineTo(cx + Math.cos(a) * (rx + W), cy + Math.sin(a) * (ry + W) * (ry / rx) * 1.6);
+        x.stroke();
+      }
+      x.setLineDash([]);
+    }
+    // the plaza: rings of cobblestones
+    ell(x, cx, cy + 6, rx + 12, ry + 9, 'rgba(0,0,0,0.25)');
+    ell(x, cx, cy, rx + 10, ry + 7, dk ? '#4b4d5a' : '#857868', dk ? '#22232b' : '#4a4036', 2.5);
+    const stone = dk ? '#8b8d9a' : '#b8ab9a';
+    ell(x, cx, cy, rx, ry, shade(stone, 0.78));
+    x.save();
+    x.beginPath();
+    x.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    x.clip();
+    const ringW = clamp(rx / 16, 9, 18);
+    for (let f = ringW * 0.5, i = 0; f < rx + ringW; f += ringW, i++) {
+      for (const [dash, alpha] of [[[ringW * 1.5, 3], 1], [[ringW * 0.7, ringW * 2.3 + 3], 0.5]]) {
+        x.setLineDash(dash);
+        x.lineDashOffset = r() * 60;
+        x.strokeStyle = alpha === 1 ? shade(stone, 0.92 + r() * 0.16) : `rgba(255,255,255,${0.1 + r() * 0.12})`;
+        x.lineWidth = ringW - 3;
+        x.beginPath();
+        x.ellipse(cx, cy, f, f * (ry / rx), 0, 0, Math.PI * 2);
+        x.stroke();
+      }
+    }
+    x.setLineDash([]);
+    // a soft light in the middle and shade towards the rim
+    const pg = x.createRadialGradient(cx, cy, 0, cx, cy, rx);
+    pg.addColorStop(0, 'rgba(255,240,200,0.16)');
+    pg.addColorStop(0.7, 'rgba(0,0,0,0)');
+    pg.addColorStop(1, 'rgba(0,0,0,0.22)');
+    x.fillStyle = pg;
+    x.fillRect(cx - rx, cy - ry, rx * 2, ry * 2);
+    x.restore();
+    // the fire place in the middle
+    const fr = clamp(rx * 0.11, 20, 38);
+    ell(x, cx, cy, fr * 1.5, fr * 0.85, dk ? '#3a3c47' : '#5f5142', dk ? '#1b1c22' : '#3a3026', 2);
+    if (dk) {
+      // an oil drum
+      rrect(x, cx - fr * 0.55, cy - fr * 1.1, fr * 1.1, fr * 1.25, 4, '#5a5f6b', '#15161c', 2);
+      ell(x, cx, cy - fr * 1.1, fr * 0.55, fr * 0.2, '#2a2c33', '#15161c', 2);
+      x.strokeStyle = '#3d414b';
+      x.lineWidth = 2;
+      for (const f of [0.35, 0.7]) {
+        x.beginPath();
+        x.moveTo(cx - fr * 0.55, cy - fr * 1.1 + fr * 1.25 * f);
+        x.lineTo(cx + fr * 0.55, cy - fr * 1.1 + fr * 1.25 * f);
+        x.stroke();
+      }
+    } else {
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        ell(x, cx + Math.cos(a) * fr * 1.15, cy + Math.sin(a) * fr * 0.62, fr * 0.2, fr * 0.15, i % 2 ? '#9a9fa8' : '#b3b8c1', '#4a4e57', 1.5);
+      }
+      x.lineCap = 'round';
+      for (const [a, col] of [[0.4, '#6b4426'], [-0.5, '#7a5030'], [2.2, '#5c3a20']]) {
+        x.strokeStyle = INK;
+        x.lineWidth = fr * 0.32;
+        x.beginPath();
+        x.moveTo(cx - Math.cos(a) * fr * 0.7, cy - Math.sin(a) * fr * 0.3);
+        x.lineTo(cx + Math.cos(a) * fr * 0.7, cy + Math.sin(a) * fr * 0.3);
+        x.stroke();
+        x.strokeStyle = col;
+        x.lineWidth = fr * 0.22;
+        x.stroke();
+      }
+    }
+    // houses: a first ring between the paths, then more further out
+    houses = [];
+    const hw = clamp(rx * 0.34, 62, 118);
+    const tryPlace = (hx, hy, w) => {
+      if (hx < -w || hy < -w || hx > W + w || hy > H + w) return null;
+      const ex = (hx - cx) / (rx + w * 0.62);
+      const ey = (hy + w * 0.2 - cy) / (ry + w * 0.72);
+      if (ex * ex + ey * ey < 1) return null;
+      if (houses.some((o) => Math.abs(o.x - hx) < (o.w + w) * 0.58 && Math.abs(o.y - hy) < (o.w + w) * 0.62)) return null;
+      const hs = { x: hx, y: hy, w };
+      houses.push(hs);
+      return hs;
     };
-    const items = [];
-    for (const s of spots) {
-      const isHouse = r() < (dk ? 0.75 : 0.5);
-      const w = isHouse ? 14 + Math.floor(r() * 10) : 6 + r() * 5;
-      const h = isHouse ? w * 1.0 : w;
-      const bx = s.x - w / 2;
-      const by = s.y - h / 2;
-      if (bx < -w || by < -h || bx > W || by > H) continue;
-      // keep off the plaza and its rim (players stand there)
-      const ex = (s.x - cx) / (rx * 1.45);
-      const ey = (s.y + h * 0.3 - cy) / (ry * 1.9);
+    for (let k = 0; k < SPOKES; k++) {
+      const a = (k / SPOKES) * Math.PI * 2;
+      const w = hw * (0.9 + r() * 0.2);
+      tryPlace(cx + Math.cos(a) * (rx + w * 0.95), cy + Math.sin(a) * (ry + w * 1.05) - w * 0.1, w);
+    }
+    for (let i = 0; i < 160; i++) {
+      const a = r() * Math.PI * 2;
+      const d = 1.2 + r() * 2.2;
+      const w = hw * (0.75 + r() * 0.3);
+      // not on a path
+      let onPath = false;
+      for (let k = 0; k < SPOKES; k++) {
+        let da = Math.abs(((a - spokeAngle(k) + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        if (da < 0.2) onPath = true;
+      }
+      if (onPath) continue;
+      tryPlace(cx + Math.cos(a) * (rx + w) * d, cy + Math.sin(a) * (ry + w) * d, w);
+    }
+    // trees, bushes and rocks in the gaps (Gotham: street lamps and hydrants)
+    const deco = [];
+    for (let i = 0; i < area / 9000; i++) {
+      const px = r() * W;
+      const py = r() * H;
+      const ex = (px - cx) / (rx + 46);
+      const ey = (py - cy) / (ry + 50);
       if (ex * ex + ey * ey < 1) continue;
-      if (onPath(s.x, s.y)) continue;
-      if (placed.some((p) => Math.abs(p.x - s.x) < (p.w + w) / 2 + 2 && Math.abs(p.y - s.y) < (p.h + h) / 2 + 2)) continue;
-      placed.push({ x: s.x, y: s.y, w, h });
-      items.push({ isHouse, bx, by, w, s });
+      if (houses.some((o) => Math.abs(o.x - px) < o.w * 0.75 && py > o.y - o.w * 0.8 && py < o.y + o.w * 0.75)) continue;
+      const a = Math.atan2((py - cy) / ry, (px - cx) / rx);
+      let onPath = false;
+      for (let k = 0; k < SPOKES; k++) if (Math.abs(((a - spokeAngle(k) + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.13) onPath = true;
+      if (onPath) continue;
+      deco.push({ x: px, y: py, kind: r() });
     }
-    items.sort((a, b) => a.by - b.by);
-    for (const it of items) {
-      if (it.isHouse) house(x, r, it.bx, it.by, it.w, N, dk);
+    const all = [...houses.map((h) => ({ y: h.y + h.w * 0.4, h })), ...deco.map((d) => ({ y: d.y, d }))].sort((a, b) => a.y - b.y);
+    for (const it of all) {
+      if (it.h) (dk ? drawBlock : drawHouse)(x, r, it.h, lights);
       else if (dk) {
-        // Gotham: a street lamp instead of a tree
-        if (N) lamp(x, it.s.x, it.s.y, N, dk);
-        else lamp(x, it.s.x, it.s.y, N, dk);
-      } else tree(x, it.s.x, it.s.y, it.w, N);
+        if (it.d.kind < 0.35) drawLamp(x, it.d.x, it.d.y, lights, true);
+        else if (it.d.kind < 0.5) {
+          rrect(x, it.d.x - 4, it.d.y - 12, 8, 13, 3, '#c0392b', '#15161c', 1.5); // hydrant
+          ell(x, it.d.x, it.d.y - 13, 4, 3, '#d9483b', '#15161c', 1.5);
+        } else ell(x, it.d.x, it.d.y, 16 + it.d.kind * 22, 5 + it.d.kind * 6, 'rgba(120,140,175,0.5)', 'rgba(200,215,240,0.35)', 1.5); // puddle
+      } else if (it.d.kind < 0.55) drawTree(x, r, it.d.x, it.d.y, 34 + it.d.kind * 50);
+      else if (it.d.kind < 0.8) {
+        ell(x, it.d.x + 2, it.d.y + 5, 15, 5, 'rgba(0,0,0,0.18)'); // bush
+        ell(x, it.d.x, it.d.y, 13, 10, '#4a9c4a', '#1f4f29', 2);
+        ell(x, it.d.x + 9, it.d.y + 2, 9, 7, '#5fb357', '#1f4f29', 2);
+        if (it.d.kind < 0.68) for (let k = 0; k < 4; k++) ell(x, it.d.x - 6 + k * 5, it.d.y - 2 + (k % 2) * 4, 1.8, 1.8, ['#f08fb0', '#ffffff', '#f3d24c'][k % 3]);
+      } else {
+        ell(x, it.d.x + 2, it.d.y + 4, 11, 4, 'rgba(0,0,0,0.18)'); // rock
+        ell(x, it.d.x, it.d.y, 10, 7, '#a3a8b1', '#555a64', 2);
+        ell(x, it.d.x - 3, it.d.y - 2, 4, 2.5, 'rgba(255,255,255,0.35)');
+      }
     }
-    // lanterns at the plaza rim
-    for (let k = 0; k < 8; k++) {
-      const a = (k / 8) * Math.PI * 2;
-      lamp(x, cx + Math.cos(a) * (rx + 7), cy + Math.sin(a) * (ry + 5) + 2, N, dk);
+    // lanterns around the plaza
+    for (let k = 0; k < SPOKES; k++) {
+      const a = (k / SPOKES) * Math.PI * 2;
+      drawLamp(x, cx + Math.cos(a) * (rx + 20), cy + Math.sin(a) * (ry + 14) + 4, lights, dk);
     }
-    if (!N) lights = lights.filter(() => false); // the day layer has no glowing lights
-    return c;
+    // the night lights, drawn once
+    for (const l of lights) {
+      if (l.kind === 'win') {
+        lx.fillStyle = 'rgba(255,214,120,0.95)';
+        lx.fillRect(l.x, l.y, l.w, l.h);
+        glow(lx, l.x + l.w / 2, l.y + l.h / 2, 34, '255,200,110', 0.35);
+      } else if (l.kind === 'lamp') {
+        glow(lx, l.x, l.y, l.r, l.col, 0.55);
+        glow(lx, l.x, l.y + 38, l.r * 0.8, l.col, 0.25);
+      } else if (l.kind === 'neon') {
+        lx.fillStyle = `rgba(${l.col},0.95)`;
+        lx.fillRect(l.x, l.y, l.w, l.h);
+        glow(lx, l.x + l.w / 2, l.y + 4, l.w * 0.8, l.col, 0.4);
+      }
+    }
+    bg = c;
+    lightLayer = lc;
+    // a soft dark edge around the screen
+    const [vc, vx] = layer();
+    const vg = vx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,10,0.45)');
+    vx.fillStyle = vg;
+    vx.fillRect(0, 0, W, H);
+    vignette = vc;
   }
 
-  // ---------- animated parts ----------
-  function fireAt() {
-    return [plaza.cx, plaza.cy - (mode === 'darkknight' ? 8 : 1)];
+  // ---------- moving things ----------
+  function firePos() {
+    const fr = clamp(plaza.rx * 0.11, 20, 38);
+    return [plaza.cx, plaza.cy - (mode === 'darkknight' ? fr * 1.05 : 2), fr];
   }
-  const FLAME = ['#fff3b0', '#ffd34d', '#ff9a2e', '#f2552c', '#b8301e'];
-  function spawnFire(dt) {
-    const [fx0, fy0] = fireAt();
-    const n = Math.round(dt * 130);
-    for (let i = 0; i < n; i++) {
-      const spread = (Math.random() - 0.5) * 14;
-      particles.push({ k: 'flame', x: fx0 + spread, y: fy0, vx: -spread * 0.55, vy: -16 - Math.random() * 16, life: 0, max: 0.5 + Math.random() * 0.55 });
+  function spawn(dt) {
+    const [fx0, fy0, fr] = firePos();
+    for (let i = 0; i < Math.round(dt * 90); i++) {
+      const s = (Math.random() - 0.5) * fr * 0.9;
+      particles.push({ k: 'flame', x: fx0 + s, y: fy0, vx: -s * 0.9, vy: -(fr * 1.6) - Math.random() * fr * 1.6, life: 0, max: 0.5 + Math.random() * 0.5, r: fr * (0.22 + Math.random() * 0.2) });
     }
-    if (Math.random() < dt * 2.5) particles.push({ k: 'smoke', x: fx0, y: fy0 - 10, vx: 2 + Math.random() * 3, vy: -5 - Math.random() * 3, life: 0, max: 4 + Math.random() * 3 });
-    if (Math.random() < dt * 3) particles.push({ k: 'spark', x: fx0 + (Math.random() - 0.5) * 4, y: fy0 - 4, vx: (Math.random() - 0.5) * 10, vy: -18 - Math.random() * 14, life: 0, max: 1 + Math.random() });
+    if (Math.random() < dt * 5) particles.push({ k: 'spark', x: fx0 + (Math.random() - 0.5) * fr * 0.6, y: fy0 - fr * 0.4, vx: (Math.random() - 0.5) * 50, vy: -70 - Math.random() * 60, life: 0, max: 1 + Math.random() });
+    if (Math.random() < dt * 6) particles.push({ k: 'smoke', x: fx0, y: fy0 - fr * 1.6, vx: 8 + Math.random() * 10, vy: -22 - Math.random() * 12, life: 0, max: 4 + Math.random() * 3, r: fr * 0.3 });
+    // chimney smoke
+    for (const h of houses) {
+      if (h.chimney && Math.random() < dt * 0.9) particles.push({ k: 'smoke', x: h.chimney.x, y: h.chimney.y, vx: 5 + Math.random() * 6, vy: -14 - Math.random() * 8, life: 0, max: 4 + Math.random() * 2, r: 5 });
+    }
+    if (mode === 'classic' && night < 0.6 && Math.random() < dt * 1.2) particles.push({ k: 'leaf', x: -10, y: Math.random() * H, vx: 30, vy: 12, life: 0, max: 40, seed: Math.random() * 6, col: ['#d8b23e', '#a9cc5e', '#cf7434'][Math.floor(Math.random() * 3)] });
   }
-  function drawParticles(dt) {
+  function drawBackParticles(dt) {
     const next = [];
     for (const p of particles) {
       p.life += dt;
@@ -278,206 +537,413 @@
       p.y += p.vy * dt;
       const t = p.life / p.max;
       if (p.k === 'flame') {
-        const s = t < 0.3 ? 3 : t < 0.65 ? 2 : 1;
-        R(ctx, p.x - s / 2, p.y, s, s, FLAME[Math.min(4, Math.floor(t * 5))]);
-      }
-      else if (p.k === 'smoke') {
-        ctx.globalAlpha = (1 - t) * 0.3;
-        const s = 2 + t * 5;
-        R(ctx, p.x - s / 2, p.y - s / 2, s, s, '#9aa0aa');
-        ctx.globalAlpha = 1;
+        bx.globalCompositeOperation = 'lighter';
+        const col = t < 0.25 ? '255,236,170' : t < 0.55 ? '255,170,60' : '230,80,40';
+        ell(bx, p.x, p.y, p.r * (1 - t * 0.7), p.r * (1 - t * 0.7), `rgba(${col},${0.55 * (1 - t)})`);
+        bx.globalCompositeOperation = 'source-over';
       } else if (p.k === 'spark') {
-        if (Math.random() < 0.85) P(ctx, p.x, p.y, '#ffd34d');
-      } else if (p.k === 'rain') {
-        R(ctx, p.x, p.y, 1, 2, 'rgba(170,190,230,0.5)');
-        if (p.y > p.end) {
-          if (Math.random() < 0.3) next.push({ k: 'splash', x: p.x, y: p.end, vx: 0, vy: 0, life: 0, max: 0.2 });
-          continue;
-        }
-      } else if (p.k === 'splash') {
-        P(ctx, p.x - 1, p.y, 'rgba(190,210,240,0.6)');
-        P(ctx, p.x + 1, p.y, 'rgba(190,210,240,0.6)');
-      } else if (p.k === 'confetti') {
-        p.vy += 30 * dt;
-        R(ctx, p.x, p.y, 2, 1, p.col);
+        ell(bx, p.x, p.y, 1.6, 1.6, `rgba(255,220,120,${1 - t})`);
+      } else if (p.k === 'smoke') {
+        ell(bx, p.x, p.y, p.r * (1 + t * 2.2), p.r * (1 + t * 2.2), `rgba(190,195,205,${0.22 * (1 - t)})`);
       } else if (p.k === 'leaf') {
-        p.vx = Math.sin(p.life * 2 + p.seed) * 6 + 6;
-        R(ctx, p.x, p.y, 2, 1, p.col);
+        p.vx = 26 + Math.sin(p.life * 2 + p.seed) * 22;
+        p.vy = 10 + Math.cos(p.life * 3 + p.seed) * 14;
+        bx.save();
+        bx.translate(p.x, p.y);
+        bx.rotate(p.life * 2 + p.seed);
+        ell(bx, 0, 0, 4, 2, p.col);
+        bx.restore();
+      } else if (p.k === 'ripple') {
+        ell(bx, p.x, p.y, 2 + t * 9, 1 + t * 4, null, `rgba(200,215,240,${0.4 * (1 - t)})`, 1);
       }
       next.push(p);
     }
     particles = next;
   }
-  function glow(x, y, rad, col, a) {
-    if (a <= 0) return;
-    const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
-    g.addColorStop(0, col.replace('A', a));
-    g.addColorStop(1, col.replace('A', 0));
-    ctx.fillStyle = g;
-    ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
-  }
-  // Cloud shadows drift over the village by day.
-  const CLOUDS = (() => {
-    const r = rng(5);
-    return Array.from({ length: 4 }, () => ({ x: r() * 400, y: r() * 300, w: 40 + r() * 50, s: 3 + r() * 3 }));
-  })();
-  function drawWeather(dt) {
-    if (night < 0.9 && mode === 'classic') {
-      ctx.globalAlpha = 0.12 * (1 - night);
+  const CLOUDS = Array.from({ length: 4 }, (_, i) => ({ x: i * 500, y: 80 + i * 170, w: 260 + i * 60, s: 12 + i * 4 }));
+  const FLIES = Array.from({ length: 26 }, (_, i) => ({ x: (i * 211) % 1600, y: (i * 137) % 1000, p: i * 1.7 }));
+  function drawAmbience() {
+    if (mode === 'classic' && night < 0.9) {
       for (const cl of CLOUDS) {
         const x = ((cl.x + time * cl.s) % (W + cl.w * 2)) - cl.w;
-        ellipse(ctx, x, (cl.y % H), cl.w / 2, cl.w / 5, '#0c1a10');
-      }
-      ctx.globalAlpha = 1;
-      // falling leaves
-      if (Math.random() < dt * 0.8) particles.push({ k: 'leaf', x: -4, y: Math.random() * H, vx: 6, vy: 3, life: 0, max: 30, seed: Math.random() * 6, col: ['#c8a83a', '#9fc35a', '#c0672f'][Math.floor(Math.random() * 3)] });
-    }
-    if (mode === 'darkknight') {
-      const n = Math.round(dt * (night > 0.5 ? 220 : 90));
-      for (let i = 0; i < n; i++) {
-        const x = Math.random() * (W + 30);
-        particles.push({ k: 'rain', x, y: -3, vx: -20, vy: 160 + Math.random() * 50, life: 0, max: 3, end: Math.random() * H });
+        glow(bx, x, cl.y % H, cl.w * 0.6, '20,50,30', 0.16 * (1 - night));
       }
     }
-  }
-  // Fireflies over the grass at night (Original).
-  const FLIES = Array.from({ length: 18 }, (_, i) => ({ x: (i * 53) % 320, y: (i * 37) % 200, p: i }));
-  function drawLife() {
-    if (mode === 'classic' && night > 0.4) {
-      ctx.globalAlpha = night;
+    if (mode === 'classic' && night > 0.3) {
       for (const f of FLIES) {
-        if (Math.sin(time * 2.2 + f.p) < 0.2) continue;
-        P(ctx, (f.x + Math.sin(time * 0.7 + f.p) * 8) % W, (f.y + Math.cos(time * 0.9 + f.p) * 4) % H, '#d9f99d');
-      }
-      ctx.globalAlpha = 1;
-    }
-    // birds fly over by day, bats at night
-    const t = (time % 22) / 22;
-    if (t < 0.45) {
-      const bx = lerp(-20, W + 20, t / 0.45);
-      const bat = night > 0.5;
-      for (let i = 0; i < 4; i++) {
-        const x = bx - i * 7;
-        const y = 18 + i * 4 + Math.sin(time * 4 + i) * 2;
-        const up = Math.sin(time * (bat ? 16 : 10) + i) > 0;
-        const col = bat ? '#05060a' : '#2a2a2a';
-        P(ctx, x - 1, y - (up ? 1 : 0), col);
-        P(ctx, x, y, col);
-        P(ctx, x + 1, y - (up ? 1 : 0), col);
+        const tw = Math.sin(time * 2 + f.p);
+        if (tw < 0) continue;
+        const x = (f.x + Math.sin(time * 0.5 + f.p) * 30) % W;
+        const y = (f.y + Math.cos(time * 0.7 + f.p) * 18) % H;
+        glow(bx, x, y, 9, '217,249,157', 0.5 * tw * night);
+        ell(bx, x, y, 1.4, 1.4, `rgba(236,252,203,${tw * night})`);
       }
     }
   }
-  // A small graveyard in the top-left corner: one stone per dead player.
+  // A small graveyard in the top-left of the village: one stone per dead player.
   function drawGraves() {
-    const n = Math.min(state.dead, 12);
-    if (!n) return;
-    const gx0 = 6;
-    const gy0 = 8;
-    R(ctx, gx0 - 3, gy0 - 4, 6 * 7 + 4, Math.ceil(n / 6) * 10 + 4, night > 0.5 ? 'rgba(10,12,20,0.35)' : 'rgba(60,40,20,0.25)');
+    const n = Math.min(game.dead, 12);
     for (let i = 0; i < n; i++) {
-      const gx = gx0 + (i % 6) * 7;
-      const gy = gy0 + Math.floor(i / 6) * 10;
-      R(ctx, gx, gy, 5, 6, night > 0.5 ? '#5d6270' : '#9aa0aa');
-      R(ctx, gx + 1, gy - 1, 3, 1, night > 0.5 ? '#5d6270' : '#9aa0aa');
-      R(ctx, gx + 2, gy + 1, 1, 3, '#3a3d46');
-      R(ctx, gx + 1, gy + 2, 3, 1, '#3a3d46');
+      const gx = 26 + (i % 6) * 30;
+      const gy = H * 0.24 + Math.floor(i / 6) * 40;
+      ell(bx, gx + 2, gy + 14, 12, 4, 'rgba(0,0,0,0.25)');
+      rrect(bx, gx - 9, gy - 12, 18, 26, [9, 9, 2, 2], '#a9aeb8', '#4b4f59', 2);
+      bx.strokeStyle = '#4b4f59';
+      bx.lineWidth = 2;
+      bx.beginPath();
+      bx.moveTo(gx, gy - 6);
+      bx.lineTo(gx, gy + 4);
+      bx.moveTo(gx - 4, gy - 2);
+      bx.lineTo(gx + 4, gy - 2);
+      bx.stroke();
     }
+  }
+  // The stand where the accused stands (under the players).
+  function drawStandBack(a) {
+    if (a <= 0) return;
+    const { x, y, h } = stand;
+    const w = h * 1.25;
+    bx.globalAlpha = a;
+    ell(bx, x + 4, y + 12, w * 0.62, 9, 'rgba(0,0,0,0.3)');
+    if (mode === 'darkknight') {
+      rrect(bx, x - w / 2, y - 8, w, 16, 3, '#5d6270', '#15161c', 2);
+      bx.strokeStyle = '#f2c94c';
+      bx.lineWidth = 3;
+      bx.setLineDash([8, 8]);
+      bx.strokeRect(x - w / 2 + 3, y - 5, w - 6, 3);
+      bx.setLineDash([]);
+    } else {
+      // a wooden platform with steps
+      rrect(bx, x - w / 2, y - 8, w, 18, 3, '#9a6c42', INK, 2);
+      bx.strokeStyle = '#6b4426';
+      bx.lineWidth = 1.5;
+      for (let i = 1; i < 6; i++) {
+        bx.beginPath();
+        bx.moveTo(x - w / 2 + (w / 6) * i, y - 8);
+        bx.lineTo(x - w / 2 + (w / 6) * i, y + 2);
+        bx.stroke();
+      }
+      rrect(bx, x - w / 2, y + 2, w, 8, 2, '#7a5030', INK, 2);
+      rrect(bx, x - w * 0.75, y + 2, w * 0.25, 6, 2, '#8a5c38', INK, 2);
+    }
+    bx.globalAlpha = 1;
+  }
+  // The gallows (Original) or the cage (The Dark Knight), over the players.
+  function drawStandFront(a) {
+    if (a <= 0) return;
+    const { x, y, h } = stand;
+    const c = fx2;
+    c.globalAlpha = a;
+    const t = exec ? (performance.now() - exec.t) / 1000 : 0;
+    const guilty = exec?.kind === 'guilty';
+    if (mode === 'darkknight') {
+      if (guilty) {
+        // a cage drops over the villain, then is hauled away
+        const down = ease(clamp(t / 0.6, 0, 1));
+        const lift = t > 2.6 ? ease(clamp((t - 2.6) / 0.9, 0, 1)) : 0;
+        const top = lerp(-h * 2.4, y - h * 1.2, down) - lift * (y + h);
+        const cw = h * 1.05;
+        c.strokeStyle = '#1b1d24';
+        c.lineWidth = 4;
+        for (let i = 0; i <= 6; i++) {
+          const bxp = x - cw / 2 + (cw / 6) * i;
+          c.beginPath();
+          c.moveTo(bxp, top);
+          c.lineTo(bxp, top + h * 1.28);
+          c.stroke();
+        }
+        rrect(c, x - cw / 2 - 4, top - 6, cw + 8, 9, 3, '#3a3d48', '#15161c', 2);
+        rrect(c, x - cw / 2 - 4, top + h * 1.26, cw + 8, 8, 3, '#3a3d48', '#15161c', 2);
+        // the chain
+        c.strokeStyle = '#2b2e38';
+        c.lineWidth = 3;
+        c.setLineDash([6, 4]);
+        c.beginPath();
+        c.moveTo(x, top - 6);
+        c.lineTo(x, -10);
+        c.stroke();
+        c.setLineDash([]);
+      }
+    } else {
+      // post, beam and rope
+      const px = x + h * 0.62;
+      const topY = y - h * 1.5;
+      c.lineCap = 'round';
+      for (const [lw, col] of [[11, INK], [7, '#8a5c38']]) {
+        c.strokeStyle = col;
+        c.lineWidth = lw;
+        c.beginPath();
+        c.moveTo(px, y + 4);
+        c.lineTo(px, topY);
+        c.lineTo(x - h * 0.1, topY);
+        c.moveTo(px, topY + h * 0.35);
+        c.lineTo(px - h * 0.35, topY);
+        c.stroke();
+      }
+      // the rope: slack until the verdict, tight when guilty
+      const drop = guilty ? ease(clamp((t - 0.5) / 0.25, 0, 1)) : 0;
+      const sway = guilty && t > 0.75 ? Math.sin((t - 0.75) * 5) * 5 * Math.max(0, 1 - (t - 0.75) / 3) : Math.sin(time * 1.5) * 2;
+      const endY = y - h * (guilty ? 0.86 : 1.02) + drop * 9;
+      c.strokeStyle = '#d9c08f';
+      c.lineWidth = 3;
+      c.beginPath();
+      c.moveTo(x, topY);
+      c.quadraticCurveTo(x + sway * 0.5, (topY + endY) / 2, x + sway, endY);
+      c.stroke();
+      if (!guilty) ell(c, x + sway, endY + 7, 6, 8, null, '#d9c08f', 3); // the noose, waiting
+    }
+    c.globalAlpha = 1;
   }
 
-  // ---------- effects ----------
+  // ---------- effects (over the players) ----------
   function addFx(kind, data = {}) {
-    fx.push({ kind, t: 0, ...data });
+    effects.push({ kind, t: 0, ...data });
   }
-  function drawFx(dt) {
+  let rain = [];
+  function drawFront(dt) {
+    const c = fx2;
+    c.clearRect(0, 0, W, H);
+    // rain over Gotham
+    if (mode === 'darkknight') {
+      const want = Math.round((W * H) / (night > 0.5 ? 5200 : 12000));
+      while (rain.length < want) rain.push({ x: Math.random() * (W + 200), y: Math.random() * H, v: 700 + Math.random() * 400, len: 10 + Math.random() * 12 });
+      if (rain.length > want) rain.length = want;
+      c.strokeStyle = 'rgba(190,210,245,0.38)';
+      c.lineWidth = 1.2;
+      c.beginPath();
+      for (const d of rain) {
+        d.y += d.v * dt;
+        d.x -= d.v * 0.22 * dt;
+        if (d.y > H) {
+          if (Math.random() < 0.25) particles.push({ k: 'ripple', x: d.x, y: Math.random() * H, vx: 0, vy: 0, life: 0, max: 0.5 });
+          d.y = -20;
+          d.x = Math.random() * (W + 200);
+        }
+        c.moveTo(d.x, d.y);
+        c.lineTo(d.x - d.len * 0.22, d.y + d.len);
+      }
+      c.stroke();
+    } else rain = [];
+    // the trial: a light on the stand
+    const trialOn = game.trialOpen || !!exec;
+    standAlpha += ((trialOn ? 1 : 0) - standAlpha) * Math.min(1, dt * 4);
+    if (standAlpha > 0.01) {
+      const { x, y, h } = stand;
+      c.globalAlpha = standAlpha * (0.2 + night * 0.12);
+      c.fillStyle = '#fff3c4';
+      c.beginPath();
+      c.moveTo(x - 14, 0);
+      c.lineTo(x + 14, 0);
+      c.lineTo(x + h * 0.95, y + 14);
+      c.lineTo(x - h * 0.95, y + 14);
+      c.fill();
+      c.globalAlpha = 1;
+      drawStandFront(standAlpha);
+    }
+    // The Dark Knight at night: the bat signal sweeps over the city
+    if (mode === 'darkknight' && night > 0.3) {
+      const sx = W * 0.5 + Math.sin(time * 0.3) * W * 0.32;
+      const sy = H * 0.2 + Math.cos(time * 0.23) * H * 0.08;
+      glow(c, sx, sy, 110, '255,240,170', 0.3 * night);
+      c.globalAlpha = 0.6 * night;
+      c.fillStyle = '#0a0a0e';
+      c.beginPath();
+      c.moveTo(sx - 38, sy - 2);
+      c.quadraticCurveTo(sx - 22, sy - 16, sx - 9, sy - 6);
+      c.lineTo(sx - 5, sy - 15);
+      c.lineTo(sx, sy - 8);
+      c.lineTo(sx + 5, sy - 15);
+      c.lineTo(sx + 9, sy - 6);
+      c.quadraticCurveTo(sx + 22, sy - 16, sx + 38, sy - 2);
+      c.quadraticCurveTo(sx + 24, sy + 2, sx + 18, sy + 12);
+      c.quadraticCurveTo(sx + 9, sy + 4, sx, sy + 16);
+      c.quadraticCurveTo(sx - 9, sy + 4, sx - 18, sy + 12);
+      c.quadraticCurveTo(sx - 24, sy + 2, sx - 38, sy - 2);
+      c.fill();
+      c.globalAlpha = 1;
+    }
+    // birds by day, bats by night
+    const cyc = (time % 24) / 24;
+    if (cyc < 0.4) {
+      const bxp = lerp(-60, W + 60, cyc / 0.4);
+      c.strokeStyle = night > 0.5 ? '#07080c' : '#30303a';
+      c.lineWidth = 2;
+      c.lineCap = 'round';
+      for (let i = 0; i < 5; i++) {
+        const x = bxp - i * 26 - (i % 2) * 8;
+        const y = H * 0.14 + i * 13 + Math.sin(time * 3 + i) * 6;
+        const f = Math.sin(time * (night > 0.5 ? 18 : 11) + i) * 5;
+        c.beginPath();
+        c.moveTo(x - 8, y - f);
+        c.quadraticCurveTo(x - 3, y - 2, x, y);
+        c.quadraticCurveTo(x + 3, y - 2, x + 8, y - f);
+        c.stroke();
+      }
+    }
     let shake = 0;
     let flash = 0;
-    const [fx0, fy0] = fireAt();
-    for (let i = fx.length - 1; i >= 0; i--) {
-      const e = fx[i];
+    const [fx0, fy0] = firePos();
+    for (let i = effects.length - 1; i >= 0; i--) {
+      const e = effects[i];
       e.t += dt;
       const p = e.t / e.dur;
       if (p >= 1) {
-        fx.splice(i, 1);
+        effects.splice(i, 1);
         continue;
       }
       if (e.kind === 'lightning') {
-        flash = Math.max(flash, p < 0.08 || (p > 0.15 && p < 0.22) ? 0.7 : 0);
-        shake = Math.max(shake, p < 0.3 ? 2 : 0);
+        flash = Math.max(flash, p < 0.07 || (p > 0.14 && p < 0.2) ? 0.65 : 0);
+        shake = Math.max(shake, p < 0.3 ? 5 : 0);
+        if (p < 0.2) {
+          c.strokeStyle = '#f4f6ff';
+          c.lineWidth = 3;
+          c.beginPath();
+          let lx = e.x;
+          c.moveTo(lx, 0);
+          for (let y = 0; y < e.y; y += 26) {
+            lx += (Math.random() - 0.5) * 44;
+            c.lineTo(lx, y);
+          }
+          c.stroke();
+        }
       } else if (e.kind === 'crows') {
-        for (let k = 0; k < 7; k++) {
-          const x = lerp(-30 - k * 12, W + 40, p) + Math.sin(e.t * 3 + k) * 4;
-          const y = 20 + k * 5 + Math.sin(e.t * 5 + k * 2) * 3;
-          const up = Math.sin(e.t * 14 + k) > 0;
-          R(ctx, x - 2, y - (up ? 2 : 0), 2, 1, '#111');
-          R(ctx, x, y, 2, 2, '#111');
-          R(ctx, x + 2, y - (up ? 2 : 0), 2, 1, '#111');
-          R(ctx, x + 1, y + 20, 2, 1, 'rgba(0,0,0,0.2)');
+        c.strokeStyle = '#0c0c10';
+        c.lineWidth = 3;
+        c.lineCap = 'round';
+        for (let k = 0; k < 8; k++) {
+          const x = lerp(-80 - k * 46, W + 120, p) + Math.sin(e.t * 3 + k) * 14;
+          const y = H * 0.22 + k * 20 + Math.sin(e.t * 5 + k * 2) * 12;
+          const f = Math.sin(e.t * 15 + k) * 9;
+          c.beginPath();
+          c.moveTo(x - 13, y - f);
+          c.quadraticCurveTo(x - 4, y - 3, x, y);
+          c.quadraticCurveTo(x + 4, y - 3, x + 13, y - f);
+          c.stroke();
+          ell(c, x, y + 1, 3.5, 2.5, '#0c0c10');
         }
       } else if (e.kind === 'note') {
-        const x = fx0 + 18 + Math.sin(e.t * 3) * 10 * (1 - p);
-        const y = lerp(-10, fy0 + 4, Math.min(1, p * 1.4));
-        R(ctx, x, y, 6, 4, '#f4ecd2');
-        R(ctx, x + 1, y + 1, 4, 1, '#9b8b6a');
-        if (p > 0.7) glow(x + 3, y + 2, 8, 'rgba(255,240,180,A)', 0.4 * (1 - p) * 3);
+        const x = fx0 + 70 + Math.sin(e.t * 3) * 40 * (1 - p);
+        const y = lerp(-30, fy0 + 10, Math.min(1, p * 1.4));
+        c.save();
+        c.translate(x, y);
+        c.rotate(Math.sin(e.t * 4) * 0.4 * (1 - p));
+        rrect(c, -13, -9, 26, 18, 2, '#f4ecd2', '#8a7a58', 1.5);
+        c.strokeStyle = '#8a7a58';
+        c.lineWidth = 1.5;
+        for (const ly of [-4, 0, 4]) {
+          c.beginPath();
+          c.moveTo(-8, ly);
+          c.lineTo(ly === 4 ? 3 : 8, ly);
+          c.stroke();
+        }
+        c.restore();
+        if (p > 0.7) glow(c, x, y, 40, '255,240,180', 0.5 * (1 - p) * 3);
       } else if (e.kind === 'police') {
         const on = Math.floor(e.t * 6) % 2;
-        ctx.globalAlpha = 0.25 * (1 - p);
-        R(ctx, 0, 0, W / 2, H, on ? '#ff2a2a' : '#2a5cff');
-        R(ctx, W / 2, 0, W / 2, H, on ? '#2a5cff' : '#ff2a2a');
-        ctx.globalAlpha = 1;
-      } else if (e.kind === 'confetti' && !e.done) {
-        e.done = true;
-        for (let k = 0; k < 70; k++) particles.push({ k: 'confetti', x: Math.random() * W, y: -Math.random() * 30, vx: (Math.random() - 0.5) * 20, vy: 10 + Math.random() * 20, life: 0, max: 4, col: ['#facc15', '#22c55e', '#38bdf8', '#f472b6', '#ffffff'][k % 5] });
+        c.globalAlpha = 0.22 * (1 - p);
+        c.fillStyle = on ? '#ff2a2a' : '#2a5cff';
+        c.fillRect(0, 0, W / 2, H);
+        c.fillStyle = on ? '#2a5cff' : '#ff2a2a';
+        c.fillRect(W / 2, 0, W / 2, H);
+        c.globalAlpha = 1;
+      } else if (e.kind === 'confetti') {
+        if (!e.bits) e.bits = Array.from({ length: 110 }, (_, k) => ({ x: Math.random() * W, y: -Math.random() * H * 0.5, vx: (Math.random() - 0.5) * 80, vy: 120 + Math.random() * 160, rot: Math.random() * 6, col: ['#facc15', '#22c55e', '#38bdf8', '#f472b6', '#ffffff', '#fb923c'][k % 6] }));
+        for (const b of e.bits) {
+          b.x += b.vx * dt + Math.sin(e.t * 3 + b.rot) * 1.2;
+          b.y += b.vy * dt;
+          b.rot += dt * 6;
+          c.save();
+          c.translate(b.x, b.y);
+          c.rotate(b.rot);
+          c.globalAlpha = Math.min(1, (1 - p) * 3);
+          c.fillStyle = b.col;
+          c.fillRect(-4, -2, 8, 4);
+          c.restore();
+        }
       } else if (e.kind === 'paws') {
         // only on the wolf's own screen: paw prints creeping across the square
-        const n = Math.floor(p * 16);
+        const n = Math.floor(p * 14);
+        c.fillStyle = '#7f1d1d';
         for (let k = 0; k < n; k++) {
-          const x = lerp(12, W - 12, k / 16);
-          const y = H - 18 - (k % 2) * 5 - Math.sin(k / 3) * 10;
-          ctx.globalAlpha = Math.min(1, (1 - p) * 3) * 0.85;
-          R(ctx, x, y, 3, 2, '#7f1d1d');
-          P(ctx, x - 1, y - 2, '#7f1d1d');
-          P(ctx, x + 1, y - 3, '#7f1d1d');
-          P(ctx, x + 3, y - 2, '#7f1d1d');
-          ctx.globalAlpha = 1;
+          const x = lerp(W * 0.08, W * 0.92, k / 14);
+          const y = H * 0.86 - (k % 2) * 22 - Math.sin(k / 3) * 30;
+          c.globalAlpha = Math.min(1, (1 - p) * 3) * 0.8;
+          ell(c, x, y, 7, 6, '#7f1d1d');
+          for (const [dx, dy] of [[-8, -8], [-3, -12], [3, -12], [8, -8]]) ell(c, x + dx, y + dy, 2.8, 3.4, '#7f1d1d');
         }
+        c.globalAlpha = 1;
       } else if (e.kind === 'shield') {
-        const rad = 8 + p * 50;
-        ctx.globalAlpha = (1 - p) * 0.9;
-        for (let a = 0; a < Math.PI * 2; a += 0.08) P(ctx, fx0 + Math.cos(a) * rad, fy0 + Math.sin(a) * rad * 0.5, '#5eead4');
-        ctx.globalAlpha = 1;
+        const rad = 30 + p * 240;
+        c.globalAlpha = (1 - p) * 0.9;
+        ell(c, fx0, fy0, rad, rad * 0.55, null, '#5eead4', 4);
+        ell(c, fx0, fy0, rad * 0.7, rad * 0.38, null, 'rgba(94,234,212,0.5)', 2);
+        c.globalAlpha = 1;
       } else if (e.kind === 'magnify') {
-        const a = p * Math.PI * 2;
-        const x = plaza.cx + Math.cos(a) * plaza.rx * 0.9;
-        const y = plaza.cy + Math.sin(a) * plaza.ry * 0.9;
-        ctx.globalAlpha = 0.3 * Math.sin(p * Math.PI);
-        glow(x, y, 18, 'rgba(255,255,220,A)', 1);
-        ctx.globalAlpha = Math.sin(p * Math.PI);
-        for (let b = 0; b < Math.PI * 2; b += 0.15) P(ctx, x + Math.cos(b) * 5, y + Math.sin(b) * 5, '#e5e7eb');
-        R(ctx, x + 4, y + 4, 2, 2, '#9ca3af');
-        ctx.globalAlpha = 1;
+        const a = p * Math.PI * 2 + Math.PI / 2;
+        const x = plaza.cx + Math.cos(a) * plaza.rx * 0.92;
+        const y = plaza.cy + Math.sin(a) * plaza.ry * 0.92 - 30;
+        const al = Math.sin(p * Math.PI);
+        glow(c, x, y, 70, '255,255,220', 0.35 * al);
+        c.globalAlpha = al;
+        ell(c, x, y, 22, 22, 'rgba(200,230,255,0.18)', '#e5e7eb', 4);
+        c.strokeStyle = '#9ca3af';
+        c.lineWidth = 6;
+        c.lineCap = 'round';
+        c.beginPath();
+        c.moveTo(x + 16, y + 16);
+        c.lineTo(x + 32, y + 32);
+        c.stroke();
+        c.globalAlpha = 1;
       } else if (e.kind === 'poison') {
-        ctx.globalAlpha = 0.35 * Math.sin(p * Math.PI);
-        for (let k = 0; k < 40; k++) {
-          const x = (k * 29 + e.t * 12 * ((k % 3) + 1)) % W;
-          const y = (k * 47) % H + Math.sin(e.t * 2 + k) * 6;
-          R(ctx, x, y, 4, 3, k % 2 ? '#22c55e' : '#86efac');
+        const al = Math.sin(p * Math.PI);
+        for (let k = 0; k < 26; k++) {
+          const x = (k * 137 + e.t * 40 * ((k % 3) + 1)) % (W + 100) - 50;
+          const y = (k * 211) % H + Math.sin(e.t * 2 + k) * 20;
+          glow(c, x, y, 50 + (k % 4) * 14, k % 2 ? '34,197,94' : '134,239,172', 0.22 * al);
         }
-        ctx.globalAlpha = 1;
       } else if (e.kind === 'crosshair') {
-        const x = plaza.cx + Math.sin(e.t * 1.7) * plaza.rx;
-        const y = plaza.cy + Math.cos(e.t * 2.3) * plaza.ry;
-        ctx.globalAlpha = Math.sin(p * Math.PI);
-        for (let a = 0; a < Math.PI * 2; a += 0.12) P(ctx, x + Math.cos(a) * 7, y + Math.sin(a) * 7, '#ef4444');
-        R(ctx, x - 10, y, 20, 1, '#ef4444');
-        R(ctx, x, y - 10, 1, 20, '#ef4444');
-        ctx.globalAlpha = 1;
-      } else if (e.kind === 'flash') {
-        flash = Math.max(flash, (1 - p) * (e.a || 0.5));
+        const x = plaza.cx + Math.sin(e.t * 1.7) * plaza.rx * 0.9;
+        const y = plaza.cy + Math.cos(e.t * 2.3) * plaza.ry * 0.9 - 30;
+        c.globalAlpha = Math.sin(p * Math.PI);
+        ell(c, x, y, 28, 28, null, '#ef4444', 3);
+        c.strokeStyle = '#ef4444';
+        c.lineWidth = 2;
+        c.beginPath();
+        c.moveTo(x - 40, y);
+        c.lineTo(x + 40, y);
+        c.moveTo(x, y - 40);
+        c.lineTo(x, y + 40);
+        c.stroke();
+        c.globalAlpha = 1;
+      } else if (e.kind === 'flash') flash = Math.max(flash, (1 - p) * (e.a || 0.5));
+      else if (e.kind === 'banner') {
+        // a short title across the screen, like a game announcement
+        const al = Math.min(1, p * 6, (1 - p) * 4);
+        c.globalAlpha = al * 0.55;
+        c.fillStyle = '#0b0d1a';
+        c.fillRect(0, H * 0.16 - 30, W, 60);
+        c.globalAlpha = al;
+        c.fillStyle = e.col || '#ffffff';
+        c.font = `800 ${Math.round(clamp(W / 26, 20, 40))}px Inter, system-ui, sans-serif`;
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(e.text, W / 2 + (1 - Math.min(1, p * 5)) * -40, H * 0.16);
+        c.globalAlpha = 1;
       }
     }
-    return { shake, flash };
+    if (flash) {
+      c.globalAlpha = flash;
+      c.fillStyle = '#ffffff';
+      c.fillRect(0, 0, W, H);
+      c.globalAlpha = 1;
+    }
+    const tr = shake ? `translate(${(Math.random() - 0.5) * shake * 2}px, ${(Math.random() - 0.5) * shake * 2}px)` : '';
+    if (back.style.transform !== tr) back.style.transform = tr;
   }
+  let standAlpha = 0;
+  let composed = null;
+  let cx2 = null;
+  let composedKey = '';
 
   // ---------- the loop ----------
   function frame(now) {
@@ -488,51 +954,52 @@
     lastT = now;
     time += dt;
     const target = phase === 'night' ? 1 : 0;
-    night += (target - night) * Math.min(1, dt * 1.5);
+    night += (target - night) * Math.min(1, dt * 1.2);
     if (Math.abs(target - night) < 0.002) night = target;
+    if (exec && now - exec.t > exec.dur) {
+      exec = null;
+      window.sceneRelayout?.();
+    }
 
-    ctx.clearRect(0, 0, W, H);
-    ctx.drawImage(layers.day, 0, 0);
-    if (night > 0) {
-      ctx.globalAlpha = night;
-      ctx.drawImage(layers.night, 0, 0);
-      ctx.globalAlpha = 1;
-      // windows and lanterns glow (they flicker a little)
-      for (const l of lights) glow(l.x, l.y, l.r, l.col, l.a * night * (0.85 + Math.sin(time * 3 + l.x) * 0.15));
+    // The still picture (village + night + lights + graves) is only put together again when it changes.
+    const nq = Math.round(night * 40) / 40;
+    const ck = nq + '|' + game.dead;
+    if (ck !== composedKey) {
+      composedKey = ck;
+      if (!composed || composed.width !== bg.width || composed.height !== bg.height) [composed, cx2] = layer();
+      const c = cx2;
+      c.globalCompositeOperation = 'source-over';
+      c.globalAlpha = 1;
+      c.drawImage(bg, 0, 0, W, H);
+      const keep = bx;
+      bx = c;
+      drawGraves();
+      bx = keep;
+      if (nq > 0) {
+        // the dark of night, then the warm lights on top
+        c.globalCompositeOperation = 'multiply';
+        c.fillStyle = mode === 'darkknight' ? `rgba(38,44,84,${nq * 0.86})` : `rgba(34,48,98,${nq * 0.84})`;
+        c.fillRect(0, 0, W, H);
+        c.globalCompositeOperation = 'lighter';
+        c.globalAlpha = nq * 0.92;
+        c.drawImage(lightLayer, 0, 0, W, H);
+        c.globalAlpha = 1;
+        c.globalCompositeOperation = 'source-over';
+      }
+      c.drawImage(vignette, 0, 0, W, H);
     }
-    drawGraves();
-    drawLife();
-    spawnFire(dt);
-    const [fx0, fy0] = fireAt();
-    glow(fx0, fy0, 26 + night * 34 + Math.sin(time * 9) * 2, 'rgba(255,150,60,A)', 0.2 + night * 0.38);
-    drawWeather(dt);
-    drawParticles(dt);
-    // a trial: a spotlight on the square
-    if (state.trial) {
-      ctx.globalAlpha = 0.16 + Math.sin(time * 2) * 0.04;
-      ellipse(ctx, plaza.cx, plaza.cy, plaza.rx * 0.9, plaza.ry * 0.9, '#fff7d6');
-      ctx.globalAlpha = 1;
-    }
-    // The Dark Knight at night: the bat signal sweeps over the square
-    if (mode === 'darkknight' && night > 0.3) {
-      const bx = plaza.cx + Math.sin(time * 0.35) * W * 0.35;
-      const by = H * 0.25 + Math.cos(time * 0.27) * H * 0.12;
-      glow(bx, by, 26, 'rgba(255,240,170,A)', 0.35 * night);
-      ctx.globalAlpha = 0.55 * night;
-      R(ctx, bx - 7, by - 1, 14, 3, '#0a0a0a');
-      R(ctx, bx - 3, by - 3, 6, 6, '#0a0a0a');
-      R(ctx, bx - 9, by + 1, 3, 2, '#0a0a0a');
-      R(ctx, bx + 6, by + 1, 3, 2, '#0a0a0a');
-      ctx.globalAlpha = 1;
-    }
-    const { shake, flash } = drawFx(dt);
-    if (flash) {
-      ctx.globalAlpha = flash;
-      R(ctx, 0, 0, W, H, '#ffffff');
-      ctx.globalAlpha = 1;
-    }
-    if (shake) canvas.style.transform = `translate(${(Math.random() - 0.5) * shake * 4}px, ${(Math.random() - 0.5) * shake * 4}px)`;
-    else if (canvas.style.transform) canvas.style.transform = '';
+    bx.globalCompositeOperation = 'source-over';
+    bx.globalAlpha = 1;
+    bx.drawImage(composed, 0, 0, W, H);
+    drawStandBack(standAlpha);
+    drawAmbience();
+    spawn(dt);
+    const [fx0, fy0, fr] = firePos();
+    bx.globalCompositeOperation = 'lighter';
+    glow(bx, fx0, fy0, fr * (4 + night * 4) + Math.sin(time * 9) * 6, '255,140,50', 0.14 + night * 0.2);
+    bx.globalCompositeOperation = 'source-over';
+    drawBackParticles(dt);
+    drawFront(dt);
   }
   function start() {
     if (running) return;
@@ -544,30 +1011,31 @@
     running = false;
   }
   document.addEventListener('visibilitychange', () => {
-    if (!canvas || canvas.classList.contains('hidden')) return;
+    if (!back || back.classList.contains('hidden')) return;
     if (document.hidden) stop();
     else start();
   });
 
   let buildKey = '';
   function build() {
-    const root = canvas.parentElement;
-    const cw = root.clientWidth || innerWidth;
-    const ch = root.clientHeight || innerHeight;
-    // Chunky pixels: about 4 screen pixels per scene pixel (a bit less on phones).
-    scale = cw < 600 ? 3 : 4;
-    W = Math.ceil(cw / scale);
-    H = Math.ceil(ch / scale);
-    const key = [mode, W, H, plaza.cx | 0, plaza.cy | 0, plaza.rx | 0].join(',');
-    if (key === buildKey && layers) return;
+    const root = back.parentElement;
+    W = root.clientWidth || innerWidth;
+    H = root.clientHeight || innerHeight;
+    q = Math.min(window.devicePixelRatio || 1, W > 1300 ? 1 : 2);
+    const key = [mode, W, H, q, plaza.cx | 0, plaza.cy | 0, plaza.rx | 0, plaza.ry | 0].join(',');
+    if (key === buildKey && bg) return;
     buildKey = key;
-    canvas.width = W;
-    canvas.height = H;
-    ctx.imageSmoothingEnabled = false;
-    const day = drawSquare(false);
-    const nightLayer = drawSquare(true);
-    layers = { day, night: nightLayer };
+    for (const cv of [back, front]) {
+      cv.width = Math.ceil(W * q);
+      cv.height = Math.ceil(H * q);
+    }
+    bx.setTransform(q, 0, 0, q, 0, 0);
+    fx2.setTransform(q, 0, 0, q, 0, 0);
+    buildVillage();
+    composedKey = '';
+    composed = null;
     particles = [];
+    rain = [];
   }
 
   // A small pixel villager for players without a character. Same look for the same name.
@@ -577,39 +1045,44 @@
     let h = 0;
     for (const ch of String(name).toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     const r = rng(h);
-    const skin = ['#f1c9a5', '#d9a77c', '#a8714a', '#7a4b2c', '#f5d7bd'][Math.floor(r() * 5)];
-    const hair = ['#2b1d14', '#5a3a22', '#c8a14a', '#8b3a1e', '#1a1a1a', '#d7d2c8'][Math.floor(r() * 6)];
-    const shirt = ['#c0392b', '#2e86c1', '#27ae60', '#8e44ad', '#d68910', '#16a085', '#7f8c8d', '#c2185b'][Math.floor(r() * 8)];
-    const pants = ['#2c3e50', '#5d4037', '#37474f', '#4e342e'][Math.floor(r() * 4)];
+    const pick = (a) => a[Math.floor(r() * a.length)];
+    const skin = pick(['#f1c9a5', '#d9a77c', '#a8714a', '#7a4b2c', '#f5d7bd']);
+    const hair = pick(['#2b1d14', '#5a3a22', '#c8a14a', '#8b3a1e', '#1a1a1a', '#d7d2c8']);
+    const shirt = pick(['#c0392b', '#2e86c1', '#27ae60', '#8e44ad', '#d68910', '#16a085', '#7f8c8d', '#c2185b']);
+    const pants = pick(['#2c3e50', '#5d4037', '#37474f', '#4e342e']);
     const hat = r() < 0.35;
-    const [c, x] = off(12, 22);
+    const c = document.createElement('canvas');
+    c.width = 12;
+    c.height = 22;
+    const x = c.getContext('2d');
+    const R = (px, py, w, hh, col) => {
+      x.fillStyle = col;
+      x.fillRect(px, py, w, hh);
+    };
     const o = '#1b1b22';
-    // head with outline
-    R(x, 3, 2, 6, 6, o);
-    R(x, 4, 3, 4, 4, skin);
-    R(x, 4, 2, 4, 2, hair);
-    R(x, 3, 3, 1, 2, hair);
-    R(x, 8, 3, 1, 2, hair);
-    P(x, 5, 5, o);
-    P(x, 7, 5, o);
+    R(3, 2, 6, 6, o);
+    R(4, 3, 4, 4, skin);
+    R(4, 2, 4, 2, hair);
+    R(3, 3, 1, 2, hair);
+    R(8, 3, 1, 2, hair);
+    R(5, 5, 1, 1, o);
+    R(7, 5, 1, 1, o);
     if (hat) {
-      R(x, 2, 1, 8, 1, '#2a2a2a');
-      R(x, 4, 0, 4, 1, '#2a2a2a');
+      R(2, 1, 8, 1, '#2a2a2a');
+      R(4, 0, 4, 1, '#2a2a2a');
     }
-    // body
-    R(x, 2, 8, 8, 8, o);
-    R(x, 3, 9, 6, 6, shirt);
-    R(x, 3, 9, 1, 6, shade(shirt, 0.8));
-    R(x, 1, 9, 2, 5, o);
-    R(x, 9, 9, 2, 5, o);
-    P(x, 1, 13, skin);
-    P(x, 10, 13, skin);
-    // legs
-    R(x, 3, 16, 6, 5, o);
-    R(x, 4, 16, 2, 4, pants);
-    R(x, 6, 16, 2, 4, pants);
-    R(x, 3, 21, 3, 1, o);
-    R(x, 6, 21, 3, 1, o);
+    R(2, 8, 8, 8, o);
+    R(3, 9, 6, 6, shirt);
+    R(3, 9, 1, 6, shade(shirt, 0.8));
+    R(1, 9, 2, 5, o);
+    R(9, 9, 2, 5, o);
+    R(1, 13, 1, 1, skin);
+    R(10, 13, 1, 1, skin);
+    R(3, 16, 6, 5, o);
+    R(4, 16, 2, 4, pants);
+    R(6, 16, 2, 4, pants);
+    R(3, 21, 3, 1, o);
+    R(6, 21, 3, 1, o);
     const url = c.toDataURL();
     personCache.set(name, url);
     return url;
@@ -618,13 +1091,20 @@
   window.PixelScene = {
     enabled: () => enabled,
     get active() {
-      return enabled && !!canvas && !canvas.classList.contains('hidden');
-    },
-    get scale() {
-      return scale;
+      return enabled && !!back && !back.classList.contains('hidden');
     },
     get plaza() {
       return plaza;
+    },
+    // Doors of the houses (in screen pixels), sorted around the plaza: players walk there at night.
+    get doors() {
+      return houses
+        .filter((h) => h.door && h.door.x > 20 && h.door.x < W - 20 && h.door.y > 20 && h.door.y < H - 20)
+        .map((h) => ({ ...h.door, a: Math.atan2((h.y - plaza.cy) / plaza.ry, (h.x - plaza.cx) / plaza.rx) }))
+        .sort((a, b) => a.a - b.a);
+    },
+    get exec() {
+      return exec;
     },
     personSprite,
     setEnabled(on) {
@@ -633,50 +1113,77 @@
         localStorage.setItem(STORE, on ? 'on' : 'off');
       } catch {}
     },
-    // Where the plaza sits, in screen pixels relative to the scene (from the chat area).
-    setPlaza(cx, cy, rx, ry) {
-      plaza = { cx: Math.round(cx / scale), cy: Math.round(cy / scale), rx: Math.round(rx / scale), ry: Math.round(ry / scale) };
-      if (canvas && !canvas.classList.contains('hidden')) build();
+    // Where the plaza and the trial stand sit, in screen pixels (worked out from the chat area).
+    setPlaza(cx, cy, rx, ry, st) {
+      plaza = { cx, cy, rx, ry };
+      if (st) stand = st;
+      if (back && !back.classList.contains('hidden')) build();
     },
     show(root, newMode, newPhase) {
-      if (!canvas) {
-        canvas = document.createElement('canvas');
-        canvas.className = 'scene-video pixel-scene on';
-        canvas.setAttribute('aria-hidden', 'true');
-        ctx = canvas.getContext('2d');
-        root.prepend(canvas);
-        new ResizeObserver(() => !canvas.classList.contains('hidden') && build()).observe(root);
+      if (!back) {
+        back = document.createElement('canvas');
+        back.className = 'scene-video pixel-scene on';
+        front = document.createElement('canvas');
+        front.className = 'pixel-front';
+        for (const cv of [back, front]) cv.setAttribute('aria-hidden', 'true');
+        bx = back.getContext('2d');
+        fx2 = front.getContext('2d');
+        root.prepend(back);
+        root.append(front);
+        let timer = 0;
+        new ResizeObserver(() => {
+          clearTimeout(timer);
+          timer = setTimeout(() => !back.classList.contains('hidden') && build(), 80);
+        }).observe(root);
       }
-      canvas.classList.remove('hidden');
-      canvas.classList.add('on');
+      back.classList.remove('hidden');
+      front.classList.remove('hidden');
+      back.classList.add('on');
       if (newMode !== mode) buildKey = '';
       mode = newMode;
+      if (newPhase !== phase && back.dataset.ready) addFx('banner', { dur: 2.6, text: newPhase === 'night' ? '🌙  Night falls' : '☀️  A new day', col: newPhase === 'night' ? '#c7d2fe' : '#fde68a' });
       phase = newPhase;
+      back.dataset.ready = '1';
       build();
       start();
     },
     hide() {
-      if (!canvas) return;
-      canvas.classList.add('hidden');
-      canvas.classList.remove('on');
+      if (!back) return;
+      back.classList.add('hidden');
+      front.classList.add('hidden');
+      back.classList.remove('on');
       stop();
     },
     update(s) {
       if (!s) return;
-      state.dead = (s.dead || []).length;
-      state.trial = !!s.trial?.open;
+      game.dead = (s.dead || []).length;
+      game.trialOpen = !!s.trial?.open;
     },
-    event(kind) {
-      if (!canvas || canvas.classList.contains('hidden')) return;
-      if (kind === 'death' || kind === 'guilty') {
-        addFx('lightning', { dur: 1.4 });
+    // Game events. Private ones (your own night pick) are only sent by your own screen.
+    event(kind, data = {}) {
+      if (!back || back.classList.contains('hidden')) return;
+      if (kind === 'death') {
+        addFx('lightning', { dur: 1.4, x: plaza.cx + (Math.random() - 0.5) * plaza.rx, y: plaza.cy });
         addFx('crows', { dur: 5 });
-      } else if (kind === 'innocent') addFx('confetti', { dur: 3 });
+      } else if (kind === 'guilty' || kind === 'innocent') {
+        exec = { name: data.accused, kind, t: performance.now(), dur: kind === 'guilty' ? 4200 : 1800, votes: data.votes || [] };
+        if (kind === 'guilty') {
+          addFx('banner', { dur: 2.8, text: mode === 'darkknight' ? '⚖️  Guilty — take them away' : '⚖️  Guilty', col: '#fca5a5' });
+          setTimeout(() => exec && addFx('lightning', { dur: 1.2, x: stand.x, y: stand.y - stand.h }), 700);
+          setTimeout(() => exec && addFx('crows', { dur: 5 }), 900);
+        } else {
+          addFx('banner', { dur: 2.6, text: '⚖️  Innocent', col: '#86efac' });
+          addFx('confetti', { dur: 3.5 });
+        }
+        window.sceneRelayout?.();
+        setTimeout(() => window.sceneRelayout?.(), 650);
+      } else if (kind === 'trial') addFx('banner', { dur: 2.6, text: `⚖️  ${data.accused} is on trial`, col: '#fde68a' });
       else if (kind === 'arrest') addFx('police', { dur: 5 });
       else if (kind === 'clue') addFx('note', { dur: 3 });
       else if (kind === 'start') {
         addFx('flash', { dur: 0.8, a: 0.4 });
-        addFx('confetti', { dur: 3 });
+        addFx('confetti', { dur: 3.5 });
+        addFx('banner', { dur: 2.8, text: '🎮  The game begins', col: '#ffffff' });
       } else if (kind === 'my-kill') addFx('paws', { dur: 4 });
       else if (kind === 'my-vigil') addFx('crosshair', { dur: 4 });
       else if (kind === 'my-heal') addFx('shield', { dur: 2 });

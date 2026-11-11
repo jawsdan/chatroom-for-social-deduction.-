@@ -261,10 +261,22 @@ function broadcastState() {
   }
 }
 
+// ---- "Seen by": who has read up to which message ----
+let seenLobby = new Map(); // name -> id of the newest lobby message they have seen
+let seenMod = new Map(); // thread key -> Map(name -> id)
+function sendSeen(socket) {
+  const u = users.get(socket.id);
+  if (!u) return;
+  const mod = {};
+  for (const [k, m] of seenMod) if (socket.id === moderatorId || k === key(u.name)) mod[k] = Object.fromEntries(m);
+  socket.emit('seen:all', { lobby: Object.fromEntries(seenLobby), mod });
+}
+
 // ---- Private moderator threads ----
 function sendModThreads() {
   const sock = moderatorId && io.sockets.sockets.get(moderatorId);
   if (sock) {
+    sendSeen(sock);
     sock.emit('mod:threads', Object.fromEntries(modThreads));
     // The moderator can also read what each player asks the AI helper.
     sock.emit('ai:threads', Object.fromEntries(aiChats));
@@ -327,6 +339,9 @@ function checkWipe() {
 // A fresh game: every chat, role, protection and mute is cleared.
 function wipeEverything(reason) {
   wipeVotes = new Set();
+  seenLobby = new Map();
+  seenMod = new Map();
+  io.emit('seen:all', { lobby: {}, mod: {} });
   lobby = [];
   modThreads = new Map();
   wolfChat = [];
@@ -893,7 +908,7 @@ function randomizeRoles(quiet = false) {
   syncFamily();
   if (!quiet) {
     announceRoleChanges(before, true);
-    systemLobby('The moderator handed out secret roles. Check your pop-up!');
+    systemLobby('The moderator handed out secret roles. Yours is shown under your name. Tap My role in Talk to moderator to read what it does.');
   }
   return null;
 }
@@ -1077,6 +1092,7 @@ io.on('connection', (socket) => {
     ack?.({ ok: true, name });
     socket.emit('lobby:history', lobby);
     sendOwnThread(socket);
+    sendSeen(socket);
     socket.emit('ai:history', aiThread(name));
     socket.emit('wolf:history', hasWolfAccess(socket.id) ? wolfChat : null);
     socket.emit('phase:changed', { phase, silent: true });
@@ -1302,7 +1318,7 @@ io.on('connection', (socket) => {
     // Players without a role are Civilians; then everyone gets their final role at once.
     for (const u of users.values()) if (u.id !== moderatorId && !roles.has(key(u.name))) roles.set(key(u.name), 'civilian');
     announceRoleChanges(new Map(), true);
-    systemLobby('Everyone has a secret role now. Check your pop-up!');
+    systemLobby('Everyone has a secret role now. Yours is shown under your name. Tap My role in Talk to moderator to read what it does.');
     io.emit('phase:changed', { phase, silent: true });
     broadcastState();
   }
@@ -1575,6 +1591,28 @@ io.on('connection', (socket) => {
     else wipeVotes.add(socket.id);
     checkWipe();
     broadcastState();
+  });
+
+  // ---- "Seen by" ----
+  // A player's screen says which message they have read up to, in the lobby or their moderator chat.
+  socket.on('seen', ({ channel, thread, id } = {}) => {
+    const u = me();
+    if (!u || !Number.isInteger(id) || id < 1 || id >= nextMsgId) return;
+    if (channel === 'lobby') {
+      if ((seenLobby.get(u.name) || 0) >= id) return;
+      seenLobby.set(u.name, id);
+      io.emit('seen', { channel: 'lobby', name: u.name, id });
+    } else if (channel === 'mod') {
+      const k = isMod(socket) ? key(String(thread || '')) : key(u.name);
+      if (!modThreads.has(k)) return;
+      if (!seenMod.has(k)) seenMod.set(k, new Map());
+      if ((seenMod.get(k).get(u.name) || 0) >= id) return;
+      seenMod.get(k).set(u.name, id);
+      const payload = { channel: 'mod', thread: k, name: u.name, id };
+      const member = userByName(k);
+      if (member) io.to(member.id).emit('seen', payload);
+      if (moderatorId && moderatorId !== member?.id) io.to(moderatorId).emit('seen', payload);
+    }
   });
 
   // ---- Game mode (only between games) ----
