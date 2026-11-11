@@ -159,6 +159,7 @@ function timeOf(ts) {
 // A locked pop-up can't be closed by clicking outside it or pressing Escape (used for the trial vote).
 let modalLocked = false;
 function openModal(build, locked = false) {
+  liveModal = null;
   modalLocked = locked;
   const card = $('modalCard');
   card.className = 'modal-card';
@@ -731,6 +732,8 @@ function renderAll(redrawMessages = true) {
   renderThreadTabs();
   renderComposer();
   renderPanel();
+  renderModTiles();
+  refreshLiveModal();
   updateAbilityBox();
   document.body.classList.toggle('has-mod', !!state.moderator);
   renderRoleFx();
@@ -743,8 +746,8 @@ function renderNav() {
   if (!state) return;
   const mc = $('meCard');
   mc.innerHTML = '';
-  mc.title = 'Change your character';
-  mc.onclick = openCharSelect;
+  mc.title = 'Open the main menu';
+  mc.onclick = openMainMenu;
   const a = avatar(me);
   a.append(el('span', 'dot'));
   const who = el('div', 'who');
@@ -756,7 +759,7 @@ function renderNav() {
   else status.textContent = 'Player · no role yet';
   if (amMuted()) status.append(document.createTextNode(' · 🔇 muted'));
   who.append(status);
-  mc.append(a, who);
+  mc.append(a, who, el('span', 'me-menu', '☰'));
 
   document.querySelectorAll('.nav-item[data-channel]').forEach((b) => b.classList.toggle('selected', b.dataset.channel === channel));
   $('modChannelLabel').textContent = amMod() ? 'Moderator inbox' : 'Talk to moderator';
@@ -1245,6 +1248,247 @@ $('actionNav').onclick = () => {
   if (!isPhone() && getComputedStyle($('sideLeft')).position === 'fixed') closeDrawers();
   toggleActionPop();
 };
+
+
+// ---------- Moderator desk: the left side on computers and iPads ----------
+// The right side only has the players. Everything else (game controls, trial, tonight's picks, the moderator
+// seat, wipe) sits on the left. Phones keep it all in the slide-in Game panel.
+const DESK_ITEMS = ['modTiles', 'gameCard', 'actionCard', 'nightCard', 'trialCard', 'modCard', 'wipeBox'];
+function placeDesk() {
+  const phone = matchMedia('(max-width: 760px)').matches;
+  for (const id of DESK_ITEMS) {
+    const node = $(id);
+    if (phone) $('sideRight').insertBefore(node, $('playersCard'));
+    else $('sideLeft').insertBefore(node, $('sideBox'));
+  }
+}
+placeDesk();
+window.addEventListener('resize', placeDesk);
+
+// A box that stays up to date while it's open (roles, wipe votes, bots).
+let liveModal = null;
+function openLive(build) {
+  openModal(build);
+  liveModal = build;
+}
+function refreshLiveModal() {
+  if (!liveModal || $('modal').classList.contains('hidden')) return;
+  const card = $('modalCard');
+  const top = card.scrollTop;
+  card.innerHTML = '';
+  liveModal(card);
+  card.scrollTop = top;
+}
+
+// The moderator's small tiles: Roles, Wipe, Bots, Reset (and End game during a game).
+function modTile(icon, label, onClick, badge = '') {
+  const b = el('button', 'mt-tile');
+  b.type = 'button';
+  b.append(el('span', 'mt-icon', icon), el('span', 'mt-label', label));
+  if (badge) b.append(el('span', 'mt-badge', badge));
+  b.onclick = onClick;
+  return b;
+}
+function renderModTiles() {
+  const box = $('modTiles');
+  box.classList.toggle('hidden', !amMod());
+  if (!amMod()) return;
+  const bots = state.users.filter((u) => u.bot).length;
+  const sig = JSON.stringify([state.wipe, bots, state.gameState]);
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  box.innerHTML = '';
+  box.append(el('div', 'nav-title', 'Moderator'));
+  box.append(
+    modTile('🎭', 'Roles', openRolesBox),
+    modTile('🧹', 'Wipe', openWipeBox, state.wipe.needed ? `${state.wipe.votes}/${state.wipe.needed}` : ''),
+    modTile('🤖', 'Bots', openBotsBox, bots ? String(bots) : ''),
+    modTile('🔄', 'Reset', confirmKickAll)
+  );
+  if (state.gameState === 'running') box.append(modTile('⏹', 'End game', confirmEndGame));
+}
+function confirmKickAll() {
+  openModal((card) => {
+    card.append(el('div', 'note-icon', '🔄'));
+    card.append(el('h2', '', 'Kick everyone and reset?'));
+    card.append(el('p', '', 'Every player and bot is sent back to the join screen. All chats, roles, clues and character picks are cleared. Everyone joins again and picks a character.'));
+    const actions = el('div', 'actions');
+    actions.append(btn('btn-ghost', 'Cancel', closeModal), btn('btn-danger', 'Kick all & reset', () => { socket.emit('mod:kickAll'); closeModal(); }));
+    card.append(actions);
+  });
+}
+function confirmEndGame() {
+  openModal((card) => {
+    card.append(el('div', 'note-icon', '⏹'));
+    card.append(el('h2', '', 'End the game?'));
+    card.append(el('p', '', 'All chats, roles and clues are wiped and everyone goes back to the main menu.'));
+    const actions = el('div', 'actions');
+    actions.append(btn('btn-ghost', 'Cancel', closeModal), btn('btn-danger', 'End game', () => { socket.emit('game:end'); closeModal(); }));
+    card.append(actions);
+  });
+}
+// Who has voted to wipe.
+function openWipeBox() {
+  openLive((card) => {
+    card.classList.add('desk-box');
+    card.append(el('h2', '', '🧹 Vote to wipe'));
+    const w = state.wipe;
+    card.append(el('p', 'hint', 'When every player has voted, all chats, roles and mutes are cleared for a new game. Bots and you don’t vote.'));
+    if (!w.eligible.length) {
+      card.append(el('p', '', 'There are no players to vote, so you can wipe straight away.'));
+    } else {
+      card.append(el('div', 'db-count', `${w.votes} of ${w.needed} have voted`));
+      const list = el('div', 'db-list');
+      for (const name of w.eligible) {
+        const on = w.voters.includes(name);
+        const row = el('div', 'db-row' + (on ? ' on' : ''));
+        row.append(avatar(name, 'sm'), el('span', 'db-name', name), el('span', 'db-state', on ? '✓ Voted' : 'Not yet'));
+        list.append(row);
+      }
+      card.append(list);
+    }
+    const actions = el('div', 'actions');
+    if (!w.eligible.length) actions.append(btn('btn-danger', '🧹 Wipe now', () => { socket.emit('wipe:vote'); closeModal(); }));
+    actions.append(btn('btn-primary', 'Close', closeModal));
+    card.append(actions);
+  });
+}
+// Add or remove test bots.
+let deskBots = 4;
+function openBotsBox() {
+  openLive((card) => {
+    card.classList.add('desk-box');
+    card.append(el('h2', '', '🤖 Bots'));
+    card.append(el('p', 'hint', 'Bots are fake players for testing. They get roles, pick at night and vote in trials.'));
+    const row = el('div', 'mm-row');
+    const sel = el('select');
+    sel.setAttribute('aria-label', 'Number of bots');
+    for (let i = 1; i <= 10; i++) sel.append(Object.assign(el('option', '', String(i)), { value: String(i), selected: i === deskBots }));
+    sel.onchange = () => (deskBots = Number(sel.value));
+    row.append(sel, btn('btn-soft', '🤖 Add bots', () => socket.emit('bots:add', deskBots)));
+    card.append(row);
+    const bots = state.users.filter((u) => u.bot);
+    if (bots.length) {
+      const list = el('div', 'mm-players');
+      for (const u of bots) {
+        const chip = el('span', 'mm-player');
+        chip.append(avatar(u.name, 'sm'), document.createTextNode(u.name));
+        list.append(chip);
+      }
+      card.append(list);
+    }
+    const actions = el('div', 'actions');
+    if (bots.length) actions.append(btn('btn-ghost', 'Remove all bots', () => socket.emit('bots:remove')));
+    actions.append(btn('btn-primary', 'Close', closeModal));
+    card.append(actions);
+  });
+}
+// The roles in this game: good team and bad team, one row each, with − and + to choose how many.
+function openRolesBox() {
+  openLive((card) => {
+    card.classList.add('desk-box', 'roles-box');
+    card.append(el('h2', '', '🎭 Roles in this game'));
+    const box = el('div');
+    buildRoleSetup(box);
+    card.append(box);
+    const actions = el('div', 'actions');
+    if (state.gameState !== 'waiting') actions.append(btn('btn-soft', '🎲 Hand out random roles', () => $('randomizeBtn').onclick()));
+    actions.append(btn('btn-primary', 'Close', closeModal));
+    card.append(actions);
+  });
+}
+function buildRoleSetup(box) {
+  const cfg = state.modView?.roleConfig;
+  if (!cfg) return;
+  const players = state.users.filter((u) => !u.moderator).length;
+  const set = (patch) => socket.emit('roles:config', { ...cfg, ...patch });
+  const section = (cls, title) => {
+    const s = el('div', 'rs-sec ' + cls);
+    s.append(el('div', 'rs-title', title));
+    box.append(s);
+    return s;
+  };
+  const row = (parent, icons, label, value, minus, plus, note = '') => {
+    const r = el('div', 'rs-row' + (value ? '' : ' off'));
+    const ic = el('span', 'rs-icons');
+    for (const i of [].concat(icons)) ic.append(roleIcon(i));
+    const name = el('span', 'rs-name', label);
+    if (note) name.append(el('small', '', note));
+    r.append(ic, name);
+    if (typeof value === 'object') r.append(value);
+    else {
+      const st = el('div', 'rs-step');
+      const m = el('button', 'rs-btn', '−');
+      m.type = 'button';
+      m.disabled = !minus;
+      if (minus) m.onclick = minus;
+      const p = el('button', 'rs-btn', '+');
+      p.type = 'button';
+      p.disabled = !plus;
+      if (plus) p.onclick = plus;
+      st.append(m, el('b', 'rs-n', String(value)), p);
+      if (!minus && !plus) st.classList.add('fixed');
+      r.append(st);
+    }
+    parent.append(r);
+  };
+  const stepper = (parent, icon, label, field, max = 20) =>
+    row(parent, icon, label, cfg[field], cfg[field] > 0 ? () => set({ [field]: cfg[field] - 1 }) : null, cfg[field] < max ? () => set({ [field]: cfg[field] + 1 }) : null);
+  const seg = (field, opts, title) => {
+    const sg = el('div', 'mini-seg');
+    for (const [v, t] of opts) {
+      const b = el('button', cfg[field] === v ? 'on' : '', t);
+      b.type = 'button';
+      if (title) b.title = title(v);
+      b.onclick = () => set({ [field]: v });
+      sg.append(b);
+    }
+    return sg;
+  };
+  let special;
+  if (dkMode()) {
+    const good = section('good', '🦇 Good team · Gotham');
+    stepper(good, 'doctor', 'Thomas Wayne', 'doctor');
+    stepper(good, 'detective', 'The Batman', 'detective');
+    stepper(good, 'officer', 'Commissioner Gordon', 'officer');
+    special = dkSpecial(cfg);
+    row(good, 'civilian', 'Citizens', Math.max(players - special, 0), null, null, 'everyone else');
+    const bad = section('bad', '🃏 Bad team · Villains');
+    row(bad, 'dkjoker', 'The Joker', 1, null, null, 'always one');
+    for (const r of ['harley', 'ivy', 'clayface']) {
+      const on = cfg[r] ? 1 : 0;
+      row(bad, r, ROLE[r].label, on, on ? () => set({ [r]: false }) : null, on ? null : () => set({ [r]: true }));
+    }
+  } else {
+    const fam = familyOn(cfg, players);
+    special = cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (fam ? 3 : 0);
+    const good = section('good', '🧑‍🌾 Good team · Village');
+    stepper(good, 'doctor', 'Doctors', 'doctor');
+    stepper(good, 'detective', 'Detectives', 'detective');
+    stepper(good, 'officer', 'Officers', 'officer');
+    row(good, ['mother', 'father', 'son'], 'Family', seg('family', [['auto', 'Auto 20+'], ['on', 'On'], ['off', 'Off']]), null, null, fam ? 'in this game' : 'not in this game');
+    row(good, 'civilian', 'Civilians', Math.max(players - special, 0), null, null, 'everyone else');
+    const bad = section('bad', '🐺 Bad team · Killers');
+    stepper(bad, cfg.werewolf === 1 ? 'serialkiller' : 'werewolf', cfg.werewolf === 1 ? 'Serial Killer' : 'Werewolves', 'werewolf');
+    if (cfg.werewolf === 1) bad.append(el('p', 'rs-hint', 'With only one werewolf, they play as the Serial Killer.'));
+  }
+  const setSec = section('settings', '⚙️ Settings');
+  row(setSec, [], '🎚️ Difficulty', seg('difficulty', [['normal', 'Normal'], ['hard', 'Hard']], (v) => (v === 'hard' ? 'Hard: nothing about roles is shown on death' : 'Normal: deaths and role changes are announced')));
+  if (!dkMode()) {
+    row(setSec, [], '🦇 Batman can interrogate', seg('interrogate', [[true, 'On'], [false, 'Off']]), null, null, 'only with 4+ wolves');
+    const mode = state.modView.detectiveMode;
+    const dm = el('div', 'mini-seg');
+    for (const [m, t] of [['auto', 'Automatic'], ['manual', 'Manual']]) {
+      const b = el('button', mode === m ? 'on' : '', t);
+      b.type = 'button';
+      b.onclick = () => socket.emit('detective:mode', m);
+      dm.append(b);
+    }
+    row(setSec, [], '🔍 Detective results', dm, null, null, mode === 'auto' ? 'shown at sunrise' : 'you answer by hand');
+  }
+  const sum = el('p', 'rs-sum' + (special > players ? ' warn' : ''), special > players ? `${special} special roles, but only ${players} player${players === 1 ? '' : 's'}. Remove some roles or add bots.` : `${special} special role${special === 1 ? '' : 's'} for ${players} player${players === 1 ? '' : 's'}.`);
+  box.append(sum);
+}
 
 function renderPanel() {
   renderPhaseDisplay();
@@ -2161,7 +2405,21 @@ let charAfterJoin = false;
 let menuClosed = false; // the player went to the chat; a button in the chat brings the menu back
 let menuWasWaiting = false;
 let menuBots = 4;
-let menuPage = 'home'; // 'home' | 'mode' | 'mod' | 'players' | 'roles'
+let menuPage = 'home';
+let menuInGame = false; // opened during a game by tapping your name
+function openMainMenu() {
+  closeDrawers();
+  if (state.gameState === 'waiting') menuClosed = false;
+  else menuInGame = true;
+  menuPage = 'home';
+  $('mainMenu').dataset.sig = '';
+  renderAll(false);
+}
+function closeMainMenu() {
+  menuClosed = true;
+  menuInGame = false;
+  renderAll(false);
+} // 'home' | 'mode' | 'mod' | 'players' | 'roles'
 function menuGo(page) {
   menuPage = page;
   $('mainMenu').dataset.sig = '';
@@ -2199,14 +2457,12 @@ function renderMainMenu() {
     menuClosed = false;
     menuPage = 'home';
   }
+  // A game started: the menu closes (it can be opened again by tapping your name).
+  if (!waiting && menuWasWaiting) menuInGame = false;
   menuWasWaiting = waiting;
-  const show = waiting && !menuClosed;
+  const show = !!me && (waiting ? !menuClosed : menuInGame);
   menu.classList.toggle('hidden', !show);
   document.body.classList.toggle('menu-open', show);
-  const rc = $('rolesCard');
-  if (!show || menuPage !== 'roles' || !amMod()) {
-    if (rc.parentElement !== $('sideRight')) $('sideRight').insertBefore(rc, $('modCard'));
-  }
   if (!show) {
     menu.dataset.sig = '';
     return;
@@ -2216,7 +2472,7 @@ function renderMainMenu() {
   const cfg = state.modView?.roleConfig;
   // Pages only the moderator has.
   if (!amMod() && (menuPage === 'mod' || menuPage === 'roles')) menuPage = 'home';
-  const sig = JSON.stringify([menuPage, state.users, state.moderator, amMod(), state.mode, cfg, randomizeOnStart, menuBots, mineChar]);
+  const sig = JSON.stringify([menuPage, state.users, state.moderator, amMod(), state.mode, cfg, randomizeOnStart, menuBots, mineChar, state.gameState, state.modView?.detectiveMode, waiting]);
   if (menu.dataset.sig === sig) return;
   menu.dataset.sig = sig;
   const card = $('mmCard');
@@ -2240,8 +2496,10 @@ function renderMainMenu() {
 
   if (menuPage === 'home') {
     const c = (window.CHARACTERS || []).find((x) => x.id === mineChar);
-    // 1. Start game (or what's needed first)
-    if (!state.moderator) {
+    // 1. Start game (or what's needed first). During a game: back to the game.
+    if (!waiting) {
+      page.append(menuTab('▶', 'Back to the game', state.gameState === 'running' ? `Day ${(state.nightNumber || 0) + (state.phase === 'night' ? 0 : 1)} · ${state.phase === 'night' ? 'night' : 'day'}` : 'Roles are being handed out', closeMainMenu, 'mm-main'));
+    } else if (!state.moderator) {
       page.append(menuTab('🛡️', 'Become moderator', 'Someone has to run the game before it can start', () => socket.emit('mod:claim'), 'mm-main'));
     } else if (amMod()) {
       const problem = menuStartProblem(players, cfg);
@@ -2276,10 +2534,7 @@ function renderMainMenu() {
       const m = el('p', 'mm-note', `🛡️ ${state.moderator} is the moderator.`);
       page.append(m);
     }
-    page.append(menuTab('💬', 'Go to chat', 'Talk while you wait', () => {
-      menuClosed = true;
-      renderAll(false);
-    }, 'mm-quiet'));
+    if (waiting) page.append(menuTab('💬', 'Go to chat', 'Talk while you wait · tap your name to come back', closeMainMenu, 'mm-quiet'));
   } else if (menuPage === 'mode') {
     back('Game mode');
     for (const [m, title, desc, art] of [
@@ -2291,10 +2546,12 @@ function renderMainMenu() {
       img.src = ROLE_IMG[art] || `img/roles/${art}.webp`;
       img.alt = '';
       const b = menuTab(img, title + (on ? '  ✓' : ''), desc, () => amMod() && socket.emit('mode:set', m), 'mm-mode' + (on ? ' on' : ''));
-      b.disabled = !amMod() && !on;
+      b.disabled = (!amMod() || !waiting) && !on;
+      if (!waiting) b.onclick = null;
       page.append(b);
     }
-    if (!amMod()) page.append(el('p', 'mm-note', 'The moderator picks the game mode.'));
+    if (!waiting) page.append(el('p', 'mm-note', 'The game mode can be changed between games.'));
+    else if (!amMod()) page.append(el('p', 'mm-note', 'The moderator picks the game mode.'));
   } else if (menuPage === 'overview') {
     back('Role overview');
     page.append(el('p', 'mm-note', 'Tap a role to see what it does.'));
@@ -2348,7 +2605,7 @@ function renderMainMenu() {
     lab.append(cb, document.createTextNode(' Hand out random roles when the game starts (untick to give them yourself)'));
     page.append(lab);
     const box = el('div', 'mm-roles');
-    box.append(rc);
+    buildRoleSetup(box);
     page.append(box);
   } else if (menuPage === 'mod') {
     back('Moderator');
@@ -2374,7 +2631,7 @@ function renderStartScreen() {
   const box = $('startScreen');
   // Before a game the main menu does the job; in the chat there's only a button back to it.
   if (state.gameState === 'waiting') {
-    const showBtn = menuClosed && channel === 'lobby';
+    const showBtn = false; // the main menu opens by tapping your name
     box.classList.toggle('hidden', !showBtn);
     document.body.classList.remove('start-open');
     const sig = 'menu|' + showBtn + '|' + state.users.length;
@@ -2938,7 +3195,7 @@ function renderPhoneDock() {
     });
   }
   // Characters are picked before a game, not during one.
-  if (state.gameState !== 'running') items.push({ id: 'char', icon: '👤', label: 'Me', go: openCharSelect });
+  items.push({ id: 'menu', icon: '☰', label: 'Menu', go: openMainMenu });
   const sig = JSON.stringify(items.map((i) => [i.id, i.on, i.badge, i.lock, i.label, i.count]));
   // Leave room so the newest messages aren't hidden under the menu at first,
   // and keep the moderator's inbox bars below the panels.

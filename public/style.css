@@ -1955,3 +1955,86 @@ body.night .scene.dk ~ .chat-fx .fx-searchlight { opacity: 0.5; }
 .ro-team.good .ro-title { color: var(--success); }
 .ro-team.bad .ro-title { color: var(--danger); }
 .ro-title { font-size: 0.82rem; }
+
+/* =========================================================
+   Moderator desk: tiles for Roles / Wipe / Bots / Reset, and the boxes they open
+   ========================================================= */
+#rolesCard { display: none !important; } /* the role setup now lives in the Roles box */
+#gameCard .bot-row, #endGameBtn, #kickAllBtn { display: none !important; } /* now tiles */
+body.has-mod #modCard { display: none !important; } /* moderator changes are in the main menu */
+body.is-mod #wipeBox { display: none !important; } /* the moderator has the Wipe tile */
+.mod-tiles:not(.hidden) {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; padding: 10px; border-radius: 16px;
+  background: color-mix(in srgb, var(--surface-2) 75%, transparent); border: 1px solid color-mix(in srgb, var(--border) 70%, rgba(255, 255, 255, 0.35));
+}
+.mod-tiles .nav-title { grid-column: 1 / -1; margin: 0 2px 2px; }
+.mt-tile {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 62px; padding: 8px 4px;
+  border-radius: 14px; border: 1.5px solid transparent; background: color-mix(in srgb, var(--surface) 88%, transparent); color: var(--text);
+  box-shadow: 0 2px 6px rgba(10, 12, 30, 0.08); font-size: 0.78rem; font-weight: 700; cursor: pointer;
+}
+.mt-tile:hover { border-color: var(--accent); }
+.mt-tile:active { transform: scale(0.96); }
+.mt-icon { font-size: 1.25rem; line-height: 1; }
+.mt-badge { position: absolute; top: 4px; right: 4px; padding: 1px 6px; border-radius: 999px; font-size: 0.66rem; font-weight: 800; background: var(--accent); color: #fff; font-variant-numeric: tabular-nums; }
+.side-left > .mod-tiles { flex-shrink: 0; }
+@media (min-width: 901px) {
+  .side-left > .mod-tiles { border-radius: 18px; background: color-mix(in srgb, var(--surface) 86%, transparent); box-shadow: 0 8px 22px rgba(10, 12, 30, 0.18); }
+}
+
+/* Boxes the tiles open */
+.modal-card.desk-box { width: min(480px, 100%); text-align: left; }
+.desk-box h2 { text-align: center; }
+.desk-box .hint { text-align: center; }
+.db-count { font-weight: 800; text-align: center; margin: 6px 0 10px; }
+.db-list { display: flex; flex-direction: column; gap: 6px; }
+.db-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--surface-2); border: 1.5px solid transparent; }
+.db-row.on { border-color: var(--success); }
+.db-name { flex: 1; font-weight: 700; }
+.db-state { font-size: 0.82rem; color: var(--muted); font-weight: 600; }
+.db-row.on .db-state { color: var(--success); }
+.desk-box .mm-row { margin: 10px 0; }
+.desk-box .mm-players { margin-top: 4px; }
+
+/* Role rows: good team and bad team, with − / + */
+.rs-sec { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 16px; border: 2px solid var(--border); margin-top: 10px; }
+.rs-sec.good { border-color: color-mix(in srgb, var(--success) 55%, var(--border)); background: color-mix(in srgb, var(--success) 8%, transparent); }
+.rs-sec.bad { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); background: color-mix(in srgb, var(--danger) 8%, transparent); }
+.rs-title { font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); padding: 0 2px; }
+.rs-sec.good .rs-title { color: var(--success); }
+.rs-sec.bad .rs-title { color: var(--danger); }
+.rs-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 12px; background: var(--surface); min-height: 46px; }
+.rs-row.off { opacity: 0.6; }
+.rs-icons { display: flex; flex-shrink: 0; }
+.rs-icons .ri { width: 30px; height: 30px; }
+.rs-icons .ri + .ri { margin-left: -8px; }
+.rs-name { flex: 1; min-width: 0; font-weight: 700; font-size: 0.92rem; display: flex; flex-direction: column; }
+.rs-name small { font-weight: 500; font-size: 0.72rem; color: var(--muted); }
+.rs-step { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.rs-step.fixed .rs-btn { visibility: hidden; }
+.rs-btn { width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 1.1rem; font-weight: 800; cursor: pointer; }
+.rs-btn:disabled { opacity: 0.35; cursor: default; }
+.rs-n { min-width: 22px; text-align: center; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.rs-hint { margin: 0; font-size: 0.78rem; color: var(--muted); padding: 0 4px; }
+.rs-sum { margin: 10px 0 0; text-align: center; font-size: 0.86rem; color: var(--muted); }
+.rs-sum.warn { color: var(--danger); font-weight: 700; }
+.rs-row .mini-seg { flex-shrink: 0; }
+
+/* Your name opens the main menu */
+.me-card { position: relative; }
+.me-menu { margin-left: auto; font-size: 1.1rem; color: var(--muted); padding: 4px 6px; border-radius: 8px; }
+.me-card:hover .me-menu { color: var(--accent); background: var(--accent-soft); }
+.me-card .who { flex: 1; }
+
+/* Moderator: the boxes are blue */
+body.is-mod {
+  --mod-blue: #3b82f6;
+}
+body.is-mod .side-left > .profile-box, body.is-mod .side-left .nav, body.is-mod .side-left > .ability-box, body.is-mod .side-left > .card,
+body.is-mod .side-left > .side-box, body.is-mod .side-left > .mod-tiles, body.is-mod .side-right > .card, body.is-mod .chat-header {
+  background: color-mix(in srgb, #1d4ed8 22%, color-mix(in srgb, var(--surface) 86%, transparent)) !important;
+  border-color: color-mix(in srgb, var(--mod-blue) 60%, transparent) !important;
+}
+body.is-mod .side-left .nav-item, body.is-mod .mt-tile { background: color-mix(in srgb, #1d4ed8 14%, var(--surface)) !important; }
+body.is-mod .side-left .nav-item.selected { border-color: var(--mod-blue); background: color-mix(in srgb, var(--mod-blue) 30%, var(--surface)) !important; }
+body.is-mod .mt-badge { background: var(--mod-blue); }

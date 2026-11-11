@@ -191,7 +191,7 @@ function broadcastState() {
     gameState,
     serverNow: Date.now(),
     trial: trialPublic,
-    wipe: { votes: wipeVotes.size, needed: wipeVoters().length },
+    wipe: { votes: wipeVotes.size, needed: wipeVoters().length, voters: [...wipeVotes].map((id) => users.get(id)?.name).filter(Boolean), eligible: wipeVoters().map((u) => u.name) },
     clues,
     dead: [...killedNames],
   };
