@@ -3274,6 +3274,10 @@ function phoneTop() {
   const h = document.querySelector('.chat-header');
   return h.offsetTop + h.offsetHeight + 8;
 }
+let dockHidden = false;
+try {
+  dockHidden = localStorage.getItem('dockHidden') === '1';
+} catch {}
 function renderPhoneDock() {
   const dock = $('phoneDock');
   if (!state) return;
@@ -3316,7 +3320,23 @@ function renderPhoneDock() {
   }
   // Characters are picked before a game, not during one.
   items.push({ id: 'menu', icon: '☰', label: 'Menu', go: openMainMenu });
-  const sig = JSON.stringify(items.map((i) => [i.id, i.on, i.badge, i.lock, i.label, i.count]));
+  // − folds the menu into one small + button (remembered on this phone); + brings it back.
+  const toggleDock = () => {
+    dockHidden = !dockHidden;
+    try {
+      localStorage.setItem('dockHidden', dockHidden ? '1' : '0');
+    } catch {}
+    dock.dataset.sig = '';
+    renderPhoneDock();
+  };
+  let shown = items;
+  if (dockHidden) {
+    // Still show that something needs you (a red dot when any button has a badge).
+    const alert = items.some((i) => i.badge && i.badge !== '✓');
+    shown = [{ id: 'show', icon: '+', label: 'Menu', badge: alert ? '!' : '', go: toggleDock, cls: 'dock-toggle' }];
+  } else items.push({ id: 'hide', icon: '−', label: 'Hide', go: toggleDock, cls: 'dock-toggle' });
+  dock.classList.toggle('folded', dockHidden);
+  const sig = JSON.stringify([dockHidden, shown.map((i) => [i.id, i.on, i.badge, i.lock, i.label, i.count])]);
   // Leave room so the newest messages aren't hidden under the menu at first,
   // and keep the moderator's inbox bars below the panels.
   requestAnimationFrame(() => {
@@ -3335,8 +3355,8 @@ function renderPhoneDock() {
   if (dock.dataset.sig === sig) return;
   dock.dataset.sig = sig;
   dock.innerHTML = '';
-  for (const it of items) {
-    const b = el('button', 'dock-btn' + (it.on ? ' on' : '') + (it.label.length > 8 ? ' long' : ''));
+  for (const it of shown) {
+    const b = el('button', 'dock-btn' + (it.on ? ' on' : '') + (it.label.length > 8 ? ' long' : '') + (it.cls ? ' ' + it.cls : ''));
     b.type = 'button';
     const ic = el('span', 'dock-icon');
     if (it.img) ic.append(roleIcon(it.img));
