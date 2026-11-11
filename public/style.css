@@ -2222,3 +2222,13 @@ body.team-bad .phone-dock, body.team-bad .phone-players, body.team-bad .mm-card 
   border: 2px solid #dc2626 !important;
   box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.35), 0 8px 22px rgba(120, 10, 10, 0.25) !important;
 }
+
+/* Killer side with filters off: the screen still turns blood red at night, like the filter does. */
+body.team-bad.filters-off.night {
+  --bg: #1e0506; --surface: #2b090b; --surface-2: #3b0f12; --surface-3: #4c161a; --border: #561a1f;
+  --accent: #e5484d; --accent-2: #ff6b6b; --accent-soft: #4a1418; --bubble: #3b0f12; --muted: #b07a7d; --text-2: #e3b9bb;
+}
+body.team-sk.filters-off.night {
+  --bg: #0e0405; --surface: #170808; --surface-2: #230c0d; --surface-3: #321113; --border: #3a1416;
+  --accent: #b91c1c; --accent-2: #dc2626; --accent-soft: #3a1014; --bubble: #230c0d; --muted: #9a7173; --text-2: #d6b3b5;
+}
