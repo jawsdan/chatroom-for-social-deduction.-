@@ -2512,7 +2512,8 @@ function renderMainMenu() {
       w.lastChild.append(el('b', '', 'Waiting to start'), el('span', '', `${state.moderator} starts the game`));
       page.append(w);
     }
-    // 2. Game mode, role overview, players, character
+    // 2. Roles (moderator), game mode, role overview, players, character
+    if (amMod()) page.append(menuTab('🎭', 'Roles', randomizeOnStart ? 'Random roles when the game starts' : 'You hand out the roles', () => menuGo('roles'), 'mt-roles'));
     const modeIcon = el('img');
     modeIcon.src = ROLE_IMG[dkMode() ? 'dkjoker' : 'werewolf'];
     modeIcon.alt = '';
@@ -2528,7 +2529,6 @@ function renderMainMenu() {
     page.append(menuTab(charIcon, 'Choose character', c ? c.name : 'No character yet', openCharSelect, 'mt-char'));
     // 3. Moderator only
     if (amMod()) {
-      page.append(menuTab('🎭', 'Roles', randomizeOnStart ? 'Random roles when the game starts' : 'You hand out the roles', () => menuGo('roles'), 'mt-roles'));
       page.append(menuTab('🛡️', 'Moderator', 'You run the game · hand over or step down', () => menuGo('mod'), 'mt-modr'));
     } else if (state.moderator) {
       const m = el('p', 'mm-note', `🛡️ ${state.moderator} is the moderator.`);
