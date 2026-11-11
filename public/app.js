@@ -25,12 +25,12 @@ let trialPopupShownFor = null;
 let lastRendered = null; // { from, ts } of the last message drawn, for grouping
 
 const ROLE = {
-  civilian: { label: 'Civilian', icon: '🧑‍🌾', color: 'var(--success)', desc: 'Find the killers before it is too late.' },
-  werewolf: { label: 'Werewolf', icon: '🐺', color: 'var(--danger)', desc: 'Hunt at night with your pack. Plan in the wolf den, then tell the moderator your target.' },
-  serialkiller: { label: 'Serial Killer', icon: '🔪', color: 'var(--danger)', desc: 'You work alone. Each night, tell the moderator who you want to eliminate. Do not get caught.' },
-  doctor: { label: 'Doctor', icon: '🩺', color: '#0ea5e9', desc: 'Each night, tell the moderator one player to protect.' },
+  civilian: { label: 'Civilian', icon: '🧑‍🌾', color: 'var(--success)', desc: 'You have no special power, but your voice and your vote matter. Watch closely, find the killers and vote them out before it is too late.' },
+  werewolf: { label: 'Werewolf', icon: '🐺', color: 'var(--danger)', desc: 'You hunt with your pack. Each night, plan in the wolf den and pick your victim with Kill. The whole pack must choose the same player. By day, blend in with the village.' },
+  serialkiller: { label: 'Serial Killer', icon: '🔪', color: 'var(--danger)', desc: 'You work alone. Each night, choose your next victim with Kill, or let them live one more night. Leave your calling card behind, and never get caught.' },
+  doctor: { label: 'Doctor', icon: '🩺', color: '#0ea5e9', desc: 'Each night, choose one player to Protect, yourself included. If the killers come for them, they survive.' },
   officer: { label: 'Officer', icon: '🚔', color: '#1d4ed8', desc: 'Each day you may arrest one player. They cannot vote that day and cannot use their ability the night after.' },
-  detective: { label: 'Detective', icon: '👮', color: '#3b82f6', desc: 'Each night, ask the moderator to investigate one player.' },
+  detective: { label: 'Detective', icon: '👮', color: '#3b82f6', desc: 'Each night, choose one player to Investigate. In the morning you learn whether they are good or one of the killers.' },
   mother: { label: 'Mother', icon: '👩', color: '#b83b7a', desc: 'You are part of the family, on the village side. If your Son dies, grief turns you into the Joker and you join the wolves.' },
   father: { label: 'Father', icon: '👨', color: '#2f5ea8', desc: 'You are part of the family, on the village side. If your Son dies, you become the Vigilante.' },
   son: { label: 'Son', icon: '👦', color: '#4d7c0f', desc: 'You are part of the family, on the village side. If both your parents die, you become Batman.' },
