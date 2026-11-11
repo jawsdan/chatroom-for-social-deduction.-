@@ -1242,7 +1242,11 @@ function renderActionNav() {
   $('actionNav').classList.toggle('selected', actionOpen);
   // A red dot while there's still a choice to make tonight.
   const waiting = state.phase === 'night' && a.kind !== 'arrest' && !a.target && !a.skip && !state.me.arrestedTonight && a.targets?.length;
-  $('actionNavPill').classList.toggle('hidden', !waiting);
+  // A check mark once you've made tonight's choice (or today's arrest).
+  const chosen = a.kind === 'arrest' ? state.phase === 'day' && !!a.target : state.phase === 'night' && (!!a.target || !!a.skip);
+  $('actionNavPill').textContent = waiting ? '!' : '✓';
+  $('actionNavPill').classList.toggle('done', !waiting && chosen);
+  $('actionNavPill').classList.toggle('hidden', !waiting && !chosen);
 }
 $('actionNav').onclick = () => {
   if (!isPhone() && getComputedStyle($('sideLeft')).position === 'fixed') closeDrawers();
@@ -3180,7 +3184,8 @@ function renderPhoneDock() {
     if (a && state.gameState === 'running' && !amMuted()) {
       const [icon, label] = PHONE_ACT[a.kind];
       const waiting = a.kind === 'arrest' ? state.phase === 'day' && !a.done : state.phase === 'night' && !a.target && !a.skip && !state.me.arrestedTonight;
-      items.push({ id: 'act', icon, label, on: actionOpen, badge: waiting ? '!' : '', go: toggleActionPop });
+      const chosen = a.kind === 'arrest' ? state.phase === 'day' && !!a.target : state.phase === 'night' && (!!a.target || !!a.skip);
+      items.push({ id: 'act', icon, label, on: actionOpen, badge: waiting ? '!' : chosen ? '✓' : '', go: toggleActionPop });
     }
     // Vote to reset (wipe everything), with a counter.
     const n = state.wipe.votes;
@@ -3222,7 +3227,7 @@ function renderPhoneDock() {
     if (it.img) ic.append(roleIcon(it.img));
     else ic.textContent = it.icon;
     b.append(ic, el('span', 'dock-label', it.label));
-    if (it.badge) b.append(el('span', 'dock-badge', it.badge));
+    if (it.badge) b.append(el('span', 'dock-badge' + (it.badge === '✓' ? ' done' : ''), it.badge));
     if (it.count) b.append(el('span', 'dock-count', it.count));
     if (it.lock) b.append(el('span', 'dock-lock', '🔒'));
     b.onclick = it.go;
