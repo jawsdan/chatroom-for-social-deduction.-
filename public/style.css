@@ -1936,3 +1936,15 @@ body.night .scene.dk ~ .chat-fx .fx-searchlight { opacity: 0.5; }
 }
 .mm-tab.mm-mode { flex-direction: row; align-items: center; text-align: left; position: relative; }
 .mm-tab.mm-mode .mm-tab-text span { color: var(--text-2); }
+
+/* Main menu: role overview */
+.ro-team { display: flex; flex-direction: column; gap: 8px; }
+.ro-title { font-size: 0.74rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.ro-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ro-role {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; border-radius: 16px; min-height: 0;
+  border: 2px solid var(--border); background: var(--surface-2); color: var(--text); font-weight: 700; font-size: 0.84rem; line-height: 1.15; text-align: center; cursor: pointer;
+}
+.ro-role:hover { border-color: var(--accent); }
+.ro-role:active { transform: scale(0.96); }
+.ro-role img { width: 58px; height: 58px; border-radius: 50%; }

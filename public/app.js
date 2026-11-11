@@ -426,25 +426,37 @@ socket.on('phase:changed', ({ phase, silent }) => {
   if (state) renderAll(false);
 });
 
+// The secret role pop-up. preview = shown from the main menu's role overview.
+function roleCard(card, role, preview = false) {
+  const r = ROLE[role];
+  const art = el('div', 'art role');
+  art.innerHTML = ART[role];
+  card.append(art);
+  card.append(el('div', 'role-kicker', preview ? 'Role preview' : 'Your secret role'));
+  const article = { joker: 'the ', vigilante: 'the ', batman: '' }[role] ?? (/^[aeiou]/i.test(r.label) ? 'an ' : 'a ');
+  // Names like "The Batman" or "Harley Quinn" need no "a" in front.
+  const named = DK_VILLAINS.includes(role) || (dkMode() && DK_SKIN[role] && role !== 'civilian');
+  card.append(el('h2', '', `You are ${named ? '' : article}${r.label}`));
+  card.append(el('p', '', r.desc));
+  card.append(el('p', 'hint', preview ? 'This is what a player sees when they get this role.' : 'Only you and the moderator can see this.'));
+  const actions = el('div', 'actions');
+  actions.append(btn('btn-primary', preview ? 'Close' : 'Got it', closeModal));
+  card.append(actions);
+}
+// Every role in the current game mode, by team, for the role overview.
+function roleTeams() {
+  if (dkMode()) return [['🦇 Gotham', ['civilian', 'doctor', 'detective', 'officer']], ['🃏 Villains', DK_VILLAINS]];
+  return [
+    ['🧑‍🌾 Village', ['civilian', 'doctor', 'detective', 'officer']],
+    ['🐺 Killers', ['werewolf', 'serialkiller']],
+    ['👪 The family', ['mother', 'father', 'son']],
+    ['🔄 Family transformations', ['joker', 'vigilante', 'batman']],
+  ];
+}
 socket.on('role:assigned', ({ role }) => {
   if (!role) return toast('The moderator removed your role.');
-  const r = ROLE[role];
   // Wait for any open pop-up (like the morning news) before showing a new role.
-  const show = () => openModal((card) => {
-    const art = el('div', 'art role');
-    art.innerHTML = ART[role];
-    card.append(art);
-    card.append(el('div', 'role-kicker', 'Your secret role'));
-    const article = { joker: 'the ', vigilante: 'the ', batman: '' }[role] ?? (/^[aeiou]/i.test(r.label) ? 'an ' : 'a ');
-    // Names like "The Batman" or "Harley Quinn" need no "a" in front.
-    const named = DK_VILLAINS.includes(role) || (dkMode() && DK_SKIN[role] && role !== 'civilian');
-    card.append(el('h2', '', `You are ${named ? '' : article}${r.label}`));
-    card.append(el('p', '', r.desc));
-    card.append(el('p', 'hint', 'Only you and the moderator can see this.'));
-    const actions = el('div', 'actions');
-    actions.append(btn('btn-primary', 'Got it', closeModal));
-    card.append(actions);
-  });
+  const show = () => openModal((card) => roleCard(card, role));
   if ($('modal').classList.contains('hidden')) show();
   else clueQueue.push({ __result: show });
 });
@@ -2257,6 +2269,7 @@ function renderMainMenu() {
     modeIcon.src = ROLE_IMG[dkMode() ? 'dkjoker' : 'werewolf'];
     modeIcon.alt = '';
     page.append(menuTab(modeIcon, 'Game mode', dkMode() ? 'The Dark Knight' : 'Original', () => menuGo('mode')));
+    page.append(menuTab('📖', 'Role overview', 'Every role in this game mode and what it does', () => menuGo('overview')));
     page.append(menuTab('👥', amMod() ? 'Players & bots' : 'Players', `${players.length} joined${state.users.some((u) => u.bot) ? ' · with bots' : ''}`, () => menuGo('players')));
     if (amMod()) {
       page.append(menuTab('🎭', 'Roles', randomizeOnStart ? 'Random roles when the game starts' : 'You hand out the roles', () => menuGo('roles')));
@@ -2284,6 +2297,26 @@ function renderMainMenu() {
       page.append(b);
     }
     if (!amMod()) page.append(el('p', 'mm-note', 'The moderator picks the game mode.'));
+  } else if (menuPage === 'overview') {
+    back('Role overview');
+    page.append(el('p', 'mm-note', 'Tap a role to see what it does.'));
+    for (const [team, roles] of roleTeams()) {
+      const sec = el('div', 'ro-team');
+      sec.append(el('div', 'ro-title', team));
+      const grid = el('div', 'ro-grid');
+      for (const r of roles) {
+        const b = el('button', 'ro-role');
+        b.type = 'button';
+        const img = el('img');
+        img.src = ROLE_IMG[r];
+        img.alt = '';
+        b.append(img, el('span', '', ROLE[r].label));
+        b.onclick = () => openModal((card) => roleCard(card, r, true));
+        grid.append(b);
+      }
+      sec.append(grid);
+      page.append(sec);
+    }
   } else if (menuPage === 'players') {
     back(amMod() ? 'Players & bots' : 'Players');
     const chips = el('div', 'mm-players');
