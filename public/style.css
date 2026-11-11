@@ -2151,3 +2151,9 @@ body.is-mod .mm-tab:not(:disabled):hover { border-color: #3b82f6; }
 #actionNavPill.done { background: var(--success); color: #fff; }
 .dock-badge:is(:empty) { display: none; }
 .dock-badge.done { background: var(--success); }
+
+/* Live pixel-art scene */
+canvas.pixel-scene { image-rendering: pixelated; image-rendering: crisp-edges; }
+.mm-tab.mt-bg .mm-tab-icon { background: linear-gradient(135deg, #22d3ee, #0e7490); }
+/* Phones: the pixel scene is stretched across the width (like the spots), and cropped from the top. */
+@media (max-width: 760px) { canvas.pixel-scene { object-fit: cover; object-position: center bottom; } }

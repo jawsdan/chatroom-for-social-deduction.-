@@ -39,6 +39,18 @@ window.SCENE_HD = (function () {
     if (!root) return;
     const mode = window.SCENE_MODE === 'darkknight' ? 'darkknight' : 'classic';
     phase = phase === 'night' ? 'night' : 'day';
+    root.classList.toggle('dk', mode === 'darkknight');
+    // The live pixel-art scene (default). The videos are only loaded when it's switched off.
+    if (window.PixelScene?.enabled()) {
+      for (const v of Object.values(videos)) {
+        v.classList.remove('on');
+        v.pause();
+      }
+      current = null;
+      window.PixelScene.show(root, mode, phase);
+      return;
+    }
+    window.PixelScene?.hide();
     // Load both phases of this mode so switching is instant.
     for (const ph of ['day', 'night']) videos[`${mode}-${ph}`] ||= make(root, mode, ph);
     current = `${mode}-${phase}`;
@@ -73,12 +85,15 @@ window.SCENE_HD = (function () {
     const cw = root.clientWidth;
     const ch = root.clientHeight;
     const DK = window.SCENE_MODE === 'darkknight';
-    const spots = (DK && c.spotDk) || (HD && c.spotHd) || c.spot;
+    const PIX = !!window.PixelScene?.active;
+    // The pixel scene always uses the standard video coordinates (no separate big-screen spots).
+    const hd = HD && !PIX;
+    const spots = (DK && c.spotDk) || (hd && c.spotHd) || c.spot;
     const spot = spots[phase] || spots.day;
-    const baseH = (DK && c.heightDk) || (HD && c.heightHd) || c.height || 138;
-    const VIDEO_W = DK || HD ? 1280 : 864;
-    const VIDEO_H = DK || HD ? 720 : 576;
-    const video = root.querySelector('.scene-video');
+    const baseH = (DK && c.heightDk) || (hd && c.heightHd) || c.height || 138;
+    const VIDEO_W = DK || hd ? 1280 : 864;
+    const VIDEO_H = DK || hd ? 720 : 576;
+    const video = root.querySelector('.scene-video.on') || root.querySelector('.scene-video');
     const stretched = video && getComputedStyle(video).objectFit === 'fill';
     let sx, sy, offX, offY;
     if (stretched) {
@@ -86,12 +101,21 @@ window.SCENE_HD = (function () {
       sy = ch / VIDEO_H;
       offX = 0;
       offY = 0;
+    } else if (PIX) {
+      // Pixel scene on a phone: the ground is cropped like a video, but the spots are squeezed
+      // across the visible width, so everyone keeps their own place.
+      sy = Math.max(cw / VIDEO_W, ch / VIDEO_H);
+      sx = cw / VIDEO_W;
+      offX = 0;
+      offY = ch - VIDEO_H * sy;
     } else {
       sx = sy = Math.max(cw / VIDEO_W, ch / VIDEO_H);
       offX = (cw - VIDEO_W * sx) * POS_X[phase];
       offY = ch - VIDEO_H * sy;
     }
     let h = Math.max(80, Math.min(260, baseH * Math.sqrt(sx * sy)));
+    // Phones: smaller characters, so a whole group fits side by side.
+    if (cw < 600) h = Math.min(h, 92);
     // On narrow screens the video's sides are cropped off, so there is no room beside the fire.
     // Then they stand in front of it instead: lower down, a bit smaller, kept off the message box.
     const wantX = offX + spot.x * sx;
@@ -104,7 +128,8 @@ window.SCENE_HD = (function () {
     const maxX = cr.right - sr.left;
     const half = h * 0.3 + 12;
     let x = Math.min(Math.max(wantX, minX + half), maxX - half);
-    if (Math.abs(x - wantX) > h * 0.15) {
+    const narrowPix = PIX && !stretched;
+    if (!narrowPix && Math.abs(x - wantX) > h * 0.15) {
       h = Math.min(h, Math.max(80, (maxX - minX) * 0.26));
       const halfSmall = h * 0.3 + 8;
       x = spots.day.x < VIDEO_W / 2 ? minX + halfSmall : maxX - halfSmall;

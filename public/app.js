@@ -237,6 +237,12 @@ socket.on('state', (s) => {
   clockOffset = s.serverNow - Date.now();
   tickPhaseTimer();
   applyGameMode(s.mode);
+  window.PixelScene?.update(s);
+  // Your own night pick shows only on your own screen.
+  const act = s.me?.action;
+  const pick = act && s.phase === 'night' ? act.target || (act.skip ? '-' : null) : null;
+  if (pick && pick !== '-' && pick !== lastScenePick) window.PixelScene?.event('my-' + act.kind);
+  lastScenePick = pick;
   if (charAfterJoin) {
     charAfterJoin = false;
     if (s.gameState !== 'waiting') openCharSelect();
@@ -275,6 +281,7 @@ socket.on('lobby:history', (list) => {
 });
 socket.on('lobby:message', (m) => {
   lobbyMsgs.push(m);
+  if (m.system && /^🚔/.test(m.text || '')) window.PixelScene?.event('arrest');
   if (channel === 'lobby') appendMessage(m);
   else if (!m.system) {
     lobbyUnread++;
@@ -466,6 +473,7 @@ socket.on('trial:started', () => {
 });
 socket.on('trial:cleared', closeModal);
 socket.on('trial:result', (r) => {
+  window.PixelScene?.event(r.result === 'guilty' ? 'guilty' : 'innocent');
   openModal((card) => {
     const art = el('div', 'art');
     art.innerHTML = ART.scales;
@@ -2214,6 +2222,7 @@ function clueCard(clue, inChat) {
 
 const clueQueue = [];
 socket.on('clue:reveal', (clue) => {
+  window.PixelScene?.event('clue');
   clueQueue.push(clue);
   showNextClue();
 });
@@ -2329,6 +2338,7 @@ function confirmDeath(name, isDead) {
 
 // ---------- Sunrise result ----------
 socket.on('night:result', ({ victims, lines = [], killer = 'night' }) => {
+  if (victims.length) setTimeout(() => window.PixelScene?.event('death'), 400);
   const show = () =>
     openModal((card) => {
       card.append(el('div', 'note-icon', victims.length ? '☠️' : '🌅'));
@@ -2403,6 +2413,7 @@ window.addEventListener('resize', () => state && renderCluesBar());
 let startMinimized = false;
 let randomizeOnStart = true;
 let charAfterJoin = false;
+let lastScenePick = null;
 
 // ---------- Main menu (before a game) ----------
 // A simple stack of big buttons. Each one opens its own page with a Back button.
@@ -2538,6 +2549,14 @@ function renderMainMenu() {
       const m = el('p', 'mm-note', `🛡️ ${state.moderator} is the moderator.`);
       page.append(m);
     }
+    const pix = !!window.PixelScene?.enabled();
+    page.append(menuTab('🖼️', 'Background', pix ? 'Live pixel scene · tap for the videos' : 'Videos · tap for the live pixel scene', () => {
+      window.PixelScene.setEnabled(!pix);
+      window.setScene?.(currentPhase);
+      window.setFireCharacters?.(state.users.map((u) => ({ name: u.name, character: u.character, dead: u.muted || state.dead?.includes(key(u.name)) })), state.phase);
+      $('mainMenu').dataset.sig = '';
+      renderMainMenu();
+    }, 'mt-bg'));
     if (waiting) page.append(menuTab('💬', 'Go to chat', 'Talk while you wait · tap your name to come back', closeMainMenu, 'mm-quiet mt-chat'));
   } else if (menuPage === 'mode') {
     back('Game mode');
@@ -2628,6 +2647,7 @@ function renderMainMenu() {
 }
 
 socket.on('game:started', () => {
+  window.PixelScene?.event('start');
   startMinimized = false;
   toast('🎮 The game has started!');
 });
@@ -2850,6 +2870,7 @@ for (const k of ['night', 'killer', 'vote', 'wolfdeath', 'found', 'batman']) {
 
 // A death the moderator marks during the day.
 socket.on('death:shown', ({ victim, wolf }) => {
+  window.PixelScene?.event('death');
   const show = () =>
     openModal((card) => {
       card.append(el('div', 'note-icon', '☠️'));
