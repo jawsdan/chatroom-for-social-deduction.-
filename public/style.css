@@ -2061,3 +2061,22 @@ body.is-mod .mt-badge { background: var(--mod-blue); }
   .roles-box .rs-sec:not(.settings), .mm-roles .rs-sec:not(.settings) { grid-template-columns: repeat(2, 1fr); }
   .roles-box .rs-sec.settings { grid-template-columns: 1fr; }
 }
+
+/* Moderator: the main menu and the phone menus are blue too */
+body.is-mod .mm-card {
+  background: color-mix(in srgb, #1d4ed8 18%, var(--surface)) !important;
+  border-color: color-mix(in srgb, #3b82f6 60%, transparent) !important;
+}
+body.is-mod .mm-tab:not(.mm-main), body.is-mod .ro-role, body.is-mod .mm-roles, body.is-mod .mm-player {
+  background: color-mix(in srgb, #1d4ed8 12%, var(--surface-2));
+  border-color: color-mix(in srgb, #3b82f6 45%, var(--border));
+}
+body.is-mod .mm-tab.mm-main:not(:disabled) { background: #2563eb; border-color: #2563eb; box-shadow: 0 10px 26px rgba(37, 99, 235, 0.4); }
+body.is-mod .mm-tab-icon { background: color-mix(in srgb, #1d4ed8 10%, var(--surface)); }
+body.is-mod .mm-tab.mm-main .mm-tab-icon { background: rgba(255, 255, 255, 0.2); }
+@media (max-width: 760px) {
+  body.is-mod .phone-dock, body.is-mod .phone-players, body.is-mod .phone-threads:not(.hidden) {
+    background: rgba(29, 78, 216, 0.72); border-color: rgba(147, 197, 253, 0.5);
+  }
+  body.is-mod .dock-btn.on { background: #2563eb; }
+}
