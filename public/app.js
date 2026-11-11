@@ -1903,6 +1903,8 @@ try {
 const filtersOn = () => myFilters && state?.display?.filters !== false;
 function renderRoleFx() {
   let raw = !state || amMod() ? null : state.me.role || null;
+  // Killers (wolves, Serial Killer, the Joker and the Dark Knight villains) get red outlines, filters or not.
+  document.body.classList.toggle('team-bad', !!raw && ['werewolf', 'serialkiller', 'joker', ...DK_VILLAINS].includes(raw));
   // The Dark Knight: all of Gotham gets the Batman look; the villains get The Joker's.
   if (state && dkMode()) raw = DK_VILLAINS.includes(raw) ? 'joker' : 'batman';
   if (!filtersOn()) raw = null;

@@ -2214,3 +2214,11 @@ canvas.pixel-front.hidden { display: none; }
   .phone-dock.folded .dock-btn { width: auto; padding: 0 12px; }
 }
 .mm-tab.mt-settings .mm-tab-icon { background: linear-gradient(135deg, #94a3b8, #334155); }
+
+/* Killer side: red outlines on your boxes (also with filters off) */
+body.team-bad .side-left > .profile-box, body.team-bad .side-left .nav, body.team-bad .side-left > .ability-box, body.team-bad .side-left > .card,
+body.team-bad .side-left > .side-box, body.team-bad .side-right > .card, body.team-bad .chat-header, body.team-bad .composer-box,
+body.team-bad .phone-dock, body.team-bad .phone-players, body.team-bad .mm-card {
+  border: 2px solid #dc2626 !important;
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.35), 0 8px 22px rgba(120, 10, 10, 0.25) !important;
+}
