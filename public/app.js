@@ -445,12 +445,10 @@ function roleCard(card, role, preview = false) {
 }
 // Every role in the current game mode, by team, for the role overview.
 function roleTeams() {
-  if (dkMode()) return [['🦇 Gotham', ['civilian', 'doctor', 'detective', 'officer']], ['🃏 Villains', DK_VILLAINS]];
+  if (dkMode()) return [['good', '🦇 Good team · Gotham', ['civilian', 'doctor', 'detective', 'officer']], ['bad', '🃏 Bad team · Villains', DK_VILLAINS]];
   return [
-    ['🧑‍🌾 Village', ['civilian', 'doctor', 'detective', 'officer']],
-    ['🐺 Killers', ['werewolf', 'serialkiller']],
-    ['👪 The family', ['mother', 'father', 'son']],
-    ['🔄 Family transformations', ['joker', 'vigilante', 'batman']],
+    ['good', '🧑‍🌾 Good team · Village', ['civilian', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'vigilante', 'batman']],
+    ['bad', '🐺 Bad team · Killers', ['werewolf', 'serialkiller', 'joker']],
   ];
 }
 socket.on('role:assigned', ({ role }) => {
@@ -2300,8 +2298,8 @@ function renderMainMenu() {
   } else if (menuPage === 'overview') {
     back('Role overview');
     page.append(el('p', 'mm-note', 'Tap a role to see what it does.'));
-    for (const [team, roles] of roleTeams()) {
-      const sec = el('div', 'ro-team');
+    for (const [side, team, roles] of roleTeams()) {
+      const sec = el('div', 'ro-team ' + side);
       sec.append(el('div', 'ro-title', team));
       const grid = el('div', 'ro-grid');
       for (const r of roles) {

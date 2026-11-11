@@ -1948,3 +1948,10 @@ body.night .scene.dk ~ .chat-fx .fx-searchlight { opacity: 0.5; }
 .ro-role:hover { border-color: var(--accent); }
 .ro-role:active { transform: scale(0.96); }
 .ro-role img { width: 58px; height: 58px; border-radius: 50%; }
+
+.ro-team { padding: 12px; border-radius: 18px; border: 2px solid var(--border); }
+.ro-team.good { border-color: color-mix(in srgb, var(--success) 55%, var(--border)); background: color-mix(in srgb, var(--success) 9%, transparent); }
+.ro-team.bad { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); background: color-mix(in srgb, var(--danger) 9%, transparent); }
+.ro-team.good .ro-title { color: var(--success); }
+.ro-team.bad .ro-title { color: var(--danger); }
+.ro-title { font-size: 0.82rem; }
