@@ -47,4 +47,32 @@ window.CHARACTERS = [
     spotDk: { day: { x: 760, y: 705 }, night: { x: 575, y: 695 } },
     heightDk: 185,
   },
+  {
+    id: 'boo',
+    name: 'Little Boo',
+    desc: 'A small sheet ghost with big, worried eyes.',
+    img: 'img/characters/boo.webp',
+    still: 'img/characters/boo-still.png',
+    height: 78,
+    // Ghosts float a little above the ground.
+    spot: { day: { x: 545, y: 400 }, night: { x: 550, y: 410 } },
+    spotHd: { day: { x: 1090, y: 610 }, night: { x: 1100, y: 640 } },
+    heightHd: 88,
+    spotDk: { day: { x: 665, y: 470 }, night: { x: 680, y: 560 } },
+    heightDk: 100,
+  },
+  {
+    id: 'grinny',
+    name: 'Grinny',
+    desc: 'A ghost with a jagged grin. Up to no good.',
+    img: 'img/characters/grinny.webp',
+    still: 'img/characters/grinny-still.png',
+    height: 72,
+    // Floats over the fire's smoke.
+    spot: { day: { x: 450, y: 330 }, night: { x: 455, y: 345 } },
+    spotHd: { day: { x: 640, y: 430 }, night: { x: 640, y: 450 } },
+    heightHd: 82,
+    spotDk: { day: { x: 560, y: 570 }, night: { x: 455, y: 560 } },
+    heightDk: 95,
+  },
 ];
