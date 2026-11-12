@@ -21,8 +21,8 @@ const ROLES = ['civilian', 'prostitute', 'werewolf', 'doctor', 'detective', 'off
 let gameMode = 'classic'; // 'classic' | 'darkknight'
 // Chosen by the moderator for everyone: the background (live pixel village or videos) and whether role filters are allowed.
 const display = { background: 'pixel', filters: true, batman: false };
-// Batman filter off (Original mode): the Mother becomes the Maniac instead of the Joker, the Son the Punisher instead of Batman.
-const famName = (r) => (display.batman ? { joker: 'Joker', batman: 'Batman' } : { joker: 'Maniac', batman: 'Punisher' })[r];
+// Batman filter off (Original mode): the Mother becomes the Maniac instead of the Joker, the Son the Outlaw instead of Batman.
+const famName = (r) => (display.batman ? { joker: 'Joker', batman: 'Batman' } : { joker: 'Maniac', batman: 'Outlaw' })[r];
 const dk = () => gameMode === 'darkknight';
 const DK_VILLAINS = ['dkjoker', 'harley', 'ivy', 'clayface'];
 const DK_ROLES = ['civilian', 'doctor', 'detective', 'officer', ...DK_VILLAINS];
@@ -916,7 +916,7 @@ function checkFamily() {
     const before = displayRoleMap();
     roles.set(son, 'batman');
     if (moderatorId) io.to(moderatorId).emit('notice', `${display.batman ? '🦇' : '💀'} Both parents died: the Son is now the ${famName('batman')}.`.replace('the Batman', 'Batman'));
-    if (!hardMode()) systemLobby(display.batman ? '🦇 Both parents are gone. Their Son has become Batman, and he is watching the village.' : '💀 Both parents are gone. Their Son has become the Punisher, and he wants justice.');
+    if (!hardMode()) systemLobby(display.batman ? '🦇 Both parents are gone. Their Son has become Batman, and he is watching the village.' : '💀 Both parents are gone. Their Son has become the Outlaw, and he wants justice.');
     // The Batman reveal video: everyone on Normal, only Batman and the moderator on Hard.
     // Other players never learn who he is, only that Batman exists.
     const b = userByName(son);

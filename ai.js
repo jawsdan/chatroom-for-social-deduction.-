@@ -39,11 +39,11 @@ const DK_ROLE_INFO = {
   clayface: 'Clayface (villain). With the Disguise button you pick any role except The Batman. When The Batman investigates you, he sees that role instead of Clayface. You have no other ability.',
 };
 const DK_RULES = 'The Dark Knight mode: the village is Gotham. The Joker is the only killer. Villains (The Joker, Harley Quinn, Poison Ivy, Clayface) are not killed: when voted Guilty they are sent to Arkham Asylum. There is no Mother, Father or Son in this mode.';
-// Batman filter off (Original mode): the Joker is the Maniac and Batman is the Punisher.
-const NOBAT_LABEL = { joker: 'Maniac', batman: 'Punisher' };
+// Batman filter off (Original mode): the Joker is the Maniac and Batman is the Outlaw.
+const NOBAT_LABEL = { joker: 'Maniac', batman: 'The Outlaw' };
 const NOBAT_INFO = {
   joker: 'Maniac (wolf side). The Mother becomes the Maniac when her Son dies. She hunts with the wolves: joins the wolf den and picks a victim with the pack at night. The Detective sees her as a Wolf.',
-  batman: 'Punisher (village side). The Son becomes the Punisher when both his parents die. Every morning he gets a clue: someone who used an ability, or someone an ability was used on. In games that started with 4+ wolves he may also interrogate one player at night.',
+  batman: 'The Outlaw (village side). The Son becomes the Outlaw when both his parents die. Every morning he gets a clue: someone who used an ability, or someone an ability was used on. In games that started with 4+ wolves he may also interrogate one player at night.',
 };
 const labelIn = (mode, r) => (mode === 'darkknight' && DK_LABEL[r]) || (mode === 'nobat' && NOBAT_LABEL[r]) || ROLE_LABEL[r] || r || 'no role yet';
 const infoIn = (mode, r) => (mode === 'darkknight' && DK_ROLE_INFO[r]) || (mode === 'nobat' && NOBAT_INFO[r]) || ROLE_INFO[r];
