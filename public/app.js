@@ -29,7 +29,7 @@ const ROLE = {
   werewolf: { label: 'Werewolf', icon: '🐺', color: 'var(--danger)', desc: 'You hunt with your pack. Each night, plan in the wolf den and pick your victim with Kill. The whole pack must choose the same player. By day, blend in with the village.' },
   serialkiller: { label: 'Serial Killer', icon: '🔪', color: 'var(--danger)', desc: 'You work alone. Each night, choose your next victim with Kill, or let them live one more night. Leave your calling card behind, and never get caught.' },
   doctor: { label: 'Doctor', icon: '🩺', color: '#0ea5e9', desc: 'Each night, choose one player to Protect. If the killers come for them, they survive. You can protect yourself, but not two nights in a row.' },
-  prophet: { label: 'The Prophet', icon: '✝️', color: '#b45309', desc: 'You have a second life: die, and you come back on the third day.' },
+  prophet: { label: 'The Prophet', icon: '✝️', color: '#b45309', desc: 'You have a second life. Die, and you come back on the third day.' },
   prostitute: { label: 'Prostitute', icon: '🌹', color: '#be185d', desc: "Each night, choose whose house you spend the night at, or stay at your own. Away from home, the wolves can't find you if they come for you. But if they come for the person you're with, you both die." },
   officer: { label: 'Officer', icon: '🚔', color: '#1d4ed8', desc: 'Each day you may arrest one player. They cannot vote that day and cannot use their ability the night after.' },
   detective: { label: 'Detective', icon: '👮', color: '#3b82f6', desc: 'Each night, choose one player to Investigate. In the morning you learn whether they are good or one of the killers.' },
