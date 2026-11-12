@@ -20,7 +20,9 @@ const ROLES = ['civilian', 'prostitute', 'werewolf', 'doctor', 'detective', 'off
 // against The Joker (the only killer), Harley Quinn (sidekick), Poison Ivy (poisons) and Clayface (disguise).
 let gameMode = 'classic'; // 'classic' | 'darkknight'
 // Chosen by the moderator for everyone: the background (live pixel village or videos) and whether role filters are allowed.
-const display = { background: 'pixel', filters: true };
+const display = { background: 'pixel', filters: true, batman: true };
+// Batman filter off (Original mode): the Mother becomes the Maniac instead of the Joker, the Son the Punisher instead of Batman.
+const famName = (r) => (display.batman ? { joker: 'Joker', batman: 'Batman' } : { joker: 'Maniac', batman: 'Punisher' })[r];
 const dk = () => gameMode === 'darkknight';
 const DK_VILLAINS = ['dkjoker', 'harley', 'ivy', 'clayface'];
 const DK_ROLES = ['civilian', 'doctor', 'detective', 'officer', ...DK_VILLAINS];
@@ -895,16 +897,16 @@ function checkFamily() {
     if (mother && !isDeadKey(mother) && roles.get(mother) === 'mother') roles.set(mother, 'joker');
     if (father && !isDeadKey(father) && roles.get(father) === 'father') roles.set(father, 'vigilante');
     announceRoleChanges(before);
-    if (moderatorId) io.to(moderatorId).emit('notice', '🃏 The Son died: the Mother is now the Joker and the Father is the Vigilante.');
-    if (!hardMode()) systemLobby('🃏 The Son is dead. Grief changes his parents: the Mother has become the Joker, and the Father has become the Vigilante.');
+    if (moderatorId) io.to(moderatorId).emit('notice', `🃏 The Son died: the Mother is now the ${famName('joker')} and the Father is the Vigilante.`);
+    if (!hardMode()) systemLobby(`🃏 The Son is dead. Grief changes his parents: the Mother has become the ${famName('joker')}, and the Father has become the Vigilante.`);
   }
   // Both parents die: the Son becomes Batman.
   if (mother && father && son && isDeadKey(mother) && isDeadKey(father) && !isDeadKey(son) && !familyFlags.batman && roles.get(son) === 'son') {
     familyFlags.batman = true;
     const before = displayRoleMap();
     roles.set(son, 'batman');
-    if (moderatorId) io.to(moderatorId).emit('notice', '🦇 Both parents died: the Son is now Batman.');
-    if (!hardMode()) systemLobby('🦇 Both parents are gone. Their Son has become Batman, and he is watching the village.');
+    if (moderatorId) io.to(moderatorId).emit('notice', `${display.batman ? '🦇' : '💀'} Both parents died: the Son is now the ${famName('batman')}.`.replace('the Batman', 'Batman'));
+    if (!hardMode()) systemLobby(display.batman ? '🦇 Both parents are gone. Their Son has become Batman, and he is watching the village.' : '💀 Both parents are gone. Their Son has become the Punisher, and he wants revenge.');
     // The Batman reveal video: everyone on Normal, only Batman and the moderator on Hard.
     // Other players never learn who he is, only that Batman exists.
     const b = userByName(son);
@@ -1104,6 +1106,7 @@ function aiGame() {
     callingCards,
     nightActions,
     mode: gameMode,
+    batmanOff: !display.batman,
     displayRole: (k) => displayRole(k),
     roleOf: (k) => roles.get(key(k)) || null,
     isVillain: (k) => isWolfRole(roles.get(key(k))),
@@ -1745,6 +1748,7 @@ io.on('connection', (socket) => {
     if (!isMod(socket)) return;
     if (['pixel', 'video'].includes(patch.background)) display.background = patch.background;
     if (typeof patch.filters === 'boolean') display.filters = patch.filters;
+    if (typeof patch.batman === 'boolean') display.batman = patch.batman;
     broadcastState();
   });
 

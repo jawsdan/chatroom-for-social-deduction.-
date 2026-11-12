@@ -56,6 +56,27 @@ const ROLE_BASE = Object.fromEntries(Object.keys(DK_SKIN).map((k) => [k, { role:
 let skinMode = 'classic';
 const dkMode = () => skinMode === 'darkknight';
 // Switch labels, pictures and the look when the moderator changes the game mode.
+// Batman filter off (Original mode): the Mother's Joker becomes the Maniac, the Son's Batman the Punisher.
+const FAM_SKIN = {
+  joker: { label: 'Maniac', img: 'maniac', icon: '🪓', desc: 'Your Son is gone, and grief has broken your mind. You now hunt with the wolves: join the wolf den and pick a victim with the pack at night.' },
+  batman: { label: 'Punisher', img: 'punisher', icon: '💀', desc: 'Your parents are gone, and you want revenge. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
+};
+let famSkinOff = false;
+const FAM_BASE = {};
+function applyBatmanFilter(on) {
+  const off = !on;
+  if (off === famSkinOff) return;
+  famSkinOff = off;
+  for (const [k, skin] of Object.entries(FAM_SKIN)) {
+    FAM_BASE[k] ||= { role: { ...ROLE[k] }, img: ROLE_IMG[k], art: ART[k] };
+    const base = FAM_BASE[k];
+    ROLE[k] = off ? { ...base.role, label: skin.label, desc: skin.desc, icon: skin.icon } : { ...base.role };
+    ROLE_IMG[k] = off ? ROLE_IMG[skin.img] : base.img;
+    ART[k] = off ? ART[skin.img] : base.art;
+  }
+  document.querySelectorAll('[data-sig]').forEach((e) => (e.dataset.sig = ''));
+  fxRole = undefined;
+}
 function applyGameMode(mode) {
   mode = mode === 'darkknight' ? 'darkknight' : 'classic';
   if (mode === skinMode) return;
@@ -238,6 +259,7 @@ socket.on('state', (s) => {
   clockOffset = s.serverNow - Date.now();
   tickPhaseTimer();
   applyGameMode(s.mode);
+  applyBatmanFilter(s.display?.batman !== false);
   // The moderator picks the background for everyone.
   const wantPix = s.display?.background !== 'video';
   if (window.PixelScene && window.PixelScene.enabled() !== wantPix) {
@@ -1923,6 +1945,8 @@ function renderRoleFx() {
   document.body.classList.toggle('filters-off', !filtersOn());
   // The Dark Knight: all of Gotham gets the Batman look; the villains get The Joker's.
   if (state && dkMode()) raw = DK_VILLAINS.includes(raw) ? 'joker' : 'batman';
+  else if (famSkinOff && raw === 'joker') raw = 'serialkiller';
+  else if (famSkinOff && raw === 'batman') raw = 'vigilante';
   if (!filtersOn()) raw = null;
   const role = THEME_FOR[raw] || raw;
   if (role === fxRole) return;
@@ -2640,7 +2664,7 @@ function renderMainMenu() {
   const mineChar = myCharacter();
   const cfg = state.modView?.roleConfig;
   // Pages only the moderator has.
-  if (!amMod() && ['mod', 'roles', 'settings'].includes(menuPage)) menuPage = 'home';
+  if (!amMod() && ['mod', 'roles', 'settings', 'filters'].includes(menuPage)) menuPage = 'home';
   const sig = JSON.stringify([menuPage, state.users, state.moderator, amMod(), state.mode, cfg, randomizeOnStart, menuBots, mineChar, state.gameState, state.modView?.detectiveMode, waiting, state.display, myFilters]);
   if (menu.dataset.sig === sig) return;
   menu.dataset.sig = sig;
@@ -2660,7 +2684,7 @@ function renderMainMenu() {
   const back = (title) => {
     const row = el('div', 'mm-pagehead');
     // Pages inside the moderator's Game settings go back there.
-    const up = amMod() && ['roles', 'mode', 'mod'].includes(menuPage) ? 'settings' : 'home';
+    const up = amMod() && ['roles', 'mode', 'mod', 'filters'].includes(menuPage) ? 'settings' : 'home';
     row.append(btn('btn-ghost mm-back', '← Back', () => menuGo(up)), el('h2', '', title));
     page.append(row);
   };
@@ -2726,10 +2750,20 @@ function renderMainMenu() {
     page.append(menuTab('🎭', 'Roles', randomizeOnStart ? 'Random roles when the game starts' : 'You hand out the roles', () => menuGo('roles'), 'mt-roles'));
     page.append(menuTab(modeIcon, 'Game mode', dkMode() ? 'The Dark Knight' : 'Original', () => menuGo('mode'), 'mt-mode'));
     const modOff = state.display?.filters === false;
-    page.append(menuTab('🌐', 'Filters for everyone', modOff ? 'Off for all players · tap to allow them again' : 'Allowed · each player can still turn theirs off · tap to turn off for all', () => socket.emit('display:set', { filters: modOff }), 'mt-filters-all'));
+    page.append(menuTab('✨', 'Filters', `Role filters ${modOff ? 'off' : 'on'} · Batman filter ${state.display?.batman === false ? 'off' : 'on'}`, () => menuGo('filters'), 'mt-filters-all'));
     const pix = state.display?.background !== 'video';
     page.append(menuTab('🖼️', 'Background for everyone', pix ? 'Live pixel village · tap for the videos' : 'Videos · tap for the live pixel village', () => socket.emit('display:set', { background: pix ? 'video' : 'pixel' }), 'mt-bg'));
     page.append(menuTab('🛡️', 'Moderator', 'You run the game · hand over or step down', () => menuGo('mod'), 'mt-modr'));
+  } else if (menuPage === 'filters') {
+    back('Filters');
+    const modOff = state.display?.filters === false;
+    page.append(menuTab('🎨', 'Role filters', modOff ? 'Off for all players · tap to allow them again' : 'On · each player can still turn theirs off · tap to turn off for all', () => socket.emit('display:set', { filters: modOff }), 'mt-filters'));
+    const bat = state.display?.batman !== false;
+    const batIcon = el('img');
+    batIcon.src = ROLE_IMG[bat ? 'batman' : 'punisher'];
+    batIcon.alt = '';
+    page.append(menuTab(batIcon, 'Batman filter', bat ? 'On · the family turns into the Joker, the Vigilante and Batman · tap to turn off' : 'Off · the family turns into the Maniac, the Vigilante and the Punisher · tap to turn on', () => socket.emit('display:set', { batman: !bat }), 'mt-batfilter'));
+    page.append(el('p', 'mm-note', 'The Batman filter is for the Original game mode. The Dark Knight always uses its own roles.'));
   } else if (menuPage === 'mode') {
     back('Game mode');
     for (const [m, title, desc, art] of [
@@ -3763,10 +3797,12 @@ socket.on('arrested', () => {
 socket.on('batman:rise', ({ you, name, secret }) => {
   const show = () =>
     openModal((card) => {
-      card.append(el('div', 'note-icon', '🦇'));
-      card.append(el('h2', '', you ? 'You have become Batman' : name ? `${name} has become Batman` : 'Batman has risen'));
-      card.append(killVideo('batman'));
-      card.append(el('p', 'hint', you ? 'Your parents are gone. Every morning you get a clue about the night.' : secret ? 'Hard mode: only you (the moderator) and Batman see this.' : name ? 'Other players see this without the name.' : 'The Son has become Batman. Nobody knows who he is.'));
+      const who = famSkinOff ? 'the Punisher' : 'Batman';
+      const Who = famSkinOff ? 'The Punisher' : 'Batman';
+      card.append(el('div', 'note-icon', famSkinOff ? '💀' : '🦇'));
+      card.append(el('h2', '', you ? `You have become ${who}` : name ? `${name} has become ${who}` : `${Who} has risen`));
+      if (!famSkinOff) card.append(killVideo('batman'));
+      card.append(el('p', 'hint', you ? 'Your parents are gone. Every morning you get a clue about the night.' : secret ? `Hard mode: only you (the moderator) and ${who} see this.` : name ? 'Other players see this without the name.' : `The Son has become ${who}. Nobody knows who he is.`));
       const actions = el('div', 'actions');
       actions.append(btn('btn-primary', 'Close', closeModal));
       card.append(actions);
