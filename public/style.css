@@ -2287,3 +2287,5 @@ body.lobby-quiet .trial-banner {
 .mm-tab.mt-prefs .mm-tab-icon { background: linear-gradient(135deg, #60a5fa, #4f46e5); }
 /* A character with its own hanging picture keeps its colors on the gallows. */
 .firekeeper.ring.hanged.own-hang .fk-img { filter: none; }
+/* Pixel villagers on the character select: keep the pixels crisp. */
+.char-pic img.pixelated { image-rendering: pixelated; }

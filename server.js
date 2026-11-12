@@ -5,7 +5,7 @@ const { Server } = require('socket.io');
 const DEATH_LINES = require('./deaths');
 const ai = require('./ai');
 // Characters players can pick on the character select screen (see public/characters.js).
-const CHARACTERS = ['firekeeper', 'snout', 'joker', 'boo', 'grinny', 'gunslinger', 'daisy', 'watcher'];
+const CHARACTERS = ['firekeeper', 'snout', 'joker', 'boo', 'grinny', 'gunslinger', 'daisy', 'watcher', 'v-baker', 'v-farmer', 'v-smith', 'v-fisher', 'v-weaver', 'v-miller', 'v-herbalist', 'v-tailor'];
 
 const app = express();
 const server = http.createServer(app);

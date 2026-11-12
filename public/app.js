@@ -2831,7 +2831,7 @@ function renderMainMenu() {
       charIcon.src = c.still || c.img;
       charIcon.alt = '';
     }
-    page.append(menuTab(charIcon, 'Choose character', c ? c.name : 'No character yet', openCharSelect, 'mt-char'));
+    page.append(menuTab(charIcon, 'Choose character', c ? c.name : 'Random villager', openCharSelect, 'mt-char'));
     if (!amMod() && state.moderator) {
       const m = el('p', 'mm-note', `🛡️ ${state.moderator} is the moderator.`);
       page.append(m);
@@ -3396,7 +3396,7 @@ function openCharSelect() {
 let charIdx = null;
 let charBrowsed = false; // true once the player used the arrows
 function charOptions() {
-  return [...(window.CHARACTERS || []).map((c) => ({ id: c.id, name: c.name, desc: c.desc, img: c.img })), { id: null, name: 'No character', desc: 'Just play with your name.' }];
+  return [...(window.CHARACTERS || []).map((c) => ({ id: c.id, name: c.name, desc: c.desc, img: c.img, villager: !!c.villager })), { id: null, name: 'Random', desc: 'You get one of the villagers.' }];
 }
 function renderCharGrid() {
   const grid = $('charGrid');
@@ -3426,7 +3426,7 @@ function renderCharGrid() {
     b.type = 'button';
     b.disabled = !!holder;
     const pic = el('div', 'char-pic');
-    pic.innerHTML = o.img ? `<img src="${o.img}" alt="" draggable="false">` : '<div class="char-none">🙂</div>';
+    pic.innerHTML = o.img ? `<img src="${o.img}" alt="" draggable="false"${o.villager ? ' class="pixelated"' : ''}>` : '<div class="char-none">🎲</div>';
     b.append(pic, el('div', 'char-name', o.name));
     // Only say something under the name when someone else already has this character.
     if (holder) b.append(el('div', 'char-desc', `Taken by ${holder}`));
@@ -3470,12 +3470,12 @@ function renderCharGrid() {
     const shown = opts[charIdx];
     const holder = shown.id && takenBy.get(shown.id);
     done.disabled = !!holder;
-    done.textContent = holder ? `Taken by ${holder}` : shown.id ? `Play as ${shown.name} →` : 'Continue without a character →';
+    done.textContent = holder ? `Taken by ${holder}` : shown.id ? `Play as ${shown.name} →` : 'Play as a random villager →';
     done.onclick = () => pick(shown.id, closeCharSelect);
   } else {
     grid.ontouchstart = grid.ontouchend = null;
     done.disabled = false;
-    done.textContent = mine ? 'Play as this character →' : 'Continue without a character →';
+    done.textContent = mine ? 'Play as this character →' : 'Play as a random villager →';
     done.onclick = closeCharSelect;
   }
 }

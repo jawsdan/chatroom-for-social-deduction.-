@@ -125,3 +125,60 @@ window.CHARACTERS = [
     heightDk: 175,
   },
 ];
+
+// ---------- Villagers ----------
+// The small pixel villagers. They can be picked on the character select screen like the characters
+// above, and "Random" (no pick) gives you one of them. They live in the pixel village only:
+// in video mode they don't stand by the fire (they have no spots there).
+window.drawVillager = function (look, scale = 8) {
+  const c = document.createElement('canvas');
+  c.width = 12 * scale;
+  c.height = 22 * scale;
+  const x = c.getContext('2d');
+  const shade = (hex, f) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * f).toString(16).padStart(2, '0')).join('');
+  const R = (px, py, w, h, col) => {
+    x.fillStyle = col;
+    x.fillRect(px * scale, py * scale, w * scale, h * scale);
+  };
+  const { skin, hair, shirt, pants, hat } = look;
+  const o = '#1b1b22';
+  R(3, 2, 6, 6, o);
+  R(4, 3, 4, 4, skin);
+  R(4, 2, 4, 2, hair);
+  R(3, 3, 1, 2, hair);
+  R(8, 3, 1, 2, hair);
+  R(5, 5, 1, 1, o);
+  R(7, 5, 1, 1, o);
+  if (hat) {
+    R(2, 1, 8, 1, '#2a2a2a');
+    R(4, 0, 4, 1, '#2a2a2a');
+  }
+  R(2, 8, 8, 8, o);
+  R(3, 9, 6, 6, shirt);
+  R(3, 9, 1, 6, shade(shirt, 0.8));
+  R(1, 9, 2, 5, o);
+  R(9, 9, 2, 5, o);
+  R(1, 13, 1, 1, skin);
+  R(10, 13, 1, 1, skin);
+  R(3, 16, 6, 5, o);
+  R(4, 16, 2, 4, pants);
+  R(6, 16, 2, 4, pants);
+  R(3, 21, 3, 1, o);
+  R(6, 21, 3, 1, o);
+  return c.toDataURL();
+};
+window.VILLAGERS = [
+  { id: 'v-baker', name: 'Bram the Baker', desc: 'Up before the sun. Smells of fresh bread.', look: { skin: '#f1c9a5', hair: '#d7d2c8', shirt: '#d68910', pants: '#5d4037' } },
+  { id: 'v-farmer', name: 'Fen the Farmer', desc: 'Knows every field and every rumor.', look: { skin: '#d9a77c', hair: '#5a3a22', shirt: '#27ae60', pants: '#2c3e50', hat: true } },
+  { id: 'v-smith', name: 'Hilda the Smith', desc: 'Strong arms, short temper.', look: { skin: '#a8714a', hair: '#1a1a1a', shirt: '#c0392b', pants: '#37474f' } },
+  { id: 'v-fisher', name: 'Ola the Fisher', desc: 'Patient. Always waiting for a bite.', look: { skin: '#f5d7bd', hair: '#c8a14a', shirt: '#2e86c1', pants: '#4e342e', hat: true } },
+  { id: 'v-weaver', name: 'Mira the Weaver', desc: 'Weaves cloth, and stories.', look: { skin: '#7a4b2c', hair: '#2b1d14', shirt: '#8e44ad', pants: '#2c3e50' } },
+  { id: 'v-miller', name: 'Otto the Miller', desc: 'Quiet, dusty, sees everyone pass by.', look: { skin: '#f1c9a5', hair: '#8b3a1e', shirt: '#7f8c8d', pants: '#5d4037', hat: true } },
+  { id: 'v-herbalist', name: 'Liv the Herbalist', desc: 'Has a cure for everything. Almost.', look: { skin: '#d9a77c', hair: '#c8a14a', shirt: '#16a085', pants: '#37474f' } },
+  { id: 'v-tailor', name: 'Tove the Tailor', desc: 'Notices every loose thread.', look: { skin: '#f5d7bd', hair: '#2b1d14', shirt: '#c2185b', pants: '#4e342e' } },
+];
+for (const v of window.VILLAGERS) {
+  v.villager = true;
+  v.img = v.still = window.drawVillager(v.look);
+  window.CHARACTERS.push(v);
+}

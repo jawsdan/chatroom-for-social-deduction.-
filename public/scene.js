@@ -312,8 +312,21 @@ window.SCENE_HD = (function () {
         ringEls.delete(name);
       }
     }
+    // Players on Random get a villager nobody picked (the same one each time, from their name).
+    const VILL = window.VILLAGERS || [];
+    const usedVill = new Set(ringList.map((p) => p.character).filter((id) => VILL.some((v) => v.id === id)));
+    const randomVill = (name) => {
+      if (!VILL.length) return null;
+      let h = 0;
+      for (const ch of String(name).toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      let i = h % VILL.length;
+      for (let n = 0; n < VILL.length && usedVill.has(VILL[i].id); n++) i = (i + 1) % VILL.length;
+      usedVill.add(VILL[i].id);
+      return VILL[i];
+    };
     ringList.forEach((p, i) => {
-      const c = p.character && (window.CHARACTERS || []).find((x) => x.id === p.character);
+      const picked = p.character && (window.CHARACTERS || []).find((x) => x.id === p.character);
+      const c = picked || randomVill(p.name);
       const img = c ? c.img : window.PixelScene.personSprite(p.name);
       let el = ringEls.get(p.name);
       const fresh = !el || el.dataset.img !== img;
@@ -332,7 +345,7 @@ window.SCENE_HD = (function () {
         new Image().src = c.hang; // ready before the verdict
       }
       el.classList.toggle('flip', !!c?.flip);
-      el.classList.toggle('plain', !c);
+      el.classList.toggle('plain', !c || !!c.villager);
       el.querySelector('.fk-name').textContent = p.name;
       el.classList.toggle('dead', !!p.dead);
       if (fresh) {
@@ -364,7 +377,8 @@ window.SCENE_HD = (function () {
       if (chatEl) new ResizeObserver(placeAll).observe(chatEl);
     }
     phase = newPhase === 'night' ? 'night' : 'day';
-    const wanted = new Map(list.filter((p) => p.character).map((p) => [p.character, p]));
+    // Villagers only live in the pixel village: no spots by the fire in the videos.
+    const wanted = new Map(list.filter((p) => p.character && !p.character.startsWith('v-')).map((p) => [p.character, p]));
     for (const [id, el] of els) {
       if (!wanted.has(id)) {
         el.remove();
