@@ -3443,6 +3443,8 @@ function roleTakenByOther(role, name) {
   return Object.entries(state.modView?.roles || {}).some(([k, r]) => r === role && k !== key(name));
 }
 const assignRoles = () => (dkMode() ? ['civilian', 'doctor', 'detective', 'officer', ...DK_VILLAINS] : ['civilian', 'werewolf', 'doctor', 'detective', 'officer', 'prostitute', 'prophet', 'demon', 'mother', 'father', 'son']);
+// How far the role strips are slid sideways (kept when the list redraws).
+let assignScroll = 0;
 function renderAssigning(card, players) {
   const roles = state.modView?.roles || {};
   if (!amMod()) {
@@ -3475,7 +3477,9 @@ function renderAssigning(card, players) {
       list.append(row);
       continue;
     }
-    const btns = el('div', 'assign-btns');
+    // Computers and iPads: the role buttons in a strip that slides with the arrows (all rows together),
+    // so the names on the left always show in full.
+    const btns = el('div', 'assign-btns assign-strip');
     for (const r of assignRoles()) {
       const on = cur === r || (r === 'werewolf' && cur === 'serialkiller');
       const b = el('button', 'assign-btn' + (on ? ' on ' + r : ''));
@@ -3490,10 +3494,32 @@ function renderAssigning(card, players) {
       }
       btns.append(b);
     }
-    row.append(btns);
+    const slide = (d) => {
+      const strips = [...list.querySelectorAll('.assign-strip')];
+      const s0 = strips[0];
+      if (!s0) return;
+      const max = s0.scrollWidth - s0.clientWidth;
+      assignScroll = Math.max(0, Math.min(max, assignScroll + d * Math.max(84, s0.clientWidth - 42)));
+      for (const st of strips) st.scrollTo({ left: assignScroll, behavior: 'smooth' });
+      updateAssignArrows(list);
+    };
+    const prev = el('button', 'assign-nav prev', '‹');
+    const next = el('button', 'assign-nav next', '›');
+    prev.type = next.type = 'button';
+    prev.setAttribute('aria-label', 'Previous roles');
+    next.setAttribute('aria-label', 'More roles');
+    prev.onclick = () => slide(-1);
+    next.onclick = () => slide(1);
+    row.append(prev, btns, next);
     list.append(row);
   }
   card.append(list);
+  if (!isPhone()) {
+    requestAnimationFrame(() => {
+      for (const st of list.querySelectorAll('.assign-strip')) st.scrollLeft = assignScroll;
+      updateAssignArrows(list);
+    });
+  }
   if (!killers) card.append(el('p', 'start-warn', dkMode() ? 'Give someone The Joker role: he is the one who kills.' : 'There needs to be at least one killer: give someone the Werewolf role.'));
   else card.append(el('p', 'hint', dkMode() ? 'The Joker picks a victim each night.' : killers === 1 ? 'One killer: they play as the Serial Killer.' : `${killers} werewolves share the wolf den.`));
   if (given < players.length) card.append(el('p', 'hint', `${players.length - given} player${players.length - given === 1 ? ' has' : 's have'} no role yet and will be ${players.length - given === 1 ? 'a Civilian' : 'Civilians'}.`));
@@ -3501,6 +3527,15 @@ function renderAssigning(card, players) {
   go.disabled = !killers;
   card.append(go);
   card.append(btn('btn-ghost btn-block', '← Back', () => socket.emit('game:cancel')));
+}
+
+// Show the arrows only when there are more roles that way.
+function updateAssignArrows(list) {
+  const s0 = list.querySelector('.assign-strip');
+  if (!s0) return;
+  const max = s0.scrollWidth - s0.clientWidth;
+  list.classList.toggle('no-prev', assignScroll <= 2);
+  list.classList.toggle('no-next', assignScroll >= max - 2);
 }
 
 // ---------- Character select ----------
