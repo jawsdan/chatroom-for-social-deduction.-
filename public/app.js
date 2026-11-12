@@ -2629,6 +2629,79 @@ function sceneInfo(s) {
   return { running: s.gameState === 'running', trial: s.trial ? { accused: s.trial.accused, open: s.trial.open, votes: s.trial.votes } : null };
 }
 
+// ---------- Menu music ----------
+// Plays while the main menu (or the character select) is open, and fades out in the game.
+// Each player can turn it off in the menu; that choice is remembered on their device.
+let musicOn = (() => {
+  try {
+    return localStorage.getItem('menuMusic') !== 'off';
+  } catch {
+    return true;
+  }
+})();
+const MUSIC_VOLUME = 0.35;
+const menuMusic = new Audio('audio/menu.mp3?v=1');
+menuMusic.loop = true;
+menuMusic.preload = 'auto';
+let musicGain = null; // Web Audio volume control (iPhones ignore the audio element's own volume)
+let musicWant = false;
+let musicFade = null;
+function musicLevel(v) {
+  if (musicGain) musicGain.gain.value = v;
+  else menuMusic.volume = v;
+}
+function musicSetup() {
+  if (musicGain !== null) return;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx();
+    const g = ctx.createGain();
+    g.gain.value = 0;
+    ctx.createMediaElementSource(menuMusic).connect(g).connect(ctx.destination);
+    musicGain = g;
+    musicGain.ctx = ctx;
+  } catch {
+    musicGain = false;
+    menuMusic.volume = 0;
+  }
+}
+function setMenuMusic(want) {
+  want = want && musicOn;
+  if (want === musicWant && (!want || !menuMusic.paused)) return;
+  musicWant = want;
+  musicSetup();
+  if (want) {
+    musicGain?.ctx?.resume?.().catch(() => {});
+    menuMusic.play().catch(() => {}); // blocked until the first tap: retried below
+  }
+  clearInterval(musicFade);
+  const target = want ? MUSIC_VOLUME : 0;
+  let v = musicGain ? musicGain.gain.value : menuMusic.volume;
+  musicFade = setInterval(() => {
+    v += Math.sign(target - v) * 0.02;
+    if (Math.abs(target - v) <= 0.02) {
+      v = target;
+      clearInterval(musicFade);
+      if (!musicWant) menuMusic.pause();
+    }
+    musicLevel(v);
+  }, 40);
+}
+// Browsers only allow sound after the player has tapped or typed something.
+for (const ev of ['pointerdown', 'keydown']) {
+  document.addEventListener(ev, () => {
+    if (musicWant && menuMusic.paused) {
+      musicWant = false;
+      setMenuMusic(true);
+    }
+  });
+}
+// No music from a tab in the background.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) menuMusic.pause();
+  else if (musicWant) menuMusic.play().catch(() => {});
+});
+
 // ---------- Main menu (before a game) ----------
 // A simple stack of big buttons. Each one opens its own page with a Back button.
 let menuClosed = false; // the player went to the chat; a button in the chat brings the menu back
@@ -2690,6 +2763,7 @@ function renderMainMenu() {
   if (!waiting && menuWasWaiting) menuInGame = false;
   menuWasWaiting = waiting;
   const show = !!me && (waiting ? !menuClosed : menuInGame);
+  setMenuMusic(show || !$('charSelect').classList.contains('hidden'));
   menu.classList.toggle('hidden', !show);
   document.body.classList.toggle('menu-open', show);
   if (!show) {
@@ -2701,7 +2775,7 @@ function renderMainMenu() {
   const cfg = state.modView?.roleConfig;
   // Pages only the moderator has.
   if (!amMod() && ['mod', 'roles', 'settings', 'filters'].includes(menuPage)) menuPage = 'home';
-  const sig = JSON.stringify([menuPage, state.users, state.moderator, amMod(), state.mode, cfg, randomizeOnStart, menuBots, mineChar, state.gameState, state.modView?.detectiveMode, waiting, state.display, myFilters]);
+  const sig = JSON.stringify([menuPage, state.users, state.moderator, amMod(), state.mode, cfg, randomizeOnStart, menuBots, mineChar, state.gameState, state.modView?.detectiveMode, waiting, state.display, myFilters, musicOn]);
   if (menu.dataset.sig === sig) return;
   menu.dataset.sig = sig;
   const card = $('mmCard');
@@ -2777,6 +2851,15 @@ function renderMainMenu() {
     }, 'mt-filters');
     ft.disabled = modOff && !amMod();
     page.append(ft);
+    page.append(menuTab(musicOn ? '🎵' : '🔇', 'Music', musicOn ? 'On · tap to turn off' : 'Off · tap to turn on', () => {
+      musicOn = !musicOn;
+      try {
+        localStorage.setItem('menuMusic', musicOn ? 'on' : 'off');
+      } catch {}
+      setMenuMusic(true);
+      $('mainMenu').dataset.sig = '';
+      renderMainMenu();
+    }, 'mt-music'));
     if (waiting) page.append(menuTab('💬', 'Go to chat', 'Talk while you wait · tap your name to come back', closeMainMenu, 'mm-quiet mt-chat'));
   } else if (menuPage === 'settings') {
     back('Game settings');
@@ -3302,6 +3385,7 @@ function openCharSelect() {
   closeDrawers();
   $('charError').textContent = '';
   $('charSelect').classList.remove('hidden');
+  setMenuMusic(true);
   renderCharGrid();
 }
 // On phones the screen shows one character at a time; arrows (or a swipe) browse.
@@ -3393,6 +3477,7 @@ function renderCharGrid() {
 }
 function closeCharSelect() {
   $('charSelect').classList.add('hidden');
+  setMenuMusic(!$('mainMenu').classList.contains('hidden'));
   charIdx = null;
   charBrowsed = false;
   focusComposer();
