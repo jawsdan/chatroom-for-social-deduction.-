@@ -29,6 +29,7 @@ const ROLE = {
   werewolf: { label: 'Werewolf', icon: '🐺', color: 'var(--danger)', desc: 'You hunt with your pack. Each night, plan in the wolf den and pick your victim with Kill. The whole pack must choose the same player. By day, blend in with the village.' },
   serialkiller: { label: 'Serial Killer', icon: '🔪', color: 'var(--danger)', desc: 'You work alone. Each night, choose your next victim with Kill, or let them live one more night. Leave your calling card behind, and never get caught.' },
   doctor: { label: 'Doctor', icon: '🩺', color: '#0ea5e9', desc: 'Each night, choose one player to Protect. If the killers come for them, they survive. You can protect yourself, but not two nights in a row.' },
+  prophet: { label: 'The Prophet', icon: '✝️', color: '#b45309', desc: 'You have a second life. If you die, you rise again on the third day (the day you die counts as the first) and walk among the living again. It only works once. On Hard, only a death by trial brings you back.' },
   prostitute: { label: 'Prostitute', icon: '🌹', color: '#be185d', desc: "Each night, choose whose house you spend the night at, or stay at your own. Away from home, the wolves can't find you if they come for you. But if they come for the person you're with, you both die." },
   officer: { label: 'Officer', icon: '🚔', color: '#1d4ed8', desc: 'Each day you may arrest one player. They cannot vote that day and cannot use their ability the night after.' },
   detective: { label: 'Detective', icon: '👮', color: '#3b82f6', desc: 'Each night, choose one player to Investigate. In the morning you learn whether they are good or one of the killers.' },
@@ -495,7 +496,7 @@ function roleCard(card, role, preview = false) {
 function roleTeams() {
   if (dkMode()) return [['good', '🦇 Good team · Gotham', ['civilian', 'doctor', 'detective', 'officer']], ['bad', '🃏 Bad team · Villains', DK_VILLAINS]];
   return [
-    ['good', '🧑‍🌾 Good team · Village', ['civilian', 'doctor', 'detective', 'officer', 'prostitute', 'mother', 'father', 'son', 'vigilante', 'batman']],
+    ['good', '🧑‍🌾 Good team · Village', ['civilian', 'doctor', 'detective', 'officer', 'prostitute', 'prophet', 'mother', 'father', 'son', 'vigilante', 'batman']],
     ['bad', '🐺 Bad team · Killers', ['werewolf', 'serialkiller', 'joker']],
   ];
 }
@@ -689,7 +690,7 @@ $('removeBotsBtn').onclick = () => socket.emit('bots:remove');
 
 // ---------- Roles ----------
 // The role picker: a small box with the roles in two columns, village side and wolf side.
-const pickVillage = () => (dkMode() ? ['civilian', 'doctor', 'detective', 'officer'] : ['civilian', 'doctor', 'detective', 'officer', 'prostitute', 'mother', 'father', 'son']);
+const pickVillage = () => (dkMode() ? ['civilian', 'doctor', 'detective', 'officer'] : ['civilian', 'doctor', 'detective', 'officer', 'prostitute', 'prophet', 'mother', 'father', 'son']);
 const pickWolf = () => (dkMode() ? DK_VILLAINS : ['werewolf']);
 const PICK_LATER = ['vigilante', 'batman', 'joker'];
 $('rolePickBtn').onclick = () => selectedThread && openRolePicker(displayName(selectedThread));
@@ -1178,7 +1179,7 @@ function renderRolesCard() {
   const cfg = state.modView.roleConfig;
   const players = state.users.filter((u) => !u.moderator).length;
   const fam = familyOn(cfg, players);
-  const special = cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (cfg.prostitute || 0) + (fam ? 3 : 0);
+  const special = cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (cfg.prostitute || 0) + (cfg.prophet || 0) + (fam ? 3 : 0);
   const civilians = Math.max(players - special, 0);
   const box = $('roleSetup');
   box.innerHTML = '';
@@ -1247,6 +1248,7 @@ function renderRolesCard() {
   row('detective', 'Detectives');
   row('officer', 'Officers');
   row('prostitute', 'Prostitutes');
+  row('prophet', 'Prophets');
   // The family trio: dealt automatically with 20+ players, or switched on/off.
   const famRow = el('div', 'stepper-row family-row' + (fam ? '' : ' off'));
   const famLab = el('span', 'stepper-label');
@@ -1579,12 +1581,13 @@ function buildRoleSetup(box) {
     }
   } else {
     const fam = familyOn(cfg, players);
-    special = cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (cfg.prostitute || 0) + (fam ? 3 : 0);
+    special = cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (cfg.prostitute || 0) + (cfg.prophet || 0) + (fam ? 3 : 0);
     const good = section('good', '🧑‍🌾 Good team · Village');
     stepper(good, 'doctor', 'Doctors', 'doctor');
     stepper(good, 'detective', 'Detectives', 'detective');
     stepper(good, 'officer', 'Officers', 'officer');
     stepper(good, 'prostitute', 'Prostitutes', 'prostitute');
+    stepper(good, 'prophet', 'Prophets', 'prophet');
     row(good, ['mother', 'father', 'son'], 'Family', seg('family', [['auto', 'Auto 20+'], ['on', 'On'], ['off', 'Off']]), null, null, fam ? 'in this game' : 'not in this game');
     row(good, 'civilian', 'Civilians', Math.max(players - special, 0), null, null, 'everyone else');
     const bad = section('bad', '🐺 Bad team · Killers');
@@ -2307,6 +2310,24 @@ function buildMayorBox(card) {
   actions.append(btn('btn-primary', 'Close', closeModal));
   card.append(actions);
 }
+// The Prophet rises on the third day: a pop-up for everyone, after the morning news.
+socket.on('prophet:risen', ({ name }) => {
+  window.PixelScene?.event('prophet', { name });
+  const mine = key(name) === key(me);
+  const show = () =>
+    openModal((card) => {
+      const art = el('div', 'art');
+      art.innerHTML = ART.prophet;
+      card.append(art);
+      card.append(el('h2', '', mine ? 'You have risen!' : `${name} has risen!`));
+      card.append(el('p', '', mine ? 'On the third day you came back from the dead. You can speak, vote and play again. This was your second life: if you die again, it is for good.' : `On the third day, ${name} came back from the dead. ${name} is the Prophet, and walks among the living again.`));
+      const actions = el('div', 'actions');
+      actions.append(btn('btn-primary', 'Close', closeModal));
+      card.append(actions);
+    });
+  clueQueue.push({ __result: show });
+  if ($('modal').classList.contains('hidden')) showNextClue();
+});
 socket.on('mayor:elected', ({ name }) => {
   window.PixelScene?.event('mayor', { name });
   toast(`🎩 ${name} is the new mayor!`);
@@ -2586,7 +2607,7 @@ function renderModOverview() {
     const r = roles[key(u.name)];
     if (r) counts[r] = (counts[r] || 0) + 1;
   }
-  const order = ['dkjoker', 'harley', 'ivy', 'clayface', 'werewolf', 'serialkiller', 'joker', 'doctor', 'detective', 'officer', 'vigilante', 'batman', 'mother', 'father', 'son', 'civilian'];
+  const order = ['dkjoker', 'harley', 'ivy', 'clayface', 'werewolf', 'serialkiller', 'joker', 'doctor', 'detective', 'officer', 'prostitute', 'prophet', 'vigilante', 'batman', 'mother', 'father', 'son', 'civilian'];
   const roleItems = order.filter((r) => counts[r]).map((r) => roleLabel('ov-chip role', r, `${counts[r]} × ${ROLE[r].label}`));
   box.append(panel('🟢 Alive', 'alive', alive.map((u) => chip(u.name))), panel('💀 Dead', 'dead', dead.map((u) => chip(u.name))), panel('🎭 Roles still alive', 'roles', roleItems));
 }
@@ -2647,7 +2668,7 @@ function menuTab(icon, title, sub, onClick, cls = '') {
 function menuStartProblem(players, cfg) {
   if (!players.length) return 'Wait for players to join, or add some bots.';
   const fam = !dkMode() && familyOn(cfg, players.length);
-  const special = dkMode() ? dkSpecial(cfg) : cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (cfg.prostitute || 0) + (fam ? 3 : 0);
+  const special = dkMode() ? dkSpecial(cfg) : cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (cfg.prostitute || 0) + (cfg.prophet || 0) + (fam ? 3 : 0);
   if (randomizeOnStart && special > players.length) return `${special} special roles but only ${players.length} player${players.length === 1 ? '' : 's'}. Change the roles or add bots.`;
   if (!dkMode() && randomizeOnStart && cfg.werewolf < 1) return 'Add at least one Werewolf in Roles.';
   return null;
@@ -2950,7 +2971,7 @@ function renderStartScreen() {
   card.append(modeRow);
   if (amMod() && cfg) {
     const fam = !dkMode() && familyOn(cfg, players.length);
-    const special = dkMode() ? dkSpecial(cfg) : cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (cfg.prostitute || 0) + (fam ? 3 : 0);
+    const special = dkMode() ? dkSpecial(cfg) : cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (cfg.prostitute || 0) + (cfg.prophet || 0) + (fam ? 3 : 0);
     const setup = el('div', 'start-setup');
     const civ = Math.max(players.length - special, 0);
     const parts = dkMode() ? [
@@ -3102,7 +3123,7 @@ socket.on('death:shown', ({ victim, wolf }) => {
 });
 
 // ---------- Ability results ----------
-const ABILITY_ICON = { interrogate: '🦇', arrest: '🚔', arrested: '🚔',  kill: '🗡️', heal: '🩺', investigate: '🔍', vigil: '🎯', clue: '🦇' };
+const ABILITY_ICON = { rise: '✝️', interrogate: '🦇', arrest: '🚔', arrested: '🚔',  kill: '🗡️', heal: '🩺', investigate: '🔍', vigil: '🎯', clue: '🦇' };
 socket.on('ability:result', (e) => {
   freshAbilityId = e.id;
   // Show it as a pop-up after the morning news.
@@ -3125,7 +3146,7 @@ socket.on('ability:result', (e) => {
 // ---------- Left sidebar box ----------
 // Players with an ability see their own results; the moderator sees every ability player.
 let freshAbilityId = null;
-const ABILITY_ROLES = ['prostitute', 'dkjoker', 'ivy', 'clayface', 'werewolf', 'serialkiller', 'joker', 'doctor', 'detective', 'officer', 'vigilante', 'batman', 'mother', 'father', 'son'];
+const ABILITY_ROLES = ['prostitute', 'prophet', 'dkjoker', 'ivy', 'clayface', 'werewolf', 'serialkiller', 'joker', 'doctor', 'detective', 'officer', 'vigilante', 'batman', 'mother', 'father', 'son'];
 const ACTION_WORD = { interrogate: 'interrogate', kill: 'kill', heal: 'heal', investigate: 'check', vigil: 'kill' };
 function renderSideBox() {
   const box = $('sideBox');
@@ -3150,7 +3171,7 @@ function renderSideBox() {
   const list = el('div', 'side-box-list');
   for (const e of [...log].reverse()) {
     const row = el('div', 'ab-row ' + (e.tone || 'neutral') + (e.pending ? ' pending' : '') + (e.id === freshAbilityId ? ' fresh' : ''));
-    row.append(el('div', 'ab-night', `${ABILITY_ICON[e.kind] || '🔮'} Night ${e.night}`));
+    row.append(el('div', 'ab-night', e.kind === 'rise' ? '✝️ Day ' + (e.night + 1) : `${ABILITY_ICON[e.kind] || '🔮'} Night ${e.night}`));
     row.append(el('div', 'ab-text', e.text));
     if (e.pending) row.append(el('div', 'ab-sub', 'Waiting for the moderator…'));
     list.append(row);
@@ -3205,7 +3226,7 @@ function roleTakenByOther(role, name) {
   if (!UNIQUE_ROLES.includes(role)) return false;
   return Object.entries(state.modView?.roles || {}).some(([k, r]) => r === role && k !== key(name));
 }
-const assignRoles = () => (dkMode() ? ['civilian', 'doctor', 'detective', 'officer', ...DK_VILLAINS] : ['civilian', 'werewolf', 'doctor', 'detective', 'officer', 'prostitute', 'mother', 'father', 'son']);
+const assignRoles = () => (dkMode() ? ['civilian', 'doctor', 'detective', 'officer', ...DK_VILLAINS] : ['civilian', 'werewolf', 'doctor', 'detective', 'officer', 'prostitute', 'prophet', 'mother', 'father', 'son']);
 function renderAssigning(card, players) {
   const roles = state.modView?.roles || {};
   if (!amMod()) {

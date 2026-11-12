@@ -15,7 +15,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const MAX_MSG = 500;
 const MAX_HISTORY = 300;
-const ROLES = ['civilian', 'prostitute', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman', 'dkjoker', 'harley', 'ivy', 'clayface'];
+const ROLES = ['civilian', 'prostitute', 'prophet', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman', 'dkjoker', 'harley', 'ivy', 'clayface'];
 // Game mode "The Dark Knight": Citizen, Thomas Wayne (doctor), The Batman (detective), Commissioner Gordon (officer)
 // against The Joker (the only killer), Harley Quinn (sidekick), Poison Ivy (poisons) and Clayface (disguise).
 let gameMode = 'classic'; // 'classic' | 'darkknight'
@@ -26,7 +26,7 @@ const famName = (r) => (display.batman ? { joker: 'Joker', batman: 'Batman' } : 
 const dk = () => gameMode === 'darkknight';
 const DK_VILLAINS = ['dkjoker', 'harley', 'ivy', 'clayface'];
 const DK_ROLES = ['civilian', 'doctor', 'detective', 'officer', ...DK_VILLAINS];
-const CLASSIC_ROLES = ['civilian', 'prostitute', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman'];
+const CLASSIC_ROLES = ['civilian', 'prostitute', 'prophet', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman'];
 const DK_LABEL = { civilian: 'Citizen', doctor: 'Thomas Wayne', detective: 'The Batman', officer: 'Commissioner Gordon', dkjoker: 'The Joker', harley: 'Harley Quinn', ivy: 'Poison Ivy', clayface: 'Clayface' };
 const CLAY_OPTIONS = ['civilian', 'doctor', 'officer', 'dkjoker', 'harley', 'ivy']; // every role except Batman
 let disguises = new Map(); // Clayface's key -> the role Batman sees
@@ -54,7 +54,7 @@ let wipeVotes = new Set(); // socket ids of players who voted to wipe everything
 // family: 'auto' = the Mother/Father/Son trio is dealt when 20+ players joined; 'on' / 'off' to force it.
 // difficulty: 'normal' announces family changes and shows the werewolf death animation; 'hard' reveals nothing on death.
 // interrogate: Batman's Interrogate ability (only in games that started with 4+ wolves).
-const roleConfig = { werewolf: 2, doctor: 1, detective: 1, officer: 0, prostitute: 0, family: 'auto', difficulty: 'normal', interrogate: true, harley: true, ivy: true, clayface: true }; // the rest are civilians
+const roleConfig = { werewolf: 2, doctor: 1, detective: 1, officer: 0, prostitute: 0, prophet: 0, family: 'auto', difficulty: 'normal', interrogate: true, harley: true, ivy: true, clayface: true }; // the rest are civilians
 let nextMsgId = 1;
 let nextBotId = 1;
 // The Officer's arrest: made by day; the arrested player can't vote that day
@@ -81,6 +81,12 @@ let nightNumber = 0;
 // 'auto': the Detective learns good/bad at sunrise by themselves. 'manual': the moderator answers.
 let detectiveMode = 'auto';
 let pendingReveals = []; // deaths at night, revealed when day starts
+// The Prophet: the first time he dies he rises again on the third day (counting the day he died as the first).
+// On Hard only a death by trial counts. prophetRise: key -> the day he comes back. prophetUsed: his second life is spent.
+let prophetRise = new Map();
+let prophetUsed = new Set();
+// Day 1 is the first day; night N belongs to day N (it follows it).
+const dayNumber = () => (phase === 'day' ? nightNumber + 1 : nightNumber);
 let nextClueId = 1;
 const BOT_NAMES = ['Astrid', 'Bjorn', 'Cora', 'Dag', 'Edda', 'Finn', 'Greta', 'Hugo', 'Ingrid', 'Jonas', 'Kari', 'Leif', 'Mia', 'Nils', 'Oda', 'Per', 'Runa', 'Sven', 'Tora', 'Ulf'];
 const humans = () => [...users.values()].filter((u) => !u.bot);
@@ -381,6 +387,8 @@ function wipeEverything(reason) {
   abilityLog = new Map();
   nightNumber = 0;
   pendingReveals = [];
+  prophetRise = new Map();
+  prophetUsed = new Set();
   trial = null;
   phase = 'day';
   phaseStartedAt = Date.now();
@@ -452,6 +460,7 @@ function finishTrial() {
   if (trial.result === 'guilty') {
     mutedNames.add(key(trial.accusedName));
     deathAt.set(key(trial.accusedName), now());
+    prophetDied(key(trial.accusedName), 'trial', dayNumber());
   }
   const breakdown = [...trial.votes.entries()].map(([n, v]) => `${n}${voteWeight(n) > 1 ? ' (mayor, ×2)' : ''}: ${v}`).join(', ') || 'no votes';
   systemLobby(
@@ -730,12 +739,37 @@ const OUTCOME_TEXT = {
   arrested: () => 'The killer was arrested and could not kill',
   nokiller: () => 'There is no killer alive',
 };
-function killPlayer(name) {
+function killPlayer(name, day = dayNumber()) {
   const k = key(name);
   killedNames.add(k);
   deathAt.set(k, now());
   mutedNames.add(k);
   nightActions.delete(k);
+  prophetDied(k, 'kill', day);
+}
+// The Prophet's second life: he will rise on the third day. cause: 'trial' | 'kill'.
+function prophetDied(k, cause, day) {
+  if (roles.get(k) !== 'prophet' || prophetUsed.has(k) || gameState !== 'running') return;
+  if (hardMode() && cause !== 'trial') return;
+  prophetUsed.add(k);
+  prophetRise.set(k, day + 2);
+  if (moderatorId) io.to(moderatorId).emit('notice', `✝️ ${userByName(k)?.name || k} is the Prophet and will rise again on day ${day + 2}.`);
+}
+// At sunrise: a Prophet whose third day has come is alive again.
+function raiseProphets() {
+  const today = dayNumber();
+  for (const [k, d] of [...prophetRise]) {
+    if (d > today) continue;
+    prophetRise.delete(k);
+    if (!roles.has(k)) continue;
+    killedNames.delete(k);
+    mutedNames.delete(k);
+    deathAt.delete(k);
+    const name = userByName(k)?.name || k;
+    systemLobby(`✝️ On the third day, ${name} has risen from the dead! ${name} is the Prophet, and walks among the living again.`);
+    io.emit('prophet:risen', { name });
+    sendAbilityResult(k, { kind: 'rise', text: 'On the third day you rose from the dead. This was your second life: if you die again, it is for good.', tone: 'good' });
+  }
 }
 
 // ---- Ability results ----
@@ -994,10 +1028,11 @@ function randomizeRoles(quiet = false) {
   // The Dark Knight: one Joker, plus the villains that are switched on.
   const villains = dk() ? ['dkjoker', ...['harley', 'ivy', 'clayface'].filter((r) => roleConfig[r])] : Array(roleConfig.werewolf).fill('werewolf');
   const pros = dk() ? 0 : roleConfig.prostitute || 0;
-  const special = villains.length + roleConfig.doctor + roleConfig.detective + roleConfig.officer + pros + (withFamily ? 3 : 0);
+  const prophets = dk() ? 0 : roleConfig.prophet || 0;
+  const special = villains.length + roleConfig.doctor + roleConfig.detective + roleConfig.officer + pros + prophets + (withFamily ? 3 : 0);
   if (players.length === 0) return 'There are no players to give roles to.';
   if (special > players.length) return `Not enough players: you picked ${special} special roles but there are only ${players.length} players.`;
-  const deck = [...villains, ...Array(pros).fill('prostitute'), ...Array(roleConfig.doctor).fill('doctor'), ...Array(roleConfig.detective).fill('detective'), ...Array(roleConfig.officer).fill('officer'), ...(withFamily ? FAMILY : [])];
+  const deck = [...villains, ...Array(pros).fill('prostitute'), ...Array(prophets).fill('prophet'), ...Array(roleConfig.doctor).fill('doctor'), ...Array(roleConfig.detective).fill('detective'), ...Array(roleConfig.officer).fill('officer'), ...(withFamily ? FAMILY : [])];
   while (deck.length < players.length) deck.push('civilian');
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -1006,6 +1041,8 @@ function randomizeRoles(quiet = false) {
   const before = displayRoleMap();
   roles = new Map(players.map((p, i) => [key(p.name), deck[i]]));
   protectedNames = new Set();
+  prophetRise = new Map();
+  prophetUsed = new Set();
   family = {};
   familyFlags = {};
   batmanSeen = new Set();
@@ -1361,7 +1398,7 @@ io.on('connection', (socket) => {
 
   socket.on('roles:config', (cfg = {}) => {
     if (!isMod(socket)) return;
-    for (const r of ['werewolf', 'doctor', 'detective', 'officer', 'prostitute']) {
+    for (const r of ['werewolf', 'doctor', 'detective', 'officer', 'prostitute', 'prophet']) {
       const n = Number(cfg[r]);
       if (Number.isInteger(n) && n >= 0 && n <= 20) roleConfig[r] = n;
     }
@@ -1520,6 +1557,7 @@ io.on('connection', (socket) => {
       killedNames.delete(k);
       mutedNames.delete(k);
       deathAt.delete(k);
+      prophetRise.delete(k);
       pendingReveals = pendingReveals.filter((r) => key(r.victim) !== k);
       systemLobby(`✨ ${target.name} is back among the living.`);
       return broadcastState();
@@ -1528,6 +1566,7 @@ io.on('connection', (socket) => {
     mutedNames.add(k);
     deathAt.set(k, now());
     nightActions.delete(k);
+    prophetDied(k, 'kill', dayNumber());
     const reveal = { victim: target.name, card: callingCardFor(target.name) };
     if (phase === 'night') {
       pendingReveals.push(reveal); // discovered at sunrise
@@ -1614,12 +1653,12 @@ io.on('connection', (socket) => {
       pendingReveals = [];
       if (outcome.victim) {
         const card = callingCardFor(outcome.victim);
-        killPlayer(outcome.victim);
+        killPlayer(outcome.victim, nightNumber);
         if (!list.some((r) => key(r.victim) === key(outcome.victim))) list = [{ victim: outcome.victim, card }, ...list];
         // The Prostitute dies too if she stayed the night at the victim's house.
         for (const g of outcome.guests || []) {
           if (killedNames.has(key(g))) continue;
-          killPlayer(g);
+          killPlayer(g, nightNumber);
           list.push({ victim: g, card: null, guestOf: outcome.victim });
         }
       }
@@ -1628,7 +1667,7 @@ io.on('connection', (socket) => {
       const vig = vigilanteOutcome();
       for (const v of vig) {
         if (v.saved || list.some((r) => key(r.victim) === key(v.target))) continue;
-        killPlayer(v.target);
+        killPlayer(v.target, nightNumber);
         list.push({ victim: v.target, card: null });
         if (moderatorId) io.to(moderatorId).emit('notice', `🎯 The Vigilante killed ${v.target}.`);
       }
@@ -1652,6 +1691,8 @@ io.on('connection', (socket) => {
         for (const r of list) revealDeath({ ...r, announce: r.line !== null, together: pairs.get(key(r.victim))?.victim });
         // Then each ability player gets their own result.
         for (const [k, entry] of results) sendAbilityResult(k, entry);
+        // A Prophet whose third day has come rises again.
+        raiseProphets();
         arrestedTonight = null;
         lastArrest = null;
         scheduleBotArrest();

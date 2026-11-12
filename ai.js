@@ -10,6 +10,7 @@
 const ROLE_LABEL = {
   civilian: 'Civilian',
   prostitute: 'Prostitute',
+  prophet: 'The Prophet',
   werewolf: 'Werewolf',
   serialkiller: 'Serial Killer',
   doctor: 'Doctor',
@@ -49,6 +50,8 @@ const labelIn = (mode, r) => (mode === 'darkknight' && DK_LABEL[r]) || (mode ===
 const infoIn = (mode, r) => (mode === 'darkknight' && DK_ROLE_INFO[r]) || (mode === 'nobat' && NOBAT_INFO[r]) || ROLE_INFO[r];
 
 const ROLE_INFO = {
+  prophet:
+    'The Prophet (village side). You have no night ability, but you have a second life: the first time you die, you rise again on the third day (the day you die counts as the first; for example killed on day 2, back at sunrise on day 4) and can talk, vote and play again. It only works once. On Hard, only a death by trial (being voted guilty) brings you back; a night kill is for good.',
   prostitute:
     "Prostitute (village side). Each night choose whose house you spend the night at with the Stay with button, or pick yourself to stay home. If the wolves come for you while you are away, they find nobody and you survive. But if they come for the person you are staying with, you both die. At home, you can be attacked as normal.",
   civilian:
