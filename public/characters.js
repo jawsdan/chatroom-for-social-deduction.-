@@ -11,6 +11,7 @@ window.CHARACTERS = [
     desc: 'Wild hair, wide eyes. Has seen things by this fire.',
     img: 'img/characters/firekeeper.webp',
     still: 'img/characters/firekeeper-still.png',
+    hang: 'img/characters/firekeeper-hang.webp',
     height: 138,
     spot: { day: { x: 250, y: 452 }, night: { x: 236, y: 478 } },
     spotHd: { day: { x: 405, y: 585 }, night: { x: 290, y: 640 } },
