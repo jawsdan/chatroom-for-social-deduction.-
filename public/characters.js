@@ -75,4 +75,19 @@ window.CHARACTERS = [
     spotDk: { day: { x: 560, y: 570 }, night: { x: 455, y: 560 } },
     heightDk: 95,
   },
+  {
+    id: 'gunslinger',
+    name: 'The Gunslinger',
+    desc: 'A quiet smile and two revolvers. Never says where he rode in from.',
+    img: 'img/characters/gunslinger.webp',
+    still: 'img/characters/gunslinger-still.png',
+    height: 140,
+    // Front right of the fire, across from the Joker.
+    spot: { day: { x: 565, y: 525 }, night: { x: 560, y: 535 } },
+    spotHd: { day: { x: 985, y: 525 }, night: { x: 915, y: 655 } },
+    heightHd: 155,
+    // The Dark Knight: on the near rooftop by day, by the clown booth at Amusement Mile by night.
+    spotDk: { day: { x: 585, y: 705 }, night: { x: 985, y: 665 } },
+    heightDk: 175,
+  },
 ];
