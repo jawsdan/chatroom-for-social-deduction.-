@@ -29,6 +29,7 @@ const ROLE = {
   werewolf: { label: 'Werewolf', icon: '🐺', color: 'var(--danger)', desc: 'You hunt with your pack. Each night, plan in the wolf den and pick your victim with Kill. The whole pack must choose the same player. By day, blend in with the village.' },
   serialkiller: { label: 'Serial Killer', icon: '🔪', color: 'var(--danger)', desc: 'You work alone. Each night, choose your next victim with Kill, or let them live one more night. Leave your calling card behind, and never get caught.' },
   doctor: { label: 'Doctor', icon: '🩺', color: '#0ea5e9', desc: 'Each night, choose one player to Protect. If the killers come for them, they survive. You can protect yourself, but not two nights in a row.' },
+  prostitute: { label: 'Prostitute', icon: '🌹', color: '#be185d', desc: "Each night, choose whose house you spend the night at, or stay at your own. Away from home, the wolves can't find you if they come for you. But if they come for the person you're with, you both die." },
   officer: { label: 'Officer', icon: '🚔', color: '#1d4ed8', desc: 'Each day you may arrest one player. They cannot vote that day and cannot use their ability the night after.' },
   detective: { label: 'Detective', icon: '👮', color: '#3b82f6', desc: 'Each night, choose one player to Investigate. In the morning you learn whether they are good or one of the killers.' },
   mother: { label: 'Mother', icon: '👩', color: '#b83b7a', desc: 'You are part of the family, on the village side. If your Son dies, grief turns you into the Joker and you join the wolves.' },
@@ -463,7 +464,7 @@ function roleCard(card, role, preview = false) {
 function roleTeams() {
   if (dkMode()) return [['good', '🦇 Good team · Gotham', ['civilian', 'doctor', 'detective', 'officer']], ['bad', '🃏 Bad team · Villains', DK_VILLAINS]];
   return [
-    ['good', '🧑‍🌾 Good team · Village', ['civilian', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'vigilante', 'batman']],
+    ['good', '🧑‍🌾 Good team · Village', ['civilian', 'doctor', 'detective', 'officer', 'prostitute', 'mother', 'father', 'son', 'vigilante', 'batman']],
     ['bad', '🐺 Bad team · Killers', ['werewolf', 'serialkiller', 'joker']],
   ];
 }
@@ -654,7 +655,7 @@ $('removeBotsBtn').onclick = () => socket.emit('bots:remove');
 
 // ---------- Roles ----------
 // The role picker: a small box with the roles in two columns, village side and wolf side.
-const pickVillage = () => (dkMode() ? ['civilian', 'doctor', 'detective', 'officer'] : ['civilian', 'doctor', 'detective', 'officer', 'mother', 'father', 'son']);
+const pickVillage = () => (dkMode() ? ['civilian', 'doctor', 'detective', 'officer'] : ['civilian', 'doctor', 'detective', 'officer', 'prostitute', 'mother', 'father', 'son']);
 const pickWolf = () => (dkMode() ? DK_VILLAINS : ['werewolf']);
 const PICK_LATER = ['vigilante', 'batman', 'joker'];
 $('rolePickBtn').onclick = () => selectedThread && openRolePicker(displayName(selectedThread));
@@ -1137,7 +1138,7 @@ function renderRolesCard() {
   const cfg = state.modView.roleConfig;
   const players = state.users.filter((u) => !u.moderator).length;
   const fam = familyOn(cfg, players);
-  const special = cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (fam ? 3 : 0);
+  const special = cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (cfg.prostitute || 0) + (fam ? 3 : 0);
   const civilians = Math.max(players - special, 0);
   const box = $('roleSetup');
   box.innerHTML = '';
@@ -1205,6 +1206,7 @@ function renderRolesCard() {
   row('doctor', 'Doctors');
   row('detective', 'Detectives');
   row('officer', 'Officers');
+  row('prostitute', 'Prostitutes');
   // The family trio: dealt automatically with 20+ players, or switched on/off.
   const famRow = el('div', 'stepper-row family-row' + (fam ? '' : ' off'));
   const famLab = el('span', 'stepper-label');
@@ -1537,11 +1539,12 @@ function buildRoleSetup(box) {
     }
   } else {
     const fam = familyOn(cfg, players);
-    special = cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (fam ? 3 : 0);
+    special = cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (cfg.prostitute || 0) + (fam ? 3 : 0);
     const good = section('good', '🧑‍🌾 Good team · Village');
     stepper(good, 'doctor', 'Doctors', 'doctor');
     stepper(good, 'detective', 'Detectives', 'detective');
     stepper(good, 'officer', 'Officers', 'officer');
+    stepper(good, 'prostitute', 'Prostitutes', 'prostitute');
     row(good, ['mother', 'father', 'son'], 'Family', seg('family', [['auto', 'Auto 20+'], ['on', 'On'], ['off', 'Off']]), null, null, fam ? 'in this game' : 'not in this game');
     row(good, 'civilian', 'Civilians', Math.max(players - special, 0), null, null, 'everyone else');
     const bad = section('bad', '🐺 Bad team · Killers');
@@ -2102,6 +2105,7 @@ function confirmKick(name) {
 // ---------- Night actions ----------
 const ACTION_TEXT = {
   kill: { verb: 'kill', noun: 'Kill', title: 'Choose your victim', btn: 'btn-danger' },
+  visit: { verb: 'spend the night with', noun: 'Night visit', title: 'Where do you spend the night?', btn: 'btn-primary' },
   poison: { verb: 'poison', noun: 'Poison', title: 'Choose who to poison', btn: 'btn-success' },
   heal: { verb: 'heal', noun: 'Heal', title: 'Choose who to protect', btn: 'btn-success' },
   investigate: { verb: 'investigate', noun: 'Investigate', title: 'Choose who to investigate', btn: 'btn-primary' },
@@ -2195,7 +2199,7 @@ function renderNightCard() {
   const night = state.phase === 'night';
   card.append(el('div', 'card-title', night ? '🌙 Tonight\'s choices' : '🌙 Last night\'s choices'));
   if (night && state.modView?.outcome) card.append(el('div', 'outcome', `At sunrise: ${state.modView.outcome}`));
-  const order = { kill: 0, poison: 1, heal: 1, investigate: 2, vigil: 3, interrogate: 4 };
+  const order = { kill: 0, visit: 1, poison: 1, heal: 1, investigate: 2, vigil: 3, interrogate: 4 };
   for (const a of [...list].sort((x, y) => order[x.kind] - order[y.kind])) {
     const row = el('div', 'night-row' + (a.target || a.skip ? '' : ' waiting'));
     row.append(avatar(a.actor, 'sm'));
@@ -2247,7 +2251,8 @@ function openNoteEditor(kind) {
   const locked = !isCard && state.me.dead;
   openModal((card) => {
     card.classList.add('note-modal');
-    const art = el('div', 'note-icon', isCard ? '🃏' : '📜');
+    const art = el('div', 'note-icon', isCard ? '' : '📜');
+    if (isCard) art.innerHTML = '<img class="card-emblem" src="img/calling-card.webp" alt="">';
     card.append(art);
     card.append(el('h2', '', isCard ? 'Your calling card' : 'Your manifesto'));
     card.append(
@@ -2332,7 +2337,9 @@ function showClue(clue, fresh) {
   }
   openModal((card) => {
     card.classList.add('note-modal');
-    card.append(el('div', 'note-icon', clue.kind === 'interrogate' ? '🦇' : clue.kind === 'card' ? '🃏' : '📜'));
+    const ni = el('div', 'note-icon', clue.kind === 'interrogate' ? '🦇' : clue.kind === 'card' ? '' : '📜');
+    if (clue.kind === 'card') ni.innerHTML = '<img class="card-emblem" src="img/calling-card.webp" alt="">';
+    card.append(ni);
     card.append(el('h2', '', clue.kind === 'interrogate' ? `${clue.about} is a villain!` : clue.kind === 'card' ? (fresh ? 'A calling card was found' : 'Calling card') : `${clue.about}'s manifesto`));
     if (clue.kind === 'card') card.append(el('p', '', `It was left next to ${clue.about}.`));
     card.append(clueCard(clue, false));
@@ -2545,7 +2552,7 @@ function menuTab(icon, title, sub, onClick, cls = '') {
 function menuStartProblem(players, cfg) {
   if (!players.length) return 'Wait for players to join, or add some bots.';
   const fam = !dkMode() && familyOn(cfg, players.length);
-  const special = dkMode() ? dkSpecial(cfg) : cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (fam ? 3 : 0);
+  const special = dkMode() ? dkSpecial(cfg) : cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (cfg.prostitute || 0) + (fam ? 3 : 0);
   if (randomizeOnStart && special > players.length) return `${special} special roles but only ${players.length} player${players.length === 1 ? '' : 's'}. Change the roles or add bots.`;
   if (!dkMode() && randomizeOnStart && cfg.werewolf < 1) return 'Add at least one Werewolf in Roles.';
   return null;
@@ -2838,7 +2845,7 @@ function renderStartScreen() {
   card.append(modeRow);
   if (amMod() && cfg) {
     const fam = !dkMode() && familyOn(cfg, players.length);
-    const special = dkMode() ? dkSpecial(cfg) : cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (fam ? 3 : 0);
+    const special = dkMode() ? dkSpecial(cfg) : cfg.werewolf + cfg.doctor + cfg.detective + cfg.officer + (cfg.prostitute || 0) + (fam ? 3 : 0);
     const setup = el('div', 'start-setup');
     const civ = Math.max(players.length - special, 0);
     const parts = dkMode() ? [
@@ -3013,7 +3020,7 @@ socket.on('ability:result', (e) => {
 // ---------- Left sidebar box ----------
 // Players with an ability see their own results; the moderator sees every ability player.
 let freshAbilityId = null;
-const ABILITY_ROLES = ['dkjoker', 'ivy', 'clayface', 'werewolf', 'serialkiller', 'joker', 'doctor', 'detective', 'officer', 'vigilante', 'batman', 'mother', 'father', 'son'];
+const ABILITY_ROLES = ['prostitute', 'dkjoker', 'ivy', 'clayface', 'werewolf', 'serialkiller', 'joker', 'doctor', 'detective', 'officer', 'vigilante', 'batman', 'mother', 'father', 'son'];
 const ACTION_WORD = { interrogate: 'interrogate', kill: 'kill', heal: 'heal', investigate: 'check', vigil: 'kill' };
 function renderSideBox() {
   const box = $('sideBox');
@@ -3093,7 +3100,7 @@ function roleTakenByOther(role, name) {
   if (!UNIQUE_ROLES.includes(role)) return false;
   return Object.entries(state.modView?.roles || {}).some(([k, r]) => r === role && k !== key(name));
 }
-const assignRoles = () => (dkMode() ? ['civilian', 'doctor', 'detective', 'officer', ...DK_VILLAINS] : ['civilian', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son']);
+const assignRoles = () => (dkMode() ? ['civilian', 'doctor', 'detective', 'officer', ...DK_VILLAINS] : ['civilian', 'werewolf', 'doctor', 'detective', 'officer', 'prostitute', 'mother', 'father', 'son']);
 function renderAssigning(card, players) {
   const roles = state.modView?.roles || {};
   if (!amMod()) {
@@ -3299,7 +3306,7 @@ function renderPhoneDock() {
   items.push({ id: 'lobby', icon: '#', label: 'Lobby', on: channel === 'lobby', badge: pill(lobbyUnread), go: () => switchChannel('lobby') });
   items.push({ id: 'mod', icon: '🛡️', label: amMod() ? 'Inbox' : 'Mod', on: channel === 'mod', badge: pill(modUnread), go: () => switchChannel('mod') });
   if (state.me.wolfAccess) items.push({ id: 'wolf', img: dkMode() ? 'dkjoker' : 'werewolf', label: dkMode() ? 'Mile' : 'Wolves', on: channel === 'wolf', badge: pill(wolfUnread), lock: state.phase !== 'night', go: () => switchChannel('wolf') });
-  if (state.me.canCard) items.push({ id: 'card', icon: '🃏', label: 'Card', go: () => openNoteEditor('card') });
+  if (state.me.canCard) items.push({ id: 'card', img: 'card', label: 'Card', go: () => openNoteEditor('card') });
   if (!amMod()) items.push({ id: 'manifesto', icon: '📜', label: 'Will', go: () => openNoteEditor('manifesto') });
   if (state.me.disguise) items.push({ id: 'disguise', icon: '🎭', label: 'Disguise', go: openDisguisePicker });
   if (!amMod() && (state.me.action || state.me.abilityLog?.length || state.me.role === 'batman')) items.push({ id: 'results', icon: '🔮', label: 'Results', on: resultsOpen, go: toggleResultsPop });
@@ -3369,7 +3376,12 @@ function renderPhoneDock() {
     const b = el('button', 'dock-btn' + (it.on ? ' on' : '') + (it.label.length > 8 ? ' long' : '') + (it.cls ? ' ' + it.cls : ''));
     b.type = 'button';
     const ic = el('span', 'dock-icon');
-    if (it.img) ic.append(roleIcon(it.img));
+    if (it.img === 'card') {
+      const im = el('img', 'ri');
+      im.src = 'img/calling-card-sm.webp';
+      im.alt = '';
+      ic.append(im);
+    } else if (it.img) ic.append(roleIcon(it.img));
     else ic.textContent = it.icon;
     b.append(ic, el('span', 'dock-label', it.label));
     if (it.badge) b.append(el('span', 'dock-badge' + (it.badge === '✓' ? ' done' : ''), it.badge));
@@ -3493,7 +3505,7 @@ document.addEventListener('pointerdown', (e) => {
 });
 
 // ---------- Phone: night action window (Kill / Protect / Investigate) ----------
-const PHONE_ACT = { poison: ['🌿', 'Poison'], interrogate: ['🦇', 'Interrogate'], arrest: ['🚔', 'Arrest'], kill: ['🗡️', 'Kill'], heal: ['🛡️', 'Protect'], investigate: ['🔍', 'Investigate'], vigil: ['🎯', 'Kill'] };
+const PHONE_ACT = { visit: ['🌹', 'Stay with'], poison: ['🌿', 'Poison'], interrogate: ['🦇', 'Interrogate'], arrest: ['🚔', 'Arrest'], kill: ['🗡️', 'Kill'], heal: ['🛡️', 'Protect'], investigate: ['🔍', 'Investigate'], vigil: ['🎯', 'Kill'] };
 let actionOpen = false;
 function toggleActionPop() {
   actionOpen = !actionOpen;
@@ -3561,7 +3573,7 @@ function renderActionPop() {
     pop.append(el('div', 'rp-empty', a.target ? `Last night you chose ${a.target}. You can choose again at night.` : 'You can choose at night.'));
     return;
   }
-  const hint = { poison: 'Who do you want to poison? Their ability gets confused tonight.', interrogate: 'Who do you want to interrogate? If they are innocent, you lose this ability.', vigil: 'Who do you want to kill?', kill: 'Who do you want to kill?', heal: 'Who do you want to protect?', investigate: 'Who do you want to investigate?' }[a.kind];
+  const hint = { visit: 'Whose house do you spend the night at? Pick yourself to stay home.', poison: 'Who do you want to poison? Their ability gets confused tonight.', interrogate: 'Who do you want to interrogate? If they are innocent, you lose this ability.', vigil: 'Who do you want to kill?', kill: 'Who do you want to kill?', heal: 'Who do you want to protect?', investigate: 'Who do you want to investigate?' }[a.kind];
   pop.append(el('div', 'rp-empty', a.skip ? 'You chose to kill nobody tonight. Tap someone to change.' : a.target ? `You chose ${a.target}. Tap someone else to change.` : hint));
   if (a.noSelf) pop.append(el('div', 'rp-empty ap-noself', 'You protected yourself last night, so you can only protect someone else tonight.'));
   const list = el('div', 'rp-list');

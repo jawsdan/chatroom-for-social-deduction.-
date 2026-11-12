@@ -9,6 +9,7 @@
 
 const ROLE_LABEL = {
   civilian: 'Civilian',
+  prostitute: 'Prostitute',
   werewolf: 'Werewolf',
   serialkiller: 'Serial Killer',
   doctor: 'Doctor',
@@ -42,6 +43,8 @@ const labelIn = (mode, r) => (mode === 'darkknight' && DK_LABEL[r]) || ROLE_LABE
 const infoIn = (mode, r) => (mode === 'darkknight' && DK_ROLE_INFO[r]) || ROLE_INFO[r];
 
 const ROLE_INFO = {
+  prostitute:
+    "Prostitute (village side). Each night choose whose house you spend the night at with the Stay with button, or pick yourself to stay home. If the wolves come for you while you are away, they find nobody and you survive. But if they come for the person you are staying with, you both die. At home, you can be attacked as normal.",
   civilian:
     'Civilian (village side). You have no night ability. Talk in the main lobby, work out who the killers are, and vote Guilty in trials to get rid of them. The village wins when all killers are gone.',
   werewolf:

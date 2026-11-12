@@ -2232,3 +2232,7 @@ body.team-sk.filters-off.night {
   --bg: #0e0405; --surface: #170808; --surface-2: #230c0d; --surface-3: #321113; --border: #3a1416;
   --accent: #b91c1c; --accent-2: #dc2626; --accent-soft: #3a1014; --bubble: #230c0d; --muted: #9a7173; --text-2: #d6b3b5;
 }
+/* Calling card emblem */
+.note-icon .card-emblem { width: 120px; height: 120px; object-fit: contain; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35)); }
+.nav-icon .card-emblem-sm { width: 26px; height: 26px; object-fit: contain; }
+.mm-tab-icon .card-emblem-sm, .dock-icon img.ri { object-fit: contain; }

@@ -15,7 +15,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const MAX_MSG = 500;
 const MAX_HISTORY = 300;
-const ROLES = ['civilian', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman', 'dkjoker', 'harley', 'ivy', 'clayface'];
+const ROLES = ['civilian', 'prostitute', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman', 'dkjoker', 'harley', 'ivy', 'clayface'];
 // Game mode "The Dark Knight": Citizen, Thomas Wayne (doctor), The Batman (detective), Commissioner Gordon (officer)
 // against The Joker (the only killer), Harley Quinn (sidekick), Poison Ivy (poisons) and Clayface (disguise).
 let gameMode = 'classic'; // 'classic' | 'darkknight'
@@ -24,7 +24,7 @@ const display = { background: 'pixel', filters: true };
 const dk = () => gameMode === 'darkknight';
 const DK_VILLAINS = ['dkjoker', 'harley', 'ivy', 'clayface'];
 const DK_ROLES = ['civilian', 'doctor', 'detective', 'officer', ...DK_VILLAINS];
-const CLASSIC_ROLES = ['civilian', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman'];
+const CLASSIC_ROLES = ['civilian', 'prostitute', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman'];
 const DK_LABEL = { civilian: 'Citizen', doctor: 'Thomas Wayne', detective: 'The Batman', officer: 'Commissioner Gordon', dkjoker: 'The Joker', harley: 'Harley Quinn', ivy: 'Poison Ivy', clayface: 'Clayface' };
 const CLAY_OPTIONS = ['civilian', 'doctor', 'officer', 'dkjoker', 'harley', 'ivy']; // every role except Batman
 let disguises = new Map(); // Clayface's key -> the role Batman sees
@@ -52,7 +52,7 @@ let wipeVotes = new Set(); // socket ids of players who voted to wipe everything
 // family: 'auto' = the Mother/Father/Son trio is dealt when 20+ players joined; 'on' / 'off' to force it.
 // difficulty: 'normal' announces family changes and shows the werewolf death animation; 'hard' reveals nothing on death.
 // interrogate: Batman's Interrogate ability (only in games that started with 4+ wolves).
-const roleConfig = { werewolf: 2, doctor: 1, detective: 1, officer: 0, family: 'auto', difficulty: 'normal', interrogate: true, harley: true, ivy: true, clayface: true }; // the rest are civilians
+const roleConfig = { werewolf: 2, doctor: 1, detective: 1, officer: 0, prostitute: 0, family: 'auto', difficulty: 'normal', interrogate: true, harley: true, ivy: true, clayface: true }; // the rest are civilians
 let nextMsgId = 1;
 let nextBotId = 1;
 // The Officer's arrest: made by day; the arrested player can't vote that day
@@ -443,8 +443,8 @@ function becomeModerator(socket) {
 }
 
 // ---- Night actions ----
-const ACTION_FOR_ROLE = { werewolf: 'kill', joker: 'kill', dkjoker: 'kill', ivy: 'poison', doctor: 'heal', detective: 'investigate', vigilante: 'vigil' };
-const ACTION_VERB = { kill: 'kill', heal: 'heal', investigate: 'investigate', vigil: 'kill', poison: 'poison' };
+const ACTION_FOR_ROLE = { prostitute: 'visit', werewolf: 'kill', joker: 'kill', dkjoker: 'kill', ivy: 'poison', doctor: 'heal', detective: 'investigate', vigilante: 'vigil' };
+const ACTION_VERB = { visit: 'spend the night with', kill: 'kill', heal: 'heal', investigate: 'investigate', vigil: 'kill', poison: 'poison' };
 function actionKindFor(name) {
   const r = roles.get(key(name));
   if (r === 'batman') return canInterrogate(key(name)) ? 'interrogate' : null;
@@ -479,6 +479,7 @@ function validTargets(actorName) {
     if (u.id === moderatorId || mutedNames.has(key(u.name))) return false;
     const self = key(u.name) === key(actorName);
     if (kind === 'heal') return !self || !selfHealedLastNight.has(key(actorName)); // themselves too, but not two nights in a row
+    if (kind === 'visit') return true; // her own place counts as staying home
     if (self) return false;
     if ((kind === 'kill' || kind === 'poison') && isWolfRole(roles.get(key(u.name)))) return false; // villains don't target each other
     return true;
@@ -628,6 +629,19 @@ function isHealed(target) {
   return [...nightActions].some(([k, a]) => a.kind === 'heal' && a.target && key(a.target) === key(target) && !poisoned.has(k));
 }
 // What happens at sunrise with tonight's picks.
+// Where the Prostitute spends the night: her key -> the host's key (her own key = home).
+function prostituteVisits() {
+  const out = new Map();
+  for (const [k, a] of nightActions) if (a.kind === 'visit' && a.target && !isDeadKey(k) && arrestedTonight !== k) out.set(k, key(a.target));
+  return out;
+}
+function prostituteAway(name) {
+  const host = prostituteVisits().get(key(name));
+  return !!host && host !== key(name);
+}
+function prostituteGuestsAt(name) {
+  return [...prostituteVisits()].filter(([k, host]) => host === key(name) && k !== key(name)).map(([k]) => k);
+}
 function nightOutcome() {
   const all = livingKillers();
   if (!all.length) return { victim: null, reason: 'nokiller' };
@@ -643,11 +657,17 @@ function nightOutcome() {
   if (new Set(picks.map(key)).size > 1) return { victim: null, reason: 'disagree', picks };
   const target = picks[0];
   if (!userByName(target) || killedNames.has(key(target))) return { victim: null, reason: 'nopick' };
+  // The Prostitute: if she spends the night somewhere else she isn't home, so an attack on her finds nobody.
+  const away = prostituteAway(target);
+  if (away) return { victim: null, reason: 'away', target };
   if (isHealed(target)) return { victim: null, reason: 'saved', target };
-  return { victim: target, reason: 'killed' };
+  // Everyone staying the night at the victim's house dies with them.
+  const guests = prostituteGuestsAt(target).filter((g) => !isHealed(userByName(g)?.name || g));
+  return { victim: target, reason: 'killed', guests: guests.map((g) => userByName(g)?.name || g) };
 }
 const OUTCOME_TEXT = {
-  killed: (o) => `${o.victim} will die`,
+  killed: (o) => `${o.victim} will die` + (o.guests?.length ? `, and ${o.guests.join(' and ')} who stayed the night with them` : ''),
+  away: (o) => `${o.target} was attacked, but she spent the night somewhere else`,
   saved: (o) => `${o.target} was attacked but ${dk() ? 'Thomas Wayne' : 'the Doctor'} saved them`,
   disagree: () => 'The wolves did not agree on one victim',
   nopick: () => 'The killer did not choose anyone',
@@ -691,7 +711,7 @@ function abilityResults(outcome, vig = []) {
   // Everyone attacked tonight who survived because the Doctor protected them.
   const saved = new Set([...(outcome.reason === 'saved' ? [key(outcome.target)] : []), ...vig.filter((v) => v.saved).map((v) => key(v.target))]);
   for (const [k, r] of roles) {
-    if (!['werewolf', 'joker', 'dkjoker', 'ivy', 'doctor', 'detective', 'vigilante', 'batman', 'officer'].includes(r) || killedNames.has(k) || mutedNames.has(k)) continue;
+    if (!['prostitute', 'werewolf', 'joker', 'dkjoker', 'ivy', 'doctor', 'detective', 'vigilante', 'batman', 'officer'].includes(r) || killedNames.has(k) || mutedNames.has(k)) continue;
     const pick = nightActions.get(k)?.target || null;
     if (r === 'officer') {
       if (lastArrest && lastArrest.by === k) out.push([k, { kind: 'arrest', text: `You arrested ${lastArrest.target}. They could not use an ability last night.`, tone: 'neutral', target: lastArrest.target }]);
@@ -721,11 +741,20 @@ function abilityResults(outcome, vig = []) {
     } else if (isWolfRole(r)) {
       let text, tone;
       if (outcome.reason === 'killed') [text, tone] = [`You killed ${outcome.victim}.`, 'bad'];
+      else if (outcome.reason === 'away') [text, tone] = [`You broke into ${outcome.target}'s house, but nobody was home.`, 'neutral'];
       else if (outcome.reason === 'saved') [text, tone] = [`You attacked ${outcome.target}, but they survived. Someone protected them.`, 'neutral'];
       else if (outcome.reason === 'disagree') [text, tone] = ['The pack did not agree on one victim, so nobody was killed.', 'neutral'];
       else if (outcome.reason === 'skipped') [text, tone] = [single ? 'You chose not to kill anyone last night.' : 'The pack chose not to kill anyone last night.', 'neutral'];
       else [text, tone] = [single ? 'You did not choose anyone, so nobody was killed.' : 'Nobody was chosen, so nobody was killed.', 'neutral'];
       out.push([k, { kind: 'kill', text, tone, target: outcome.victim || outcome.target || pick }]);
+    } else if (r === 'prostitute') {
+      const host = pick;
+      if (!host || key(host) === k) {
+        if (arrestedTonight === k) continue;
+        out.push([k, { kind: 'visit', text: 'You spent the night at home.', tone: 'neutral' }]);
+      } else if (outcome.reason === 'away' && key(outcome.target) === k) {
+        out.push([k, { kind: 'visit', text: `The wolves came for you last night, but you were at ${host}'s place. You survived!`, tone: 'good', target: host }]);
+      } else out.push([k, { kind: 'visit', text: `You spent the night with ${host}. It was a quiet night.`, tone: 'neutral', target: host }]);
     } else if (r === 'doctor') {
       if (poisoned.has(k)) out.push([k, { kind: 'heal', text: 'You were poisoned last night and too dizzy to protect anyone.', tone: 'bad', target: pick }]);
       else if (!pick) out.push([k, { kind: 'heal', text: 'You did not protect anyone last night.', tone: 'neutral' }]);
@@ -892,10 +921,11 @@ function randomizeRoles(quiet = false) {
   const withFamily = !dk() && familyInPlay(players.length);
   // The Dark Knight: one Joker, plus the villains that are switched on.
   const villains = dk() ? ['dkjoker', ...['harley', 'ivy', 'clayface'].filter((r) => roleConfig[r])] : Array(roleConfig.werewolf).fill('werewolf');
-  const special = villains.length + roleConfig.doctor + roleConfig.detective + roleConfig.officer + (withFamily ? 3 : 0);
+  const pros = dk() ? 0 : roleConfig.prostitute || 0;
+  const special = villains.length + roleConfig.doctor + roleConfig.detective + roleConfig.officer + pros + (withFamily ? 3 : 0);
   if (players.length === 0) return 'There are no players to give roles to.';
   if (special > players.length) return `Not enough players: you picked ${special} special roles but there are only ${players.length} players.`;
-  const deck = [...villains, ...Array(roleConfig.doctor).fill('doctor'), ...Array(roleConfig.detective).fill('detective'), ...Array(roleConfig.officer).fill('officer'), ...(withFamily ? FAMILY : [])];
+  const deck = [...villains, ...Array(pros).fill('prostitute'), ...Array(roleConfig.doctor).fill('doctor'), ...Array(roleConfig.detective).fill('detective'), ...Array(roleConfig.officer).fill('officer'), ...(withFamily ? FAMILY : [])];
   while (deck.length < players.length) deck.push('civilian');
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -1256,7 +1286,7 @@ io.on('connection', (socket) => {
 
   socket.on('roles:config', (cfg = {}) => {
     if (!isMod(socket)) return;
-    for (const r of ['werewolf', 'doctor', 'detective', 'officer']) {
+    for (const r of ['werewolf', 'doctor', 'detective', 'officer', 'prostitute']) {
       const n = Number(cfg[r]);
       if (Number.isInteger(n) && n >= 0 && n <= 20) roleConfig[r] = n;
     }
@@ -1511,6 +1541,12 @@ io.on('connection', (socket) => {
         const card = callingCardFor(outcome.victim);
         killPlayer(outcome.victim);
         if (!list.some((r) => key(r.victim) === key(outcome.victim))) list = [{ victim: outcome.victim, card }, ...list];
+        // The Prostitute dies too if she stayed the night at the victim's house.
+        for (const g of outcome.guests || []) {
+          if (killedNames.has(key(g))) continue;
+          killPlayer(g);
+          list.push({ victim: g, card: null });
+        }
       }
       if (moderatorId) io.to(moderatorId).emit('notice', `🌅 ${OUTCOME_TEXT[outcome.reason](outcome)}.`);
       // The Vigilante's shot.
