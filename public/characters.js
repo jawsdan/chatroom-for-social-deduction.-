@@ -105,4 +105,19 @@ window.CHARACTERS = [
     spotDk: { day: { x: 800, y: 625 }, night: { x: 850, y: 655 } },
     heightDk: 150,
   },
+{
+    id: 'watcher',
+    name: 'The Watcher',
+    desc: 'Cap low, mask up. Already knows your secrets.',
+    img: 'img/characters/watcher.webp',
+    still: 'img/characters/watcher-still.png',
+    height: 140,
+    // Front and center, in front of the fire.
+    spot: { day: { x: 455, y: 505 }, night: { x: 455, y: 512 } },
+    spotHd: { day: { x: 640, y: 640 }, night: { x: 600, y: 655 } },
+    heightHd: 150,
+    // The Dark Knight: on the near rooftop by day, at the front of Amusement Mile by night.
+    spotDk: { day: { x: 455, y: 700 }, night: { x: 680, y: 695 } },
+    heightDk: 175,
+  },
 ];
