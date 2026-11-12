@@ -20,7 +20,7 @@ const ROLES = ['civilian', 'prostitute', 'werewolf', 'doctor', 'detective', 'off
 // against The Joker (the only killer), Harley Quinn (sidekick), Poison Ivy (poisons) and Clayface (disguise).
 let gameMode = 'classic'; // 'classic' | 'darkknight'
 // Chosen by the moderator for everyone: the background (live pixel village or videos) and whether role filters are allowed.
-const display = { background: 'pixel', filters: true, batman: true };
+const display = { background: 'pixel', filters: true, batman: false };
 // Batman filter off (Original mode): the Mother becomes the Maniac instead of the Joker, the Son the Punisher instead of Batman.
 const famName = (r) => (display.batman ? { joker: 'Joker', batman: 'Batman' } : { joker: 'Maniac', batman: 'Punisher' })[r];
 const dk = () => gameMode === 'darkknight';
