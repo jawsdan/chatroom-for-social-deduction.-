@@ -970,8 +970,9 @@ function threadKeys() {
 function renderThreadTabs() {
   const tabs = $('threadTabs');
   const show = amMod() && channel === 'mod';
-  // Phones use the players box on the left instead of the row of tabs and the role bar.
-  tabs.classList.toggle('hidden', !show || isPhone());
+  // The row of tabs and the role bar are replaced by the players-and-roles box (computers, iPads)
+  // and the players box on the left (phones).
+  tabs.classList.add('hidden');
   if (show) {
     const keys = threadKeys();
     if (selectedThread && !keys.has(selectedThread)) selectedThread = null;
@@ -993,7 +994,8 @@ function renderThreadTabs() {
       tabs.append(b);
     }
   }
-  $('roleBar').classList.toggle('hidden', !show || !selectedThread || isPhone());
+  $('roleBar').classList.add('hidden');
+  renderModDesk(show && !isPhone());
   renderPhoneThreads(show && isPhone());
   renderCheckBar(show);
   $('roleTarget').textContent = selectedThread ? displayName(selectedThread) : '';
@@ -1002,6 +1004,86 @@ function renderThreadTabs() {
   pb.innerHTML = '';
   if (cur) pb.append(roleIcon(cur), document.createTextNode(` ${ROLE[cur].label} · change ▾`));
   else pb.append(document.createTextNode('🎭 Choose a role ▾'));
+}
+
+// Moderator inbox on computers and iPads: one box with every player on the left (dead ones greyed out)
+// and the chosen player's role on the right, ready to change with one click.
+function renderModDesk(show) {
+  const box = $('modDesk');
+  box.classList.toggle('hidden', !show);
+  if (!show) {
+    box.dataset.sig = '';
+    return;
+  }
+  const keys = [...threadKeys()];
+  const roles = state.modView?.roles || {};
+  const online = new Set(state.users.map((u) => key(u.name)));
+  const dead = keys.filter((k) => isDeadName(displayName(k)));
+  const sig = JSON.stringify([keys, selectedThread, roles, dead, [...unreadThreads], [...online], state.mode, state.display?.batman, state.gameState]);
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  const scrolled = box.querySelector('.md-players')?.scrollTop || 0;
+  box.innerHTML = '';
+  const list = el('div', 'md-players');
+  if (!keys.length) list.append(el('p', 'md-empty', 'Players who join will show up here.'));
+  for (const k of keys) {
+    const isDead = dead.includes(k);
+    const b = el('button', 'md-player' + (k === selectedThread ? ' on' : '') + (isDead ? ' dead' : '') + (online.has(k) ? '' : ' offline'));
+    b.type = 'button';
+    const r = roles[k];
+    const txt = el('span', 'md-ptext');
+    txt.append(el('b', '', displayName(k) + (online.has(k) ? '' : ' (left)')));
+    const sub = el('span', 'md-prole');
+    if (r) sub.append(roleIcon(r), document.createTextNode(' ' + (ROLE[r]?.label || r)));
+    else sub.textContent = 'No role yet';
+    txt.append(sub);
+    b.append(avatar(displayName(k), 'sm'), txt);
+    if (isDead) b.append(el('span', 'md-dead', '💀'));
+    if (unreadThreads.has(k)) b.append(el('span', 'new'));
+    b.onclick = () => {
+      selectedThread = k;
+      renderAll();
+    };
+    list.append(b);
+  }
+  const side = el('div', 'md-roles');
+  if (selectedThread) {
+    const name = displayName(selectedThread);
+    const cur = roles[selectedThread] || null;
+    const head = el('div', 'md-head');
+    const title = el('span', 'md-title');
+    title.append(document.createTextNode('Role for '), el('b', '', name));
+    const clear = btn('btn-ghost md-clear', 'Clear role', () => socket.emit('mod:role', { to: name, role: null }));
+    clear.disabled = !cur;
+    head.append(title, clear);
+    side.append(head);
+    const chip = (r) => {
+      const on = cur === r || (r === 'werewolf' && cur === 'serialkiller');
+      const b = el('button', 'md-role' + (on ? ' on' : ''));
+      b.type = 'button';
+      b.append(roleIcon(r), el('span', '', ROLE[r].label));
+      b.onclick = () => !on && socket.emit('mod:role', { to: name, role: r });
+      if (!on && roleTakenByOther(r, name)) {
+        b.disabled = true;
+        b.classList.add('taken');
+        b.title = 'Already given to ' + displayName(Object.entries(roles).find(([, x]) => x === r)[0]);
+      }
+      return b;
+    };
+    const group = (title, cls, rs) => {
+      const g = el('div', 'md-group ' + cls);
+      g.append(el('div', 'md-gtitle', title));
+      const row = el('div', 'md-row');
+      for (const r of rs) row.append(chip(r));
+      g.append(row);
+      return g;
+    };
+    side.append(group(dkMode() ? '🦇 Gotham' : '🧑‍🌾 Village', 'md-good', pickVillage()), group(dkMode() ? '🃏 Villains' : '🐺 Wolves', 'md-bad', pickWolf()));
+    if (!dkMode()) side.append(group('Family transformations', 'md-later', PICK_LATER));
+  } else side.append(el('p', 'md-empty', 'Pick a player on the left.'));
+  box.append(list, side);
+  list.scrollTop = scrolled;
+  list.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
 }
 
 // Phone, moderator inbox: a box on the left with every player. Scroll, tap one to open their chat,
@@ -2577,8 +2659,10 @@ function isDeadName(n) {
 }
 function renderModOverview() {
   const box = $('modOverview');
-  const show = amMod() && channel === 'mod';
-  box.classList.toggle('hidden', !show);
+  // The alive / dead overview is no longer shown: dead players are greyed out in the players box,
+  // and the ability players are listed in the left corner.
+  const show = false;
+  box.classList.add('hidden');
   // Killer vs Wolf label on the answer button.
   const single = state.modView?.wolfCount === 1;
   $('checkWolfLabel').textContent = single ? 'Killer' : 'Wolf';
