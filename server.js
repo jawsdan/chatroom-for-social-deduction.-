@@ -20,7 +20,7 @@ const ROLES = ['civilian', 'prostitute', 'werewolf', 'doctor', 'detective', 'off
 // against The Joker (the only killer), Harley Quinn (sidekick), Poison Ivy (poisons) and Clayface (disguise).
 let gameMode = 'classic'; // 'classic' | 'darkknight'
 // Chosen by the moderator for everyone: the background (live pixel village or videos) and whether role filters are allowed.
-const display = { background: 'pixel', filters: true, lobby: true };
+const display = { background: 'pixel', filters: true };
 const dk = () => gameMode === 'darkknight';
 const DK_VILLAINS = ['dkjoker', 'harley', 'ivy', 'clayface'];
 const DK_ROLES = ['civilian', 'doctor', 'detective', 'officer', ...DK_VILLAINS];
@@ -1216,8 +1216,8 @@ io.on('connection', (socket) => {
     if (mutedNames.has(key(u.name))) {
       return socket.emit('notice', 'You are muted. You can only talk to the moderator until the chat is wiped.');
     }
-    // With the main chat hidden, messages are speech bubbles: at most 100 characters.
-    if (!display.lobby && t.length > 100) return socket.emit('notice', 'With the chat hidden, you can say at most 100 characters at once.');
+    // In the live pixel village the main chat is speech bubbles: at most 100 characters.
+    if (display.background !== 'video' && t.length > 100) return socket.emit('notice', 'In the village you can say at most 100 characters at once.');
     const m = msg(u.name, t, { moderator: isMod(socket) });
     push(lobby, m);
     io.emit('lobby:message', m);
@@ -1745,7 +1745,6 @@ io.on('connection', (socket) => {
     if (!isMod(socket)) return;
     if (['pixel', 'video'].includes(patch.background)) display.background = patch.background;
     if (typeof patch.filters === 'boolean') display.filters = patch.filters;
-    if (typeof patch.lobby === 'boolean') display.lobby = patch.lobby;
     broadcastState();
   });
 

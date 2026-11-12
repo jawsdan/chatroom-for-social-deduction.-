@@ -255,8 +255,8 @@ socket.on('state', (s) => {
     if (s.gameState !== 'waiting') openCharSelect();
   }
   if (channel === 'wolf' && !s.me.wolfAccess) channel = 'lobby';
-  // The moderator can hide the main chat's messages, so the village game is free to see.
-  document.body.classList.toggle('lobby-quiet', s.display?.lobby === false);
+  // Live pixel village: the main chat shows as speech bubbles over the characters. With the videos it's a normal chat.
+  document.body.classList.toggle('lobby-quiet', s.display?.background !== 'video');
   document.body.dataset.channel = channel;
   renderAll(false);
   // Players who picked a character stand by the fire.
@@ -1091,7 +1091,7 @@ $('aiToggle').onclick = () => {
 };
 function renderComposer() {
   // Speech-bubble mode (main chat hidden): 100 characters at most.
-  $('msgInput').maxLength = channel === 'lobby' && state?.display?.lobby === false ? 100 : 500;
+  $('msgInput').maxLength = channel === 'lobby' && state?.display?.background !== 'video' ? 100 : 500;
   const showToggle = channel === 'mod' && !amMod();
   $('aiToggle').classList.toggle('hidden', !showToggle);
   $('aiToggle').classList.toggle('on', aiMode);
@@ -2729,8 +2729,6 @@ function renderMainMenu() {
     page.append(menuTab('🌐', 'Filters for everyone', modOff ? 'Off for all players · tap to allow them again' : 'Allowed · each player can still turn theirs off · tap to turn off for all', () => socket.emit('display:set', { filters: modOff }), 'mt-filters-all'));
     const pix = state.display?.background !== 'video';
     page.append(menuTab('🖼️', 'Background for everyone', pix ? 'Live pixel village · tap for the videos' : 'Videos · tap for the live pixel village', () => socket.emit('display:set', { background: pix ? 'video' : 'pixel' }), 'mt-bg'));
-    const lobbyOn = state.display?.lobby !== false;
-    page.append(menuTab('💬', 'Main chat', lobbyOn ? 'Shown · messages cover the village · tap to hide them' : 'Hidden · the village is free to see, messages show as speech bubbles · tap to show them', () => socket.emit('display:set', { lobby: !lobbyOn }), 'mt-lobby'));
     page.append(menuTab('🛡️', 'Moderator', 'You run the game · hand over or step down', () => menuGo('mod'), 'mt-modr'));
   } else if (menuPage === 'mode') {
     back('Game mode');
