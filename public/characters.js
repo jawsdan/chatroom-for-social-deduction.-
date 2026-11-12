@@ -84,10 +84,25 @@ window.CHARACTERS = [
     height: 140,
     // Front right of the fire, across from the Joker.
     spot: { day: { x: 565, y: 525 }, night: { x: 560, y: 535 } },
-    spotHd: { day: { x: 985, y: 525 }, night: { x: 915, y: 655 } },
+    spotHd: { day: { x: 790, y: 520 }, night: { x: 860, y: 655 } },
     heightHd: 155,
     // The Dark Knight: on the near rooftop by day, by the clown booth at Amusement Mile by night.
     spotDk: { day: { x: 585, y: 705 }, night: { x: 985, y: 665 } },
     heightDk: 175,
+  },
+{
+    id: 'daisy',
+    name: 'Daisy',
+    desc: 'Always smiling, always holding a flower. Hard to suspect.',
+    img: 'img/characters/daisy.webp',
+    still: 'img/characters/daisy-still.png',
+    height: 120,
+    // On the grass behind the fire, a little to the left.
+    spot: { day: { x: 300, y: 362 }, night: { x: 300, y: 392 } },
+    spotHd: { day: { x: 520, y: 395 }, night: { x: 470, y: 560 } },
+    heightHd: 135,
+    // The Dark Knight: on the rooftop to the right by day, by the fence at Amusement Mile by night.
+    spotDk: { day: { x: 800, y: 625 }, night: { x: 850, y: 655 } },
+    heightDk: 150,
   },
 ];
