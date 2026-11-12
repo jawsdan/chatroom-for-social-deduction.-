@@ -500,7 +500,7 @@ socket.on('trial:result', (r) => {
     r.votes.forEach((v, i) => {
       const li = el('li');
       li.style.animationDelay = 0.25 + i * 0.08 + 's';
-      li.append(avatar(v.name, 'sm'), el('span', 'n', v.name), el('span', 'tag ' + (v.vote === 'guilty' ? 'muted' : 'mod'), v.vote));
+      li.append(avatar(v.name, 'sm'), el('span', 'n', v.name + (v.mayor ? ' 🎩' : '')), el('span', 'tag ' + (v.vote === 'guilty' ? 'muted' : 'mod'), v.vote + (v.mayor ? ' ×2' : '')));
       if (v.vote === 'innocent') li.lastChild.style.cssText = 'background:var(--success-soft);color:var(--success)';
       ul.append(li);
     });
@@ -851,6 +851,9 @@ function renderNav() {
   document.querySelector('#wolfNav .nav-label').textContent = dkMode() ? 'Amusement Mile' : 'Wolf den';
   document.querySelector('#wolfNav .ri').src = (ROLE_IMG[dkMode() ? 'dkjoker' : 'werewolf'] || '').replace('/roles/', '/roles/sm/');
   $('cardNav').classList.toggle('hidden', !state.me.canCard);
+  $('mayorNav').classList.toggle('hidden', !state.me.mayorVote);
+  $('mayorPill').classList.toggle('hidden', !state.me.mayorVote || !!state.me.mayorVote.my);
+  refreshMayorBox();
   $('cardMeta').textContent = state.me.callingCard ? '✓' : '';
   $('manifestoNav').classList.toggle('hidden', amMod());
   renderSideBox();
@@ -1684,6 +1687,7 @@ function renderPanel() {
     if (isMe) li.append(el('span', 'tag you', 'you'));
     if (u.bot) li.append(el('span', 'tag bot', '🤖 bot'));
     if (u.moderator) li.append(el('span', 'tag mod', 'mod'));
+    if (state.mayor && key(state.mayor) === key(u.name)) li.append(el('span', 'tag mayor', '🎩 mayor'));
     const isDead = state.dead?.includes(key(u.name));
     if (isDead) li.append(el('span', 'tag dead', '💀 dead'));
     else if (u.muted) li.append(el('span', 'tag muted', 'muted'));
@@ -2216,7 +2220,57 @@ function renderNightCard() {
 $('cardNav').onclick = () => openNoteEditor('card');
 $('manifestoNav').onclick = () => openNoteEditor('manifesto');
 $('disguiseNav').onclick = () => openDisguisePicker();
+$('mayorNav').onclick = () => openMayorBox();
 // Clayface: choose the role The Batman sees when he investigates you.
+// The mayor vote: a secret ballot among the living Civilians. Only the counts are shown.
+let mayorBoxOpen = false;
+function openMayorBox() {
+  closeDrawers();
+  mayorBoxOpen = true;
+  openModal(buildMayorBox);
+}
+function refreshMayorBox() {
+  if (!mayorBoxOpen) return;
+  if ($('modal').classList.contains('hidden') || !$('modalCard').classList.contains('mayor-box')) {
+    mayorBoxOpen = false;
+    return;
+  }
+  if (!state.me.mayorVote) {
+    mayorBoxOpen = false;
+    return closeModal();
+  }
+  const card = $('modalCard');
+  card.innerHTML = '';
+  buildMayorBox(card);
+}
+function buildMayorBox(card) {
+  const m = state.me.mayorVote;
+  card.classList.add('desk-box', 'mayor-box');
+  card.append(el('div', 'note-icon', '🗳️'));
+  card.append(el('h2', '', 'Vote for a mayor'));
+  card.append(el('p', 'hint', `The Civilians choose a mayor together, once per game. The mayor's vote in trials counts double. Your vote is secret. ${m.needed} of ${m.voters} Civilian votes elect a mayor.`));
+  const list = el('div', 'db-list');
+  for (const n of m.candidates) {
+    const mine = m.my && key(m.my) === key(n);
+    const row = el('button', 'db-row mayor-row' + (mine ? ' on' : ''));
+    row.type = 'button';
+    const c = m.counts[n] || 0;
+    const bar = el('span', 'mayor-bar');
+    bar.style.setProperty('--p', Math.min(100, (c / m.needed) * 100) + '%');
+    row.append(avatar(n, 'sm'), el('span', 'db-name', n + (key(n) === key(me) ? ' (you)' : '')), bar, el('span', 'db-state', `${c}/${m.needed}${mine ? ' · your vote' : ''}`));
+    row.onclick = () => socket.emit('mayor:vote', mine ? null : n);
+    list.append(row);
+  }
+  card.append(list);
+  const actions = el('div', 'actions');
+  actions.append(btn('btn-primary', 'Close', closeModal));
+  card.append(actions);
+}
+socket.on('mayor:elected', ({ name }) => {
+  window.PixelScene?.event('mayor', { name });
+  toast(`🎩 ${name} is the new mayor!`);
+});
+
 function openDisguisePicker() {
   const d = state.me.disguise;
   if (!d) return;
@@ -3306,6 +3360,7 @@ function renderPhoneDock() {
   items.push({ id: 'lobby', icon: '#', label: 'Lobby', on: channel === 'lobby', badge: pill(lobbyUnread), go: () => switchChannel('lobby') });
   items.push({ id: 'mod', icon: '🛡️', label: amMod() ? 'Inbox' : 'Mod', on: channel === 'mod', badge: pill(modUnread), go: () => switchChannel('mod') });
   if (state.me.wolfAccess) items.push({ id: 'wolf', img: dkMode() ? 'dkjoker' : 'werewolf', label: dkMode() ? 'Mile' : 'Wolves', on: channel === 'wolf', badge: pill(wolfUnread), lock: state.phase !== 'night', go: () => switchChannel('wolf') });
+  if (state.me.mayorVote) items.push({ id: 'mayor', icon: '🗳️', label: 'Mayor', badge: state.me.mayorVote.my ? '✓' : '!', go: openMayorBox });
   if (state.me.canCard) items.push({ id: 'card', img: 'card', label: 'Card', go: () => openNoteEditor('card') });
   if (!amMod()) items.push({ id: 'manifesto', icon: '📜', label: 'Will', go: () => openNoteEditor('manifesto') });
   if (state.me.disguise) items.push({ id: 'disguise', icon: '🎭', label: 'Disguise', go: openDisguisePicker });

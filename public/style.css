@@ -2236,3 +2236,10 @@ body.team-sk.filters-off.night {
 .note-icon .card-emblem { width: 120px; height: 120px; object-fit: contain; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35)); }
 .nav-icon .card-emblem-sm { width: 26px; height: 26px; object-fit: contain; }
 .mm-tab-icon .card-emblem-sm, .dock-icon img.ri { object-fit: contain; }
+
+/* Mayor vote */
+.tag.mayor { background: #fef3c7; color: #92400e; text-transform: none; letter-spacing: 0; }
+.mayor-row { width: 100%; text-align: left; cursor: pointer; position: relative; overflow: hidden; color: var(--text); font: inherit; }
+.mayor-row:hover { border-color: var(--accent); }
+.mayor-row.on { border-color: #d97706; }
+.mayor-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: var(--p); background: #d97706; transition: width 0.4s; }

@@ -191,6 +191,7 @@ function broadcastState() {
     nightNumber,
     mode: gameMode,
     display,
+    mayor,
     gameState,
     serverNow: Date.now(),
     trial: trialPublic,
@@ -217,6 +218,8 @@ function broadcastState() {
       abilityLog: abilityLog.get(key(u.name)) || [],
       role: id === moderatorId ? null : myRole,
       wolfAccess: hasWolfAccess(id),
+      // Civilians who are alive can vote for a mayor until one is elected (secret: only the counts are shown).
+      mayorVote: gameState === 'running' && !mayor && id !== moderatorId && isCivilianVoter(key(u.name)) ? { ...mayorTally(), my: mayorVotes.get(key(u.name)) || null, candidates: mayorCandidates() } : null,
       wolfmates: isWolfRole(myRole) ? wolfNames() : [],
       packRoles: isWolfRole(myRole) ? Object.fromEntries(wolfNames().map((n) => [key(n), displayRole(n)])) : {},
       disguise: myRole === 'clayface' ? { role: disguises.get(key(u.name)) || 'civilian', options: CLAY_OPTIONS } : null,
@@ -364,6 +367,8 @@ function wipeEverything(reason) {
   batmanSeen = new Set();
   startWolves = 0;
   killedNames = new Set();
+  mayor = null;
+  mayorVotes = new Map();
   disguises = new Map();
   selfHealedLastNight = new Set();
   deathAt = new Map();
@@ -387,18 +392,64 @@ function wipeEverything(reason) {
   io.emit('phase:changed', { phase, silent: true });
 }
 
+// ---- The mayor: the Civilians elect one player once per game; the mayor's trial vote counts double ----
+let mayor = null; // the elected player's name
+let mayorVotes = new Map(); // civilian key -> candidate name (secret ballot)
+const isCivilianVoter = (k) => roles.get(k) === 'civilian' && !isDeadKey(k);
+function mayorCandidates() {
+  return [...users.values()].filter((u) => u.id !== moderatorId && !isDeadKey(key(u.name))).map((u) => u.name);
+}
+function mayorTally() {
+  const voters = [...roles.keys()].filter(isCivilianVoter);
+  const counts = {};
+  for (const k of voters) {
+    const c = mayorVotes.get(k);
+    if (c && userByName(c) && !isDeadKey(key(c))) counts[c] = (counts[c] || 0) + 1;
+  }
+  // A candidate needs more than half of the living Civilians.
+  return { counts, voters: voters.length, needed: Math.floor(voters.length / 2) + 1 };
+}
+function checkMayor() {
+  if (mayor || gameState !== 'running') return;
+  const t = mayorTally();
+  if (!t.voters) return;
+  const winner = Object.entries(t.counts).find(([, n]) => n >= t.needed);
+  if (!winner) return;
+  mayor = userByName(winner[0])?.name || winner[0];
+  mayorVotes = new Map();
+  systemLobby(`🎩 The villagers have spoken: ${mayor} is the new mayor! Their vote in trials now counts double.`);
+  io.emit('mayor:elected', { name: mayor });
+}
+// Bot Civilians follow the leading candidate a little after someone votes.
+function scheduleBotMayorVotes() {
+  for (const b of bots()) {
+    const k = key(b.name);
+    if (!isCivilianVoter(k) || mayorVotes.has(k)) continue;
+    setTimeout(() => {
+      if (mayor || !isCivilianVoter(k) || mayorVotes.has(k)) return;
+      const t = mayorTally();
+      const lead = Object.entries(t.counts).sort((a, c) => c[1] - a[1])[0]?.[0];
+      const pool = mayorCandidates();
+      mayorVotes.set(k, lead || pool[Math.floor(Math.random() * pool.length)]);
+      checkMayor();
+      broadcastState();
+    }, 1500 + Math.random() * 3000);
+  }
+}
+const voteWeight = (name) => (mayor && key(name) === key(mayor) && !isDeadKey(key(mayor)) ? 2 : 1);
+
 function finishTrial() {
   if (!trial || !trial.open) return;
   let guilty = 0;
   let innocent = 0;
-  for (const v of trial.votes.values()) v === 'guilty' ? guilty++ : innocent++;
+  for (const [n, v] of trial.votes) v === 'guilty' ? (guilty += voteWeight(n)) : (innocent += voteWeight(n));
   trial.open = false;
   trial.result = guilty > innocent ? 'guilty' : 'innocent';
   if (trial.result === 'guilty') {
     mutedNames.add(key(trial.accusedName));
     deathAt.set(key(trial.accusedName), now());
   }
-  const breakdown = [...trial.votes.entries()].map(([n, v]) => `${n}: ${v}`).join(', ') || 'no votes';
+  const breakdown = [...trial.votes.entries()].map(([n, v]) => `${n}${voteWeight(n) > 1 ? ' (mayor, ×2)' : ''}: ${v}`).join(', ') || 'no votes';
   systemLobby(
     `Trial of ${trial.accusedName} is over: ${trial.result.toUpperCase()} (${guilty} guilty / ${innocent} innocent). Votes — ${breakdown}.` +
       (trial.result === 'guilty' ? (toArkham(trial.accusedName) ? ` 🏚️ ${trial.accusedName} is sent to Arkham Asylum.` : ` ${trial.accusedName} is muted and can only talk to the moderator.`) : '')
@@ -408,7 +459,7 @@ function finishTrial() {
     result: trial.result,
     guilty,
     innocent,
-    votes: [...trial.votes.entries()].map(([name, vote]) => ({ name, vote })),
+    votes: [...trial.votes.entries()].map(([name, vote]) => ({ name, vote, mayor: voteWeight(name) > 1 })),
     wolf: trial.result === 'guilty' && isWerewolf(trial.accusedName) && !hardMode(),
   });
   if (trial.result === 'guilty') revealDeath({ victim: trial.accusedName, card: null, announce: false });
@@ -1629,6 +1680,23 @@ io.on('connection', (socket) => {
     } else if (wipeVotes.has(socket.id)) wipeVotes.delete(socket.id);
     else wipeVotes.add(socket.id);
     checkWipe();
+    broadcastState();
+  });
+
+  // ---- Mayor vote (Civilians) ----
+  socket.on('mayor:vote', (name) => {
+    const u = me();
+    if (!u || mayor || gameState !== 'running') return;
+    const k = key(u.name);
+    if (!isCivilianVoter(k)) return socket.emit('notice', 'Only living Civilians can vote for the mayor.');
+    if (name === null) mayorVotes.delete(k);
+    else {
+      const c = mayorCandidates().find((n) => key(n) === key(String(name || '')));
+      if (!c) return;
+      mayorVotes.set(k, c);
+      scheduleBotMayorVotes();
+    }
+    checkMayor();
     broadcastState();
   });
 

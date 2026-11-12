@@ -1176,6 +1176,10 @@
       } else if (kind === 'trial') addFx('banner', { dur: 2.6, text: `⚖️  ${data.accused} is on trial`, col: '#fde68a' });
       else if (kind === 'arrest') addFx('police', { dur: 5 });
       else if (kind === 'clue') addFx('note', { dur: 3 });
+      else if (kind === 'mayor') {
+        addFx('banner', { dur: 3, text: `🎩  ${data.name} is the new mayor`, col: '#fde68a' });
+        addFx('confetti', { dur: 3.5 });
+      }
       else if (kind === 'start') {
         addFx('flash', { dur: 0.8, a: 0.4 });
         addFx('confetti', { dur: 3.5 });
