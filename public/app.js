@@ -3421,13 +3421,19 @@ function renderCharGrid() {
     });
   };
   opts.forEach((o, i) => {
+    // Two groups: your own characters, then the villagers (Random gives you a villager too).
+    const group = o.villager || !o.id ? 'Villagers' : 'Characters';
+    const prevGroup = i > 0 && (opts[i - 1].villager || !opts[i - 1].id ? 'Villagers' : 'Characters');
+    if (group !== prevGroup) grid.append(el('div', 'char-cat', group));
     const holder = o.id && takenBy.get(o.id);
     const b = el('button', 'char-tile' + (mine === o.id ? ' on' : '') + (holder ? ' taken' : '') + (i === charIdx ? ' shown' : ''));
     b.type = 'button';
     b.disabled = !!holder;
     const pic = el('div', 'char-pic');
     pic.innerHTML = o.img ? `<img src="${o.img}" alt="" draggable="false"${o.villager ? ' class="pixelated"' : ''}>` : '<div class="char-none">🎲</div>';
-    b.append(pic, el('div', 'char-name', o.name));
+    b.append(pic);
+    if (group === 'Villagers') b.append(el('div', 'char-kind', 'Villager'));
+    b.append(el('div', 'char-name', o.name));
     // Only say something under the name when someone else already has this character.
     if (holder) b.append(el('div', 'char-desc', `Taken by ${holder}`));
     if (mine === o.id) b.append(el('span', 'char-check', '✓'));

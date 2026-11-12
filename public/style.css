@@ -2289,3 +2289,11 @@ body.lobby-quiet .trial-banner {
 .firekeeper.ring.hanged.own-hang .fk-img { filter: none; }
 /* Pixel villagers on the character select: keep the pixels crisp. */
 .char-pic img.pixelated { image-rendering: pixelated; }
+/* Character select: group headings (Characters / Villagers) */
+.char-cat { grid-column: 1 / -1; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #6b7280; margin: 6px 2px -4px; }
+.char-cat:not(:first-child) { margin-top: 14px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
+.char-kind { display: none; }
+@media (max-width: 760px) {
+  .char-grid.carousel .char-cat { display: none; }
+  .char-grid.carousel .char-kind { display: block; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #6b7280; margin-top: 6px; }
+}
