@@ -1098,7 +1098,7 @@ function renderPhoneThreads(show) {
   box.style.maxHeight = Math.max(160, $('composer').offsetTop - top - 10) + 'px';
   const keys = [...threadKeys()];
   const roles = state.modView?.roles || {};
-  const sig = JSON.stringify([keys, selectedThread, roles, [...unreadThreads], state.dead, state.users.map((u) => u.name)]);
+  const sig = JSON.stringify([keys, selectedThread, roles, [...unreadThreads], state.dead, state.users.map((u) => u.name), modCleared[selectedThread] || 0]);
   if (box.dataset.sig === sig) return;
   box.dataset.sig = sig;
   const oldList = box.querySelector('.pt-list');
@@ -1106,6 +1106,14 @@ function renderPhoneThreads(show) {
   box.innerHTML = '';
   const head = el('div', 'pt-head');
   head.append(el('span', 'pt-title', `👥 Players ${keys.length}`));
+  if (selectedThread) {
+    const cleared = !!modCleared[selectedThread];
+    const cb = el('button', 'pt-clear', cleared ? '↺ Show all' : '🧹 Clear');
+    cb.type = 'button';
+    cb.title = cleared ? 'Show the whole chat again' : `Hide the chat with ${displayName(selectedThread)} on your screen`;
+    cb.onclick = toggleModClear;
+    head.append(cb);
+  }
   box.append(head);
   if (selectedThread) {
     const cur = roles[selectedThread];
@@ -1865,12 +1873,41 @@ function renderPanel() {
 }
 
 // ---------- Messages ----------
-function currentMessages() {
+// The moderator can clear a player's chat from their own screen (phones): older messages are hidden
+// on this device only, new ones still show. "Show all" brings them back.
+let modCleared = (() => {
+  try {
+    return JSON.parse(localStorage.getItem('modCleared') || '{}');
+  } catch {
+    return {};
+  }
+})();
+function saveModCleared() {
+  try {
+    localStorage.setItem('modCleared', JSON.stringify(modCleared));
+  } catch {}
+}
+function toggleModClear() {
+  const k = selectedThread;
+  if (!k) return;
+  if (modCleared[k]) delete modCleared[k];
+  else {
+    const all = currentMessages(true);
+    if (!all.length) return;
+    modCleared[k] = Math.max(...all.map((m) => m.ts || 0));
+  }
+  saveModCleared();
+  $('phoneThreads').dataset.sig = '';
+  renderAll();
+}
+function currentMessages(all = false) {
   if (channel === 'lobby') return lobbyMsgs;
   // Players: the moderator chat and the AI helper's answers, in time order.
   if (channel === 'mod') {
     const [chat, ai, asker] = amMod() ? [modThreads[selectedThread] || [], aiThreads[selectedThread] || [], displayName(selectedThread || '')] : [myThread, aiMsgs, me];
-    return [...chat, ...ai.map((m) => aiView(m, asker))].sort((a, b) => a.ts - b.ts);
+    const list = [...chat, ...ai.map((m) => aiView(m, asker))].sort((a, b) => a.ts - b.ts);
+    const cut = amMod() && !all && modCleared[selectedThread];
+    return cut ? list.filter((m) => (m.ts || 0) > cut) : list;
   }
   if (channel === 'wolf') return wolfMsgs || [];
   return [];
@@ -1893,7 +1930,9 @@ function renderMessages() {
       if (amMod()) {
         box.append(
           selectedThread
-            ? emptyState('💬', `No messages with ${displayName(selectedThread)} yet`, 'Send a private message or give them a role above.')
+            ? modCleared[selectedThread]
+              ? emptyState('🧹', 'Chat cleared', `Only new messages with ${displayName(selectedThread)} show here. Tap Show all to see the old ones.`)
+              : emptyState('💬', `No messages with ${displayName(selectedThread)} yet`, 'Send a private message or give them a role above.')
             : emptyState('🛡️', 'Your inbox is empty', 'Players who join will show up here.')
         );
       } else box.append(emptyState('🤫', 'Just you and the moderator', 'Nobody else can see what you write here. Switch on 🤖 AI to ask the AI helper about the rules or your role.'));
