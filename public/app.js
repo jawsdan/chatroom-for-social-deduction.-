@@ -56,14 +56,14 @@ const ROLE_BASE = Object.fromEntries(Object.keys(DK_SKIN).map((k) => [k, { role:
 let skinMode = 'classic';
 const dkMode = () => skinMode === 'darkknight';
 // Switch labels, pictures and the look when the moderator changes the game mode.
-// Batman filter off (Original mode): the Mother's Joker becomes the Maniac, the Son's Batman the Outlaw.
+// Batman filter off (Original mode): the Mother's Joker becomes the Maniac, the Son's Batman the Private Investigator.
 const FAM_SKIN = {
   joker: { label: 'Maniac', img: 'maniac', icon: '🪓', desc: 'Your Son is gone, and grief has broken your mind. You now hunt with the wolves: join the wolf den and pick a victim with the pack at night.' },
-  batman: { label: 'The Outlaw', img: 'punisher', icon: '💀', desc: 'Your parents are gone, and you want justice. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
-  // The Father keeps his name, but gets the picture that matches the Maniac and the Outlaw.
+  batman: { label: 'Private Investigator', img: 'punisher', icon: '🕵️', desc: 'Your parents are gone, and you want justice. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
+  // The Father keeps his name, but gets the picture that matches the Maniac and the Private Investigator.
   vigilante: { img: 'vigilante2' },
   mother: { desc: 'You are part of the family, on the village side. If your Son dies, grief turns you into the Maniac and you join the wolves.' },
-  son: { desc: 'You are part of the family, on the village side. If both your parents die, you become the Outlaw.' },
+  son: { desc: 'You are part of the family, on the village side. If both your parents die, you become the Private Investigator.' },
 };
 let famSkinOff = false;
 const FAM_BASE = {};
@@ -2772,7 +2772,7 @@ function renderMainMenu() {
     const batIcon = el('img');
     batIcon.src = ROLE_IMG[bat ? 'batman' : 'punisher'];
     batIcon.alt = '';
-    page.append(menuTab(batIcon, 'Batman filter', bat ? 'On · the family turns into the Joker, the Vigilante and Batman · tap to turn off' : 'Off · the family turns into the Maniac, the Vigilante and the Outlaw · tap to turn on', () => socket.emit('display:set', { batman: !bat }), 'mt-batfilter'));
+    page.append(menuTab(batIcon, 'Batman filter', bat ? 'On · the family turns into the Joker, the Vigilante and Batman · tap to turn off' : 'Off · the family turns into the Maniac, the Vigilante and the Private Investigator · tap to turn on', () => socket.emit('display:set', { batman: !bat }), 'mt-batfilter'));
     page.append(el('p', 'mm-note', 'The Batman filter is for the Original game mode. The Dark Knight always uses its own roles.'));
   } else if (menuPage === 'mode') {
     back('Game mode');
@@ -3807,8 +3807,8 @@ socket.on('arrested', () => {
 socket.on('batman:rise', ({ you, name, secret }) => {
   const show = () =>
     openModal((card) => {
-      const who = famSkinOff ? 'the Outlaw' : 'Batman';
-      const Who = famSkinOff ? 'The Outlaw' : 'Batman';
+      const who = famSkinOff ? 'the Private Investigator' : 'Batman';
+      const Who = famSkinOff ? 'The Private Investigator' : 'Batman';
       card.append(el('div', 'note-icon', famSkinOff ? '💀' : '🦇'));
       card.append(el('h2', '', you ? `You have become ${who}` : name ? `${name} has become ${who}` : `${Who} has risen`));
       if (!famSkinOff) card.append(killVideo('batman'));
