@@ -296,7 +296,8 @@ window.SCENE_HD = (function () {
     // Hide the side-view characters while the ring is up.
     for (const el of els.values()) el.remove();
     els.clear();
-    ringList = list.filter((p) => !p.mod);
+    // The moderator only stands in the ring if they picked a character (like by the fire in video mode).
+    ringList = list.filter((p) => !p.mod || p.character);
     ringInfo = { phase: newPhase, ...(info || {}) };
     const names = new Set(ringList.map((p) => p.name));
     for (const [name, el] of ringEls) {

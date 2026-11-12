@@ -619,6 +619,9 @@ function maybeShowTrialPopup() {
   const t = state?.trial;
   if (!t || !t.open || trialPopupShownFor === t.accused) return;
   trialPopupShownFor = t.accused;
+  // Live pixel village: no big popup. The village shows the title for a moment and the accused
+  // walks onto the stand; voting is in the small trial bar at the top.
+  if (document.body.classList.contains('lobby-quiet')) return;
   const voting = canVote();
   openModal((card) => {
     const art = el('div', 'art');

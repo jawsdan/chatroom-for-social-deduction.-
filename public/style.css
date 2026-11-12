@@ -2266,3 +2266,20 @@ body.lobby-quiet[data-channel="lobby"] #messages > * { display: none; }
 /* Long words without spaces wrap inside the bubble instead of running out of it */
 .fk-say { overflow-wrap: anywhere; word-break: break-word; box-sizing: border-box; }
 .mm-tab.mt-batfilter .mm-tab-icon { background: #1f2333; border-radius: 50%; }
+/* Live pixel village: the trial bar sits over the village, so give it a solid card to stay readable. */
+body.lobby-quiet .trial-banner {
+  background: color-mix(in srgb, var(--surface) 94%, transparent); border-radius: 14px;
+  border: 2px solid #e9b949; box-shadow: 0 8px 22px rgba(10, 12, 30, 0.25); margin-bottom: 6px;
+}
+/* Phones: a slim row just above the message box, so the plaza and the accused stay in view. */
+@media (max-width: 760px) {
+  body.lobby-quiet[data-channel="lobby"] .trial-banner { order: 1; margin: 0 6px 2px; }
+  body.lobby-quiet[data-channel="lobby"] #checkBar, body.lobby-quiet[data-channel="lobby"] #composer { order: 2; }
+  body.lobby-quiet .trial-banner { padding: 6px 10px; gap: 8px; flex-wrap: nowrap; animation: none; }
+  body.lobby-quiet .trial-banner .scales { display: none; }
+  body.lobby-quiet .trial-banner .t-text { min-width: 0; }
+  body.lobby-quiet .trial-banner .t-title { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body.lobby-quiet .trial-banner .t-sub { font-size: 0.72rem; }
+  body.lobby-quiet .trial-banner .t-actions { gap: 6px; flex-shrink: 0; }
+  body.lobby-quiet .trial-banner .t-actions .btn { padding: 7px 11px; font-size: 0.85rem; }
+}

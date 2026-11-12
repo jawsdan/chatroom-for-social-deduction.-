@@ -1173,7 +1173,7 @@
         }
         window.sceneRelayout?.();
         setTimeout(() => window.sceneRelayout?.(), 650);
-      } else if (kind === 'trial') addFx('banner', { dur: 2.6, text: `⚖️  ${data.accused} is on trial`, col: '#fde68a' });
+      } else if (kind === 'trial') addFx('banner', { dur: 2, text: `⚖️  ${data.accused} is on trial`, col: '#fde68a' });
       else if (kind === 'arrest') addFx('police', { dur: 5 });
       else if (kind === 'clue') addFx('note', { dur: 3 });
       else if (kind === 'mayor') {
