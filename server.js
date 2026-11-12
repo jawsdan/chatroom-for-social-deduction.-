@@ -1213,7 +1213,6 @@ io.on('connection', (socket) => {
     const u = me();
     const t = cleanText(text);
     if (!u || !t) return;
-    if (!display.lobby) return socket.emit('notice', 'The moderator has turned off the main chat.');
     if (mutedNames.has(key(u.name))) {
       return socket.emit('notice', 'You are muted. You can only talk to the moderator until the chat is wiped.');
     }

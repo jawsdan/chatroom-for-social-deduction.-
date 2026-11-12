@@ -265,6 +265,16 @@ window.SCENE_HD = (function () {
     const b = el.querySelector('.fk-say');
     b.textContent = text.length > 70 ? text.slice(0, 68) + '…' : text;
     b.classList.add('on');
+    // Keep the bubble on screen: slide it sideways if it would stick out.
+    b.style.marginLeft = '0px';
+    requestAnimationFrame(() => {
+      const r = b.getBoundingClientRect();
+      const pad = 8;
+      let dx = 0;
+      if (r.left < pad) dx = pad - r.left;
+      else if (r.right > innerWidth - pad) dx = innerWidth - pad - r.right;
+      b.style.marginLeft = dx + 'px';
+    });
     clearTimeout(el._say);
     el._say = setTimeout(() => b.classList.remove('on'), 4500);
   };

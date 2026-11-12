@@ -2256,3 +2256,11 @@ body.role-pink { --accent: #db2777; --accent-2: #ec4899; --accent-soft: #fce7f3;
 body.role-pink.night { --accent-soft: #4a1630; }
 body.role-pink:not(.night) { --bg: #fbe4ef; --surface: #fff5fa; --surface-2: #fde4f0; --surface-3: #f9cfe3; --border: #f5bcd8; --bubble: #fff5fa; --muted: #9d5a7c; --text-2: #6b2f4e; }
 body.role-pink.night { --bg: #1e0a16; --surface: #2a0d1f; --surface-2: #3a1229; --surface-3: #4b1836; --border: #5c1d42; --bubble: #3a1229; --muted: #c08aa8; --text-2: #f0bcd8; --accent: #f472b6; --accent-2: #f9a8d4; }
+
+/* Main chat hidden by the moderator: in the lobby the messages step aside so the village can be seen.
+   You can still type; what you say pops up as a speech bubble over your character. */
+body.lobby-quiet[data-channel="lobby"] #messages > * { display: none; }
+body.lobby-quiet[data-channel="lobby"] #messages::after {
+  content: '💬 The chat is hidden. What you say shows above your character.'; display: block; margin: auto auto 6px; padding: 4px 12px; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 600; color: var(--text-2); background: color-mix(in srgb, var(--surface) 75%, transparent); width: max-content; max-width: 90%;
+}
