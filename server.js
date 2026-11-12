@@ -15,7 +15,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const MAX_MSG = 500;
 const MAX_HISTORY = 300;
-const ROLES = ['civilian', 'prostitute', 'prophet', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman', 'dkjoker', 'harley', 'ivy', 'clayface'];
+const ROLES = ['civilian', 'prostitute', 'prophet', 'demon', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman', 'dkjoker', 'harley', 'ivy', 'clayface'];
 // Game mode "The Dark Knight": Citizen, Thomas Wayne (doctor), The Batman (detective), Commissioner Gordon (officer)
 // against The Joker (the only killer), Harley Quinn (sidekick), Poison Ivy (poisons) and Clayface (disguise).
 let gameMode = 'classic'; // 'classic' | 'darkknight'
@@ -26,12 +26,12 @@ const famName = (r) => (display.batman ? { joker: 'Joker', batman: 'Batman' } : 
 const dk = () => gameMode === 'darkknight';
 const DK_VILLAINS = ['dkjoker', 'harley', 'ivy', 'clayface'];
 const DK_ROLES = ['civilian', 'doctor', 'detective', 'officer', ...DK_VILLAINS];
-const CLASSIC_ROLES = ['civilian', 'prostitute', 'prophet', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman'];
+const CLASSIC_ROLES = ['civilian', 'prostitute', 'prophet', 'demon', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman'];
 const DK_LABEL = { civilian: 'Citizen', doctor: 'Thomas Wayne', detective: 'The Batman', officer: 'Commissioner Gordon', dkjoker: 'The Joker', harley: 'Harley Quinn', ivy: 'Poison Ivy', clayface: 'Clayface' };
 const CLAY_OPTIONS = ['civilian', 'doctor', 'officer', 'dkjoker', 'harley', 'ivy']; // every role except Batman
 let disguises = new Map(); // Clayface's key -> the role Batman sees
 // Roles on the killers' side. The Joker joins the wolves when the Son dies.
-const WOLF_ROLES = ['werewolf', 'joker', ...['dkjoker', 'harley', 'ivy', 'clayface']];
+const WOLF_ROLES = ['werewolf', 'joker', 'demon', ...['dkjoker', 'harley', 'ivy', 'clayface']];
 const isWolfRole = (r) => WOLF_ROLES.includes(r);
 const FAMILY = ['mother', 'father', 'son'];
 const UNIQUE_ROLES = ['mother', 'father', 'son', 'joker', 'vigilante', 'batman', 'dkjoker', 'harley', 'ivy', 'clayface'];
@@ -54,7 +54,7 @@ let wipeVotes = new Set(); // socket ids of players who voted to wipe everything
 // family: 'auto' = the Mother/Father/Son trio is dealt when 20+ players joined; 'on' / 'off' to force it.
 // difficulty: 'normal' announces family changes and shows the werewolf death animation; 'hard' reveals nothing on death.
 // interrogate: Batman's Interrogate ability (only in games that started with 4+ wolves).
-const roleConfig = { werewolf: 2, doctor: 1, detective: 1, officer: 0, prostitute: 0, prophet: 0, family: 'auto', difficulty: 'normal', interrogate: true, harley: true, ivy: true, clayface: true }; // the rest are civilians
+const roleConfig = { werewolf: 2, doctor: 1, detective: 1, officer: 0, prostitute: 0, prophet: 0, demon: 0, family: 'auto', difficulty: 'normal', interrogate: true, harley: true, ivy: true, clayface: true }; // the rest are civilians
 let nextMsgId = 1;
 let nextBotId = 1;
 // The Officer's arrest: made by day; the arrested player can't vote that day
@@ -84,6 +84,8 @@ let pendingReveals = []; // deaths at night, revealed when day starts
 // The Prophet: the first time he dies he rises again on the third day (counting the day he died as the first).
 // On Hard only a death by trial counts. prophetRise: key -> the day he comes back. prophetUsed: his second life is spent.
 let prophetRise = new Map();
+// The Demon: demon key -> the player he is attached to. They look evil to anyone who investigates them.
+let possessed = new Map();
 let prophetUsed = new Set();
 // Day 1 is the first day; night N belongs to day N (it follows it).
 const dayNumber = () => (phase === 'day' ? nightNumber + 1 : nightNumber);
@@ -117,7 +119,14 @@ function cleanText(t) {
 }
 
 // ---- Roles ----
+// The killers on the wolf team (the Demon is on their side, but doesn't kill, so a lone werewolf is still the Serial Killer).
 function wolfCount() {
+  let n = 0;
+  for (const r of roles.values()) if (isWolfRole(r) && r !== 'demon') n++;
+  return n;
+}
+// Everyone on the wolf team, the Demon included.
+function teamCount() {
   let n = 0;
   for (const r of roles.values()) if (isWolfRole(r)) n++;
   return n;
@@ -139,7 +148,7 @@ function hasWolfAccess(socketId) {
   if (socketId === moderatorId) return true;
   const u = users.get(socketId);
   if (gameState === 'assigning') return false; // nothing is revealed until the game starts
-  return !!u && isWolfRole(roles.get(key(u.name))) && wolfCount() >= 2;
+  return !!u && isWolfRole(roles.get(key(u.name))) && teamCount() >= 2;
 }
 function wolfNames() {
   return [...roles.entries()].filter(([, r]) => isWolfRole(r)).map(([k]) => userByName(k)?.name || k);
@@ -270,6 +279,7 @@ function broadcastState() {
         outcome: phase === 'night' ? OUTCOME_TEXT[nightOutcome().reason](nightOutcome()) : null,
         detectiveMode,
         disguises: Object.fromEntries(disguises),
+        possessed: [...possessedNow().values()].map((k) => userByName(k)?.name || k),
         notes: Object.fromEntries([...roles.keys()].map((k) => [k, { manifesto: manifestos.get(k) || '', card: callingCards.get(k) || '' }])),
       };
     }
@@ -389,6 +399,7 @@ function wipeEverything(reason) {
   pendingReveals = [];
   prophetRise = new Map();
   prophetUsed = new Set();
+  possessed = new Map();
   trial = null;
   phase = 'day';
   phaseStartedAt = Date.now();
@@ -507,8 +518,8 @@ function becomeModerator(socket) {
 }
 
 // ---- Night actions ----
-const ACTION_FOR_ROLE = { prostitute: 'visit', werewolf: 'kill', joker: 'kill', dkjoker: 'kill', ivy: 'poison', doctor: 'heal', detective: 'investigate', vigilante: 'vigil' };
-const ACTION_VERB = { visit: 'spend the night with', kill: 'kill', heal: 'heal', investigate: 'investigate', vigil: 'kill', poison: 'poison' };
+const ACTION_FOR_ROLE = { demon: 'possess', prostitute: 'visit', werewolf: 'kill', joker: 'kill', dkjoker: 'kill', ivy: 'poison', doctor: 'heal', detective: 'investigate', vigilante: 'vigil' };
+const ACTION_VERB = { possess: 'possess', visit: 'spend the night with', kill: 'kill', heal: 'heal', investigate: 'investigate', vigil: 'kill', poison: 'poison' };
 function actionKindFor(name) {
   const r = roles.get(key(name));
   if (r === 'batman') return canInterrogate(key(name)) ? 'interrogate' : null;
@@ -545,7 +556,7 @@ function validTargets(actorName) {
     if (kind === 'heal') return !self || !selfHealedLastNight.has(key(actorName)); // themselves too, but not two nights in a row
     if (kind === 'visit') return true; // her own place counts as staying home
     if (self) return false;
-    if ((kind === 'kill' || kind === 'poison') && isWolfRole(roles.get(key(u.name)))) return false; // villains don't target each other
+    if ((kind === 'kill' || kind === 'poison' || kind === 'possess') && isWolfRole(roles.get(key(u.name)))) return false; // villains don't target each other
     return true;
   }).map((u) => u.name);
 }
@@ -687,6 +698,21 @@ function poisonedTonight() {
   for (const [k, a] of nightActions) if (a.kind === 'poison' && a.target && !isDeadKey(k) && arrestedTonight !== k) out.add(key(a.target));
   return out;
 }
+// Who the Demon is attached to right now: tonight's pick (if he made one), else the one he already holds.
+// It lets go when the Demon or that player dies.
+function possessedNow() {
+  const out = new Map();
+  for (const [k, r] of roles) {
+    if (r !== 'demon' || isDeadKey(k)) continue;
+    const pick = arrestedTonight === k ? null : nightActions.get(k);
+    const t = pick?.kind === 'possess' && pick.target ? key(pick.target) : possessed.get(k);
+    if (t && !isDeadKey(t)) out.set(k, t);
+  }
+  return out;
+}
+const isPossessed = (name) => [...possessedNow().values()].includes(key(name));
+// Looks evil to the Detective and the Private Investigator: the wolf team, and anyone the Demon is attached to.
+const looksEvil = (name) => isWolfRole(roles.get(key(name))) || isPossessed(name);
 // Did a (clear-headed) doctor protect this player tonight?
 function isHealed(target) {
   const poisoned = poisonedTonight();
@@ -800,7 +826,7 @@ function abilityResults(outcome, vig = []) {
   // Everyone attacked tonight who survived because the Doctor protected them.
   const saved = new Set([...(outcome.reason === 'saved' ? [key(outcome.target)] : []), ...vig.filter((v) => v.saved).map((v) => key(v.target))]);
   for (const [k, r] of roles) {
-    if (!['prostitute', 'werewolf', 'joker', 'dkjoker', 'ivy', 'doctor', 'detective', 'vigilante', 'batman', 'officer'].includes(r) || killedNames.has(k) || mutedNames.has(k)) continue;
+    if (!['demon', 'prostitute', 'werewolf', 'joker', 'dkjoker', 'ivy', 'doctor', 'detective', 'vigilante', 'batman', 'officer'].includes(r) || killedNames.has(k) || mutedNames.has(k)) continue;
     const pick = nightActions.get(k)?.target || null;
     if (r === 'officer') {
       if (lastArrest && lastArrest.by === k) out.push([k, { kind: 'arrest', text: `You arrested ${lastArrest.target}. They could not use an ability last night.`, tone: 'neutral', target: lastArrest.target }]);
@@ -811,7 +837,7 @@ function abilityResults(outcome, vig = []) {
       // Interrogate: a villain is exposed to everyone; an innocent costs Batman the ability.
       const q = nightActions.get(k);
       if (q?.kind === 'interrogate' && q.target) {
-        if (isWolfRole(roles.get(key(q.target)))) {
+        if (looksEvil(q.target)) {
           out.push([k, { kind: 'interrogate', text: `You interrogated ${q.target}: they are a villain! Everyone can now see it in the clues.`, tone: 'bad', target: q.target, publicClue: { about: q.target, text: `${q.target} is a villain.` } }]);
         } else {
           familyFlags.interrogateLost = true;
@@ -824,6 +850,12 @@ function abilityResults(outcome, vig = []) {
       else if (!mine) out.push([k, { kind: 'vigil', text: 'You did not choose anyone last night.', tone: 'neutral' }]);
       else if (mine.saved) out.push([k, { kind: 'vigil', text: `You shot at ${mine.target}, but they survived. Someone protected them.`, tone: 'neutral', target: mine.target }]);
       else out.push([k, { kind: 'vigil', text: `You killed ${mine.target}.`, tone: 'bad', target: mine.target }]);
+    } else if (r === 'demon') {
+      const held = possessedNow().get(k);
+      const heldName = held ? userByName(held)?.name || held : null;
+      if (pick && heldName) out.push([k, { kind: 'possess', text: `You possessed ${heldName}. As long as you hold them, they look evil to anyone who investigates them.`, tone: 'bad', target: heldName }]);
+      else if (heldName) out.push([k, { kind: 'possess', text: `You are still attached to ${heldName}. They look evil to anyone who investigates them.`, tone: 'bad', target: heldName }]);
+      else out.push([k, { kind: 'possess', text: 'You are not attached to anyone.', tone: 'neutral' }]);
     } else if (r === 'ivy') {
       if (!pick) out.push([k, { kind: 'poison', text: 'You did not poison anyone last night.', tone: 'neutral' }]);
       else out.push([k, { kind: 'poison', text: `You poisoned ${pick}. If they have an ability, it was confused last night.`, tone: 'bad', target: pick }]);
@@ -867,8 +899,9 @@ function abilityResults(outcome, vig = []) {
       } else if (detectiveMode === 'manual') out.push([k, { kind: 'investigate', text: `You investigated ${pick}. The moderator will tell you what they found.`, tone: 'neutral', target: pick, pending: true }]);
       else {
         const tr = displayRole(pick);
-        const bad = tr === 'werewolf' || tr === 'serialkiller' || tr === 'joker';
-        const label = bad ? (tr === 'serialkiller' ? 'Killer' : 'Wolf') : 'Civilian';
+        const bad = looksEvil(pick);
+        // Anyone evil reads like the killers in this game: "the Killer" with a lone killer, else "a Wolf".
+        const label = bad ? (tr === 'serialkiller' || (!isWolfRole(roles.get(key(pick))) || tr === 'demon') && wolfCount() === 1 ? 'Killer' : 'Wolf') : 'Civilian';
         const text = `${pick} is ${label === 'Killer' ? 'the Killer' : 'a ' + label}.`;
         const clue = { id: nextClueId++, kind: 'check', about: pick, result: bad ? 'wolf' : 'civilian', label, text, ts: now(), private: true };
         out.push([k, { kind: 'investigate', text, tone: bad ? 'bad' : 'good', target: pick, clue }]);
@@ -967,7 +1000,7 @@ function checkFamily() {
 // Batman's clue each morning: someone who used an ability, or someone an ability was used on.
 // Never about the same player twice.
 let batmanSeen = new Set();
-const PAST = { kill: 'attacked', vigil: 'attacked', heal: 'protected', investigate: 'investigated', interrogate: 'interrogated' };
+const PAST = { possess: 'possessed', visit: 'visited', poison: 'poisoned', kill: 'attacked', vigil: 'attacked', heal: 'protected', investigate: 'investigated', interrogate: 'interrogated' };
 function batmanClue(self) {
   const options = [];
   for (const [actor, a] of nightActions) {
@@ -1029,10 +1062,11 @@ function randomizeRoles(quiet = false) {
   const villains = dk() ? ['dkjoker', ...['harley', 'ivy', 'clayface'].filter((r) => roleConfig[r])] : Array(roleConfig.werewolf).fill('werewolf');
   const pros = dk() ? 0 : roleConfig.prostitute || 0;
   const prophets = dk() ? 0 : roleConfig.prophet || 0;
-  const special = villains.length + roleConfig.doctor + roleConfig.detective + roleConfig.officer + pros + prophets + (withFamily ? 3 : 0);
+  const demons = dk() ? 0 : roleConfig.demon || 0;
+  const special = villains.length + roleConfig.doctor + roleConfig.detective + roleConfig.officer + pros + prophets + demons + (withFamily ? 3 : 0);
   if (players.length === 0) return 'There are no players to give roles to.';
   if (special > players.length) return `Not enough players: you picked ${special} special roles but there are only ${players.length} players.`;
-  const deck = [...villains, ...Array(pros).fill('prostitute'), ...Array(prophets).fill('prophet'), ...Array(roleConfig.doctor).fill('doctor'), ...Array(roleConfig.detective).fill('detective'), ...Array(roleConfig.officer).fill('officer'), ...(withFamily ? FAMILY : [])];
+  const deck = [...villains, ...Array(pros).fill('prostitute'), ...Array(prophets).fill('prophet'), ...Array(demons).fill('demon'), ...Array(roleConfig.doctor).fill('doctor'), ...Array(roleConfig.detective).fill('detective'), ...Array(roleConfig.officer).fill('officer'), ...(withFamily ? FAMILY : [])];
   while (deck.length < players.length) deck.push('civilian');
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -1043,6 +1077,7 @@ function randomizeRoles(quiet = false) {
   protectedNames = new Set();
   prophetRise = new Map();
   prophetUsed = new Set();
+  possessed = new Map();
   family = {};
   familyFlags = {};
   batmanSeen = new Set();
@@ -1398,7 +1433,7 @@ io.on('connection', (socket) => {
 
   socket.on('roles:config', (cfg = {}) => {
     if (!isMod(socket)) return;
-    for (const r of ['werewolf', 'doctor', 'detective', 'officer', 'prostitute', 'prophet']) {
+    for (const r of ['werewolf', 'doctor', 'detective', 'officer', 'prostitute', 'prophet', 'demon']) {
       const n = Number(cfg[r]);
       if (Number.isInteger(n) && n >= 0 && n <= 20) roleConfig[r] = n;
     }
@@ -1672,6 +1707,7 @@ io.on('connection', (socket) => {
         if (moderatorId) io.to(moderatorId).emit('notice', `🎯 The Vigilante killed ${v.target}.`);
       }
       const results = abilityResults(outcome, vig);
+      possessed = possessedNow();
       // Give the sunrise animation a moment before the news.
       setTimeout(() => {
         // Night deaths get a funny morning story.

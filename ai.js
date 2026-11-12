@@ -11,6 +11,7 @@ const ROLE_LABEL = {
   civilian: 'Civilian',
   prostitute: 'Prostitute',
   prophet: 'Prophet',
+  demon: 'Demon',
   werewolf: 'Werewolf',
   serialkiller: 'Serial Killer',
   doctor: 'Doctor',
@@ -50,6 +51,8 @@ const labelIn = (mode, r) => (mode === 'darkknight' && DK_LABEL[r]) || (mode ===
 const infoIn = (mode, r) => (mode === 'darkknight' && DK_ROLE_INFO[r]) || (mode === 'nobat' && NOBAT_INFO[r]) || ROLE_INFO[r];
 
 const ROLE_INFO = {
+  demon:
+    "Demon (wolf side). You don't kill. Each night pick one player with the Possess button. As long as you are attached to them (until you possess someone else, or you or they die), they look evil to the Detective and the Private Investigator. You can talk with the wolves in the wolf den.",
   prophet:
     'Prophet (village side). You have no night ability, but you have a second life: the first time you die, you rise again on the third day (the day you die counts as the first; for example killed on day 2, back at sunrise on day 4) and can talk, vote and play again. It only works once. On Hard, only a death by trial (being voted guilty) brings you back; a night kill is for good.',
   prostitute:
