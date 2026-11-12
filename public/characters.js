@@ -3,6 +3,7 @@
 // add an entry here, add its id to CHARACTERS in server.js, and give it a free spot by the fire.
 // Spots are in the background videos' own pixels (864x576): x = where the feet are, y = ground line.
 // spotHd / heightHd are the same for the big-screen videos (1280x720).
+// hang (optional): a picture shown instead while the character hangs after a guilty verdict.
 window.CHARACTERS = [
   {
     id: 'firekeeper',
@@ -107,10 +108,12 @@ window.CHARACTERS = [
   },
 {
     id: 'watcher',
-    name: 'The Watcher',
+    name: 'The Fox',
     desc: 'Cap low, mask up. Already knows your secrets.',
     img: 'img/characters/watcher.webp',
     still: 'img/characters/watcher-still.png',
+    // His own picture while he hangs from the gallows after a guilty verdict (live pixel village).
+    hang: 'img/characters/watcher-hang.webp',
     height: 140,
     // Front and center, in front of the fire.
     spot: { day: { x: 455, y: 505 }, night: { x: 455, y: 512 } },

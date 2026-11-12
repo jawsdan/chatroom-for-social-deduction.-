@@ -2285,3 +2285,5 @@ body.lobby-quiet .trial-banner {
 }
 .mm-tab.mt-music .mm-tab-icon { background: linear-gradient(135deg, #f472b6, #db2777); }
 .mm-tab.mt-prefs .mm-tab-icon { background: linear-gradient(135deg, #60a5fa, #4f46e5); }
+/* A character with its own hanging picture keeps its colors on the gallows. */
+.firekeeper.ring.hanged.own-hang .fk-img { filter: none; }

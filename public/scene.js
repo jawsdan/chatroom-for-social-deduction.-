@@ -229,6 +229,12 @@ window.SCENE_HD = (function () {
       // What happens to the accused once the verdict is in.
       const guilty = exec && exec.name === p.name && exec.kind === 'guilty';
       el.classList.toggle('hanged', !!guilty && execT > 500 && !document.body.classList.contains('mode-dk'));
+      // Characters with their own hanging picture show it on the gallows.
+      const hangImg = (window.CHARACTERS || []).find((c) => c.id === p.character)?.hang;
+      const wantImg = hangImg && el.classList.contains('hanged') ? hangImg : el.dataset.img;
+      el.classList.toggle('own-hang', wantImg !== el.dataset.img);
+      const img = el.querySelector('.fk-img');
+      if (img.getAttribute('src') !== wantImg) img.src = wantImg;
       el.classList.toggle('caged', !!guilty && execT > 500 && document.body.classList.contains('mode-dk'));
       el.classList.toggle('home', home);
       // Walk (bob) while moving to a new place.
@@ -321,6 +327,10 @@ window.SCENE_HD = (function () {
       }
       el.dataset.img = img;
       if (fresh) el.querySelector('.fk-img').src = img;
+      if (c?.hang && !el._hangLoaded) {
+        el._hangLoaded = true;
+        new Image().src = c.hang; // ready before the verdict
+      }
       el.classList.toggle('flip', !!c?.flip);
       el.classList.toggle('plain', !c);
       el.querySelector('.fk-name').textContent = p.name;
