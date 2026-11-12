@@ -60,6 +60,8 @@ const dkMode = () => skinMode === 'darkknight';
 const FAM_SKIN = {
   joker: { label: 'Maniac', img: 'maniac', icon: '🪓', desc: 'Your Son is gone, and grief has broken your mind. You now hunt with the wolves: join the wolf den and pick a victim with the pack at night.' },
   batman: { label: 'Punisher', img: 'punisher', icon: '💀', desc: 'Your parents are gone, and you want revenge. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
+  // The Father keeps his name, but gets the picture that matches the Maniac and the Punisher.
+  vigilante: { img: 'vigilante2' },
 };
 let famSkinOff = false;
 const FAM_BASE = {};
@@ -70,7 +72,7 @@ function applyBatmanFilter(on) {
   for (const [k, skin] of Object.entries(FAM_SKIN)) {
     FAM_BASE[k] ||= { role: { ...ROLE[k] }, img: ROLE_IMG[k], art: ART[k] };
     const base = FAM_BASE[k];
-    ROLE[k] = off ? { ...base.role, label: skin.label, desc: skin.desc, icon: skin.icon } : { ...base.role };
+    ROLE[k] = off ? { ...base.role, ...(skin.label ? { label: skin.label, desc: skin.desc, icon: skin.icon } : {}) } : { ...base.role };
     ROLE_IMG[k] = off ? ROLE_IMG[skin.img] : base.img;
     ART[k] = off ? ART[skin.img] : base.art;
   }
