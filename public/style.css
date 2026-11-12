@@ -2284,3 +2284,4 @@ body.lobby-quiet .trial-banner {
   body.lobby-quiet .trial-banner .t-actions .btn { padding: 7px 11px; font-size: 0.85rem; }
 }
 .mm-tab.mt-music .mm-tab-icon { background: linear-gradient(135deg, #f472b6, #db2777); }
+.mm-tab.mt-prefs .mm-tab-icon { background: linear-gradient(135deg, #60a5fa, #4f46e5); }

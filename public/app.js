@@ -2836,7 +2836,12 @@ function renderMainMenu() {
       const m = el('p', 'mm-note', `🛡️ ${state.moderator} is the moderator.`);
       page.append(m);
     }
-    // Filters: your own switch, and the moderator's switch for everyone.
+    // Your own settings: music and filters.
+    page.append(menuTab('🔧', 'Settings', `Music ${musicOn ? 'on' : 'off'} · filters ${state.display?.filters === false ? 'off for everyone' : myFilters ? 'on' : 'off'}`, () => menuGo('prefs'), 'mt-prefs'));
+    if (waiting) page.append(menuTab('💬', 'Go to chat', 'Talk while you wait · tap your name to come back', closeMainMenu, 'mm-quiet mt-chat'));
+  } else if (menuPage === 'prefs') {
+    back('Settings');
+    // Filters: your own switch (the moderator can turn them off for everyone).
     const modOff = state.display?.filters === false;
     const ft = menuTab('✨', 'Filters', modOff ? 'Turned off for everyone by the moderator' : myFilters ? 'On · the look of your role on your screen · tap to turn off' : 'Off · tap to turn the look of your role back on', () => {
       if (modOff) return;
@@ -2860,7 +2865,6 @@ function renderMainMenu() {
       $('mainMenu').dataset.sig = '';
       renderMainMenu();
     }, 'mt-music'));
-    if (waiting) page.append(menuTab('💬', 'Go to chat', 'Talk while you wait · tap your name to come back', closeMainMenu, 'mm-quiet mt-chat'));
   } else if (menuPage === 'settings') {
     back('Game settings');
     const modeIcon = el('img');
