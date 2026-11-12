@@ -860,6 +860,14 @@ function deathLine(victim) {
   recentDeathLines = [...recentDeathLines, i].slice(-10);
   return lines[i].replace(/\{name\}/g, victim);
 }
+let recentPairLines = [];
+function pairLine(host, guest) {
+  const lines = DEATH_LINES.pair;
+  const fresh = lines.map((_, i) => i).filter((i) => !recentPairLines.includes(i));
+  const i = fresh[Math.floor(Math.random() * fresh.length)];
+  recentPairLines = [...recentPairLines, i].slice(-6);
+  return lines[i].replace(/\{name\}/g, host).replace(/\{guest\}/g, guest);
+}
 function revealDeath({ victim, card, announce = true, line }) {
   if (announce) systemLobby(toArkham(victim) ? `🏚️ ${victim} was sent to Arkham Asylum.` : line || `☠️ ${victim} was found dead.`);
   if (card) addClue('card', victim, card);
@@ -1596,7 +1604,7 @@ io.on('connection', (socket) => {
         for (const g of outcome.guests || []) {
           if (killedNames.has(key(g))) continue;
           killPlayer(g);
-          list.push({ victim: g, card: null });
+          list.push({ victim: g, card: null, guestOf: outcome.victim });
         }
       }
       if (moderatorId) io.to(moderatorId).emit('notice', `🌅 ${OUTCOME_TEXT[outcome.reason](outcome)}.`);
@@ -1612,13 +1620,20 @@ io.on('connection', (socket) => {
       // Give the sunrise animation a moment before the news.
       setTimeout(() => {
         // Night deaths get a funny morning story.
-        for (const r of list) r.line = toArkham(r.victim) ? `🏚️ ${r.victim} was sent to Arkham Asylum.` : deathLine(r.victim);
+        // A host and the Prostitute who stayed the night with them are found together: one story for both.
+        const pairs = new Map(list.filter((r) => r.guestOf).map((r) => [key(r.guestOf), r]));
+        for (const r of list) {
+          if (r.guestOf && list.some((h) => key(h.victim) === key(r.guestOf))) r.line = null;
+          else if (pairs.has(key(r.victim))) r.line = pairLine(r.victim, pairs.get(key(r.victim)).victim);
+          else r.line = toArkham(r.victim) ? `🏚️ ${r.victim} was sent to Arkham Asylum.` : deathLine(r.victim);
+        }
         // Which animation to show: a lone Serial Killer or the wolf pack.
         // A werewolf among the dead gets the silver-bullet animation instead.
         const killer = list.some((r) => isWerewolf(r.victim)) && !hardMode() ? 'wolfdeath' : pickNightAnimation(dk() || wolfCount() === 1 ? 'killer' : 'night');
-        io.emit('night:result', { victims: list.map((r) => r.victim), lines: list.map((r) => r.line), killer });
+        io.emit('night:result', { victims: list.map((r) => r.victim), lines: list.map((r) => r.line).filter(Boolean), killer });
         if (!list.length) systemLobby('🌅 Nobody died last night.');
-        for (const r of list) revealDeath(r);
+        // A Prostitute found with her host shares the host's story, so she isn't announced twice.
+        for (const r of list) revealDeath({ ...r, announce: r.line !== null });
         // Then each ability player gets their own result.
         for (const [k, entry] of results) sendAbilityResult(k, entry);
         arrestedTonight = null;
