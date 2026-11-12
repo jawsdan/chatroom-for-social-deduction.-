@@ -20,7 +20,7 @@ const ROLES = ['civilian', 'prostitute', 'werewolf', 'doctor', 'detective', 'off
 // against The Joker (the only killer), Harley Quinn (sidekick), Poison Ivy (poisons) and Clayface (disguise).
 let gameMode = 'classic'; // 'classic' | 'darkknight'
 // Chosen by the moderator for everyone: the background (live pixel village or videos) and whether role filters are allowed.
-const display = { background: 'pixel', filters: true };
+const display = { background: 'pixel', filters: true, lobby: true };
 const dk = () => gameMode === 'darkknight';
 const DK_VILLAINS = ['dkjoker', 'harley', 'ivy', 'clayface'];
 const DK_ROLES = ['civilian', 'doctor', 'detective', 'officer', ...DK_VILLAINS];
@@ -868,8 +868,9 @@ function pairLine(host, guest) {
   recentPairLines = [...recentPairLines, i].slice(-6);
   return lines[i].replace(/\{name\}/g, host).replace(/\{guest\}/g, guest);
 }
-function revealDeath({ victim, card, announce = true, line }) {
-  if (announce) systemLobby(toArkham(victim) ? `🏚️ ${victim} was sent to Arkham Asylum.` : line || `☠️ ${victim} was found dead.`);
+function revealDeath({ victim, card, announce = true, together }) {
+  // The death story is shown in the morning pop-up; the chat only gets a short line.
+  if (announce) systemLobby(toArkham(victim) ? `🏚️ ${victim} was sent to Arkham Asylum.` : together ? `☠️ ${victim} and ${together} were found dead together.` : `☠️ ${victim} was found dead.`);
   if (card) addClue('card', victim, card);
   const manifesto = manifestos.get(key(victim));
   if (manifesto) addClue('manifesto', victim, manifesto);
@@ -1212,6 +1213,7 @@ io.on('connection', (socket) => {
     const u = me();
     const t = cleanText(text);
     if (!u || !t) return;
+    if (!display.lobby) return socket.emit('notice', 'The moderator has turned off the main chat.');
     if (mutedNames.has(key(u.name))) {
       return socket.emit('notice', 'You are muted. You can only talk to the moderator until the chat is wiped.');
     }
@@ -1633,7 +1635,7 @@ io.on('connection', (socket) => {
         io.emit('night:result', { victims: list.map((r) => r.victim), lines: list.map((r) => r.line).filter(Boolean), killer });
         if (!list.length) systemLobby('🌅 Nobody died last night.');
         // A Prostitute found with her host shares the host's story, so she isn't announced twice.
-        for (const r of list) revealDeath({ ...r, announce: r.line !== null });
+        for (const r of list) revealDeath({ ...r, announce: r.line !== null, together: pairs.get(key(r.victim))?.victim });
         // Then each ability player gets their own result.
         for (const [k, entry] of results) sendAbilityResult(k, entry);
         arrestedTonight = null;
@@ -1742,6 +1744,7 @@ io.on('connection', (socket) => {
     if (!isMod(socket)) return;
     if (['pixel', 'video'].includes(patch.background)) display.background = patch.background;
     if (typeof patch.filters === 'boolean') display.filters = patch.filters;
+    if (typeof patch.lobby === 'boolean') display.lobby = patch.lobby;
     broadcastState();
   });
 

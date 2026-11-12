@@ -255,6 +255,8 @@ socket.on('state', (s) => {
     if (s.gameState !== 'waiting') openCharSelect();
   }
   if (channel === 'wolf' && !s.me.wolfAccess) channel = 'lobby';
+  // The moderator can turn the main chat off: then the moderator chat is where everyone talks.
+  if (s.display?.lobby === false && channel === 'lobby') channel = 'mod';
   renderAll(false);
   // Players who picked a character stand by the fire.
   window.setFireCharacters?.(
@@ -852,6 +854,7 @@ function renderNav() {
   document.querySelector('#wolfNav .ri').src = (ROLE_IMG[dkMode() ? 'dkjoker' : 'werewolf'] || '').replace('/roles/', '/roles/sm/');
   $('cardNav').classList.toggle('hidden', !state.me.canCard);
   $('mayorNav').classList.toggle('hidden', !state.me.mayorVote);
+  document.querySelector('.nav-item[data-channel=lobby]').classList.toggle('hidden', state.display?.lobby === false);
   $('mayorPill').classList.toggle('hidden', !state.me.mayorVote || !!state.me.mayorVote.my);
   refreshMayorBox();
   $('cardMeta').textContent = state.me.callingCard ? '✓' : '';
@@ -898,7 +901,7 @@ function renderHeader() {
 function renderTrialBanner() {
   const t = state.trial;
   const banner = $('trialBanner');
-  const show = !!t && t.open && channel === 'lobby';
+  const show = !!t && t.open && (channel === 'lobby' || state.display?.lobby === false);
   const wasHidden = banner.classList.contains('hidden');
   banner.classList.toggle('hidden', !show);
   if (!show) return;
@@ -1913,6 +1916,7 @@ function renderRoleFx() {
   // Killers (wolves, Serial Killer, the Joker and the Dark Knight villains) get red outlines, filters or not.
   document.body.classList.toggle('team-bad', !!raw && ['werewolf', 'serialkiller', 'joker', ...DK_VILLAINS].includes(raw));
   document.body.classList.toggle('team-sk', raw === 'serialkiller');
+  document.body.classList.toggle('role-pink', raw === 'prostitute');
   document.body.classList.toggle('filters-off', !filtersOn());
   // The Dark Knight: all of Gotham gets the Batman look; the villains get The Joker's.
   if (state && dkMode()) raw = DK_VILLAINS.includes(raw) ? 'joker' : 'batman';
@@ -2722,6 +2726,8 @@ function renderMainMenu() {
     page.append(menuTab('🌐', 'Filters for everyone', modOff ? 'Off for all players · tap to allow them again' : 'Allowed · each player can still turn theirs off · tap to turn off for all', () => socket.emit('display:set', { filters: modOff }), 'mt-filters-all'));
     const pix = state.display?.background !== 'video';
     page.append(menuTab('🖼️', 'Background for everyone', pix ? 'Live pixel village · tap for the videos' : 'Videos · tap for the live pixel village', () => socket.emit('display:set', { background: pix ? 'video' : 'pixel' }), 'mt-bg'));
+    const lobbyOn = state.display?.lobby !== false;
+    page.append(menuTab('💬', 'Main chat', lobbyOn ? 'On · everyone can talk in the main lobby · tap to hide it' : 'Hidden · players only have the moderator chat (and the wolf den) · tap to show it', () => socket.emit('display:set', { lobby: !lobbyOn }), 'mt-lobby'));
     page.append(menuTab('🛡️', 'Moderator', 'You run the game · hand over or step down', () => menuGo('mod'), 'mt-modr'));
   } else if (menuPage === 'mode') {
     back('Game mode');
@@ -2832,7 +2838,7 @@ function renderStartScreen() {
     return;
   }
   box.classList.remove('minimized');
-  const show = state.gameState !== 'running' && channel === 'lobby';
+  const show = state.gameState !== 'running' && (channel === 'lobby' || state.display?.lobby === false);
   box.classList.toggle('hidden', !show);
   // On phones the open start menu gets the whole chat area (the floating panels step aside).
   document.body.classList.toggle('start-open', show && !startMinimized);
@@ -3357,7 +3363,7 @@ function renderPhoneDock() {
   const pill = (n) => (n ? (n > 9 ? '9+' : String(n)) : '');
   // Nobody runs the game: anyone can step up (shown first so it's easy to find).
   if (!state.moderator && !amMuted()) items.push({ id: 'claim', icon: '🛡️', label: 'Be mod', badge: '!', go: () => socket.emit('mod:claim') });
-  items.push({ id: 'lobby', icon: '#', label: 'Lobby', on: channel === 'lobby', badge: pill(lobbyUnread), go: () => switchChannel('lobby') });
+  if (state.display?.lobby !== false) items.push({ id: 'lobby', icon: '#', label: 'Lobby', on: channel === 'lobby', badge: pill(lobbyUnread), go: () => switchChannel('lobby') });
   items.push({ id: 'mod', icon: '🛡️', label: amMod() ? 'Inbox' : 'Mod', on: channel === 'mod', badge: pill(modUnread), go: () => switchChannel('mod') });
   if (state.me.wolfAccess) items.push({ id: 'wolf', img: dkMode() ? 'dkjoker' : 'werewolf', label: dkMode() ? 'Mile' : 'Wolves', on: channel === 'wolf', badge: pill(wolfUnread), lock: state.phase !== 'night', go: () => switchChannel('wolf') });
   if (state.me.mayorVote) items.push({ id: 'mayor', icon: '🗳️', label: 'Mayor', badge: state.me.mayorVote.my ? '✓' : '!', go: openMayorBox });
