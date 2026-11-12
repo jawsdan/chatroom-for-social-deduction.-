@@ -516,7 +516,7 @@ socket.on('trial:started', ({ accused } = {}) => {
 });
 socket.on('trial:cleared', closeModal);
 socket.on('trial:result', (r) => {
-  window.PixelScene?.event(r.result === 'guilty' ? 'guilty' : 'innocent', { accused: r.accused, votes: r.votes });
+  window.PixelScene?.event(r.result === 'guilty' ? 'guilty' : 'innocent', { accused: r.accused, votes: r.votes, demon: r.demon });
   // Let the village square play the verdict first, then show the result.
   const showResult = () => openModal((card) => {
     const art = el('div', 'art');
@@ -545,7 +545,8 @@ socket.on('trial:result', (r) => {
     actions.append(btn('btn-primary', 'Close', closeModal));
     card.append(actions);
   });
-  if (window.PixelScene?.active) setTimeout(showResult, r.result === 'guilty' ? 3600 : 1600);
+  // The Demon's escape from the gallows takes a little longer.
+  if (window.PixelScene?.active) setTimeout(showResult, r.result === 'guilty' ? (r.demon ? 5400 : 3600) : 1600);
   else showResult();
 });
 

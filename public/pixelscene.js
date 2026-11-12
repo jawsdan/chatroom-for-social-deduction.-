@@ -694,6 +694,73 @@
     c.globalAlpha = 1;
   }
 
+  // A small demon with bat wings, horns and glowing eyes (drawn in a 100-unit box around its body).
+  function drawDemon(c, x, y, k, t, al) {
+    c.save();
+    c.translate(x, y);
+    c.scale(k, k);
+    c.globalAlpha = al;
+    c.lineJoin = 'round';
+    const flap = Math.sin(t * 16);
+    for (const sx of [-1, 1]) {
+      c.beginPath();
+      c.moveTo(sx * 12, -16);
+      c.quadraticCurveTo(sx * 58, -72 + flap * 22, sx * 96, -38 + flap * 26);
+      c.lineTo(sx * 76, -20 + flap * 12);
+      c.lineTo(sx * 84, -4 + flap * 8);
+      c.lineTo(sx * 58, -8 + flap * 4);
+      c.lineTo(sx * 60, 8);
+      c.lineTo(sx * 28, 2);
+      c.closePath();
+      c.fillStyle = '#3b0a0a';
+      c.fill();
+      c.strokeStyle = '#120303';
+      c.lineWidth = 4;
+      c.stroke();
+    }
+    // tail
+    const sw = Math.sin(t * 6) * 10;
+    c.strokeStyle = '#7f1d1d';
+    c.lineWidth = 6;
+    c.lineCap = 'round';
+    c.beginPath();
+    c.moveTo(0, 30);
+    c.quadraticCurveTo(28 + sw, 56, 10 + sw, 76);
+    c.stroke();
+    c.fillStyle = '#7f1d1d';
+    c.beginPath();
+    c.moveTo(10 + sw, 70);
+    c.lineTo(22 + sw, 84);
+    c.lineTo(2 + sw, 86);
+    c.closePath();
+    c.fill();
+    // body and head
+    ell(c, 0, 10, 20, 28, '#991b1b', '#2a0505', 4);
+    ell(c, 0, -28, 18, 16, '#b91c1c', '#2a0505', 4);
+    // horns
+    for (const sx of [-1, 1]) {
+      c.beginPath();
+      c.moveTo(sx * 9, -40);
+      c.quadraticCurveTo(sx * 24, -52, sx * 20, -68);
+      c.quadraticCurveTo(sx * 14, -52, sx * 3, -43);
+      c.closePath();
+      c.fillStyle = '#f5e6c8';
+      c.fill();
+      c.strokeStyle = '#2a0505';
+      c.lineWidth = 3;
+      c.stroke();
+    }
+    // glowing eyes and a grin
+    ell(c, -7, -30, 4.5, 2.6, '#fde047');
+    ell(c, 7, -30, 4.5, 2.6, '#fde047');
+    c.strokeStyle = '#2a0505';
+    c.lineWidth = 3;
+    c.beginPath();
+    c.arc(0, -24, 8, 0.15 * Math.PI, 0.85 * Math.PI);
+    c.stroke();
+    c.restore();
+  }
+
   // ---------- effects (over the players) ----------
   function addFx(kind, data = {}) {
     effects.push({ kind, t: 0, ...data });
@@ -914,6 +981,32 @@
         c.lineTo(x, y + 40);
         c.stroke();
         c.globalAlpha = 1;
+      } else if (e.kind === 'demon') {
+        // A demon bursts out of the hanged body and spirals up into the sky.
+        if (p < 0.08) {
+          c.globalAlpha = 0.28 * (1 - p / 0.08);
+          c.fillStyle = '#b91c1c';
+          c.fillRect(0, 0, W, H);
+          c.globalAlpha = 1;
+        }
+        shake = Math.max(shake, p < 0.12 ? 4 : 0);
+        const rise = ease(clamp(p * 1.1, 0, 1));
+        const x = e.x + Math.sin(e.t * 3.4) * 30 * rise + rise * W * 0.16;
+        const y = lerp(e.y, -e.h * 1.5, rise);
+        const size = e.h * (0.35 + 0.35 * Math.min(1, p * 5));
+        const al = Math.min(1, p * 10) * (p > 0.85 ? (1 - p) / 0.15 : 1);
+        // a trail of red smoke behind it
+        e.trail = e.trail || [];
+        e.trail.push({ x, y, t: e.t });
+        while (e.trail.length && e.t - e.trail[0].t > 0.7) e.trail.shift();
+        for (const tp of e.trail) {
+          const age = (e.t - tp.t) / 0.7;
+          c.globalAlpha = (1 - age) * 0.35 * al;
+          ell(c, tp.x + Math.sin(tp.t * 9) * 4, tp.y + age * 14, size * 0.28 * (1 + age), size * 0.28 * (1 + age), '#450a0a');
+        }
+        c.globalAlpha = 1;
+        glow(c, x, y, size * 1.8, '220,38,38', 0.55 * al);
+        drawDemon(c, x, y, size / 100, e.t, al);
       } else if (e.kind === 'flash') flash = Math.max(flash, (1 - p) * (e.a || 0.5));
       else if (e.kind === 'banner') {
         // a short title across the screen, like a game announcement
@@ -1167,6 +1260,12 @@
           addFx('banner', { dur: 2.8, text: mode === 'darkknight' ? '⚖️  Guilty — take them away' : '⚖️  Guilty', col: '#fca5a5' });
           setTimeout(() => exec && addFx('lightning', { dur: 1.2, x: stand.x, y: stand.y - stand.h }), 700);
           setTimeout(() => exec && addFx('crows', { dur: 5 }), 900);
+          // The Demon on the gallows: a demon tears out of the body and flies away.
+          if (data.demon) {
+            const at = { x: stand.x, y: stand.y - stand.h * 0.55, h: stand.h };
+            setTimeout(() => addFx('demon', { dur: 3.6, ...at }), 1300);
+            setTimeout(() => addFx('banner', { dur: 2.6, text: '😈  The Demon is cast out', col: '#fca5a5' }), 2900);
+          }
         } else {
           addFx('banner', { dur: 2.6, text: '⚖️  Innocent', col: '#86efac' });
           addFx('confetti', { dur: 3.5 });

@@ -485,6 +485,8 @@ function finishTrial() {
     innocent,
     votes: [...trial.votes.entries()].map(([name, vote]) => ({ name, vote, mayor: voteWeight(name) > 1 })),
     wolf: trial.result === 'guilty' && isWerewolf(trial.accusedName) && !hardMode(),
+    // The Demon on the gallows: a demon flies out of the body (not on Hard, which reveals nothing).
+    demon: trial.result === 'guilty' && roles.get(key(trial.accusedName)) === 'demon' && !hardMode(),
   });
   if (trial.result === 'guilty') revealDeath({ victim: trial.accusedName, card: null, announce: false });
 }
