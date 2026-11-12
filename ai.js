@@ -10,7 +10,7 @@
 const ROLE_LABEL = {
   civilian: 'Civilian',
   prostitute: 'Prostitute',
-  prophet: 'The Prophet',
+  prophet: 'Prophet',
   werewolf: 'Werewolf',
   serialkiller: 'Serial Killer',
   doctor: 'Doctor',
@@ -51,7 +51,7 @@ const infoIn = (mode, r) => (mode === 'darkknight' && DK_ROLE_INFO[r]) || (mode 
 
 const ROLE_INFO = {
   prophet:
-    'The Prophet (village side). You have no night ability, but you have a second life: the first time you die, you rise again on the third day (the day you die counts as the first; for example killed on day 2, back at sunrise on day 4) and can talk, vote and play again. It only works once. On Hard, only a death by trial (being voted guilty) brings you back; a night kill is for good.',
+    'Prophet (village side). You have no night ability, but you have a second life: the first time you die, you rise again on the third day (the day you die counts as the first; for example killed on day 2, back at sunrise on day 4) and can talk, vote and play again. It only works once. On Hard, only a death by trial (being voted guilty) brings you back; a night kill is for good.',
   prostitute:
     "Prostitute (village side). Each night choose whose house you spend the night at with the Stay with button, or pick yourself to stay home. If the wolves come for you while you are away, they find nobody and you survive. But if they come for the person you are staying with, you both die. At home, you can be attacked as normal.",
   civilian:
@@ -74,7 +74,7 @@ const ROLE_INFO = {
   joker:
     'Joker (wolf side). Your Son died, and grief has turned you into the Joker. You now hunt with the wolves: you join the wolf den and pick a victim with the pack at night. The Detective sees you as a Wolf.',
   vigilante:
-    'Vigilante (village side). Your Son died, you blame yourself, and you want someone to pay. Each night you may kill one player with the Kill button, or choose to kill nobody. Be careful not to shoot a villager.',
+    'Vigilante (village side). Your Son died, and you want someone to pay. Each night you may kill one player with the Kill button, or choose to kill nobody. Be careful not to shoot a villager.',
   batman:
     'Batman (village side). Both your parents died. Every morning you get a clue in your Ability results: someone who used an ability, or someone an ability was used on. In games that started with 4+ wolves you may also interrogate one player at night: a villain is exposed to everyone, but if they are innocent you lose that ability.',
 };

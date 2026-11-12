@@ -29,7 +29,7 @@ const ROLE = {
   werewolf: { label: 'Werewolf', icon: '🐺', color: 'var(--danger)', desc: 'You hunt with your pack. Each night, plan in the wolf den and pick your victim with Kill. The whole pack must choose the same player. By day, blend in with the village.' },
   serialkiller: { label: 'Serial Killer', icon: '🔪', color: 'var(--danger)', desc: 'You work alone. Each night, choose your next victim with Kill, or let them live one more night. Leave your calling card behind, and never get caught.' },
   doctor: { label: 'Doctor', icon: '🩺', color: '#0ea5e9', desc: 'Each night, choose one player to Protect. If the killers come for them, they survive. You can protect yourself, but not two nights in a row.' },
-  prophet: { label: 'The Prophet', icon: '✝️', color: '#b45309', desc: 'You have a second life. Die, and you come back on the third day.' },
+  prophet: { label: 'Prophet', icon: '✝️', color: '#b45309', desc: 'You have a second life. Die, and you come back on the third day.' },
   prostitute: { label: 'Prostitute', icon: '🌹', color: '#be185d', desc: "Each night, choose whose house you spend the night at, or stay at your own. Away from home, the wolves can't find you if they come for you. But if they come for the person you're with, you both die." },
   officer: { label: 'Officer', icon: '🚔', color: '#1d4ed8', desc: 'Each day you may arrest one player. They cannot vote that day and cannot use their ability the night after.' },
   detective: { label: 'Detective', icon: '👮', color: '#3b82f6', desc: 'Each night, choose one player to Investigate. In the morning you learn whether they are good or one of the killers.' },
@@ -37,7 +37,7 @@ const ROLE = {
   father: { label: 'Father', icon: '👨', color: '#2f5ea8', desc: 'You are part of the family, on the village side. If your Son dies, you become the Vigilante.' },
   son: { label: 'Son', icon: '👦', color: '#4d7c0f', desc: 'You are part of the family, on the village side. If both your parents die, you become Batman.' },
   joker: { label: 'Joker', icon: '🃏', color: '#7e22ce', desc: 'Your Son is gone, and grief has turned you into the Joker. You now hunt with the wolves: join the wolf den and pick a victim with the pack at night.' },
-  vigilante: { label: 'Vigilante', icon: '🎯', color: '#c2410c', desc: "Your Son is gone, and you blame yourself. You can't bring him back, but you can make someone pay. Each night, choose one player to take out, or hold your fire. You are on the village side, but you answer to no one." },
+  vigilante: { label: 'Vigilante', icon: '🎯', color: '#c2410c', desc: "Your Son is gone. You can't bring him back, but you can make someone pay. Each night, choose one player to take out, or hold your fire. You are on the village side, but you answer to no one." },
   batman: { label: 'Batman', icon: '🦇', color: '#eab308', desc: 'Your parents are gone. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
   // Game mode "The Dark Knight": the villains.
   dkjoker: { label: 'The Joker', icon: '🃏', color: '#7e22ce', desc: "Why so serious? Gotham is your playground, and every night you decide who gets the punchline. Pick a victim with Kill (or let them sweat one more night). Scheme with your crew at Amusement Mile, and never let Gotham see who is behind the smile." },
@@ -60,7 +60,7 @@ const dkMode = () => skinMode === 'darkknight';
 // Batman filter off (Original mode): the Mother's Joker becomes the Maniac, the Son's Batman the Private Investigator.
 const FAM_SKIN = {
   joker: { label: 'Maniac', img: 'maniac', icon: '🪓', desc: 'Your Son is gone, and grief has broken your mind. You now hunt with the wolves: join the wolf den and pick a victim with the pack at night.' },
-  batman: { label: 'Private Investigator', img: 'punisher', icon: '🕵️', desc: 'Your parents are gone, and you want justice. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
+  batman: { label: 'Private Investigator', img: 'punisher', icon: '🕵️', desc: 'You are a private investigator. Your parents are gone, and you want justice. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
   // The Father keeps his name, but gets the picture that matches the Maniac and the Private Investigator.
   vigilante: { img: 'vigilante2' },
   mother: { desc: 'You are part of the family, on the village side. If your Son dies, grief turns you into the Maniac and you join the wolves.' },
