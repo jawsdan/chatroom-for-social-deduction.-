@@ -2260,3 +2260,6 @@ body.role-pink.night { --bg: #1e0a16; --surface: #2a0d1f; --surface-2: #3a1229; 
 /* Main chat hidden by the moderator: in the lobby the messages step aside so the village can be seen.
    You can still type; what you say pops up as a speech bubble over your character. */
 body.lobby-quiet[data-channel="lobby"] #messages > * { display: none; }
+.fk-say { font-size: 0.85rem; padding: 7px 12px; }
+.fk-say.long { text-align: left; }
+@media (max-width: 760px) { .fk-say { font-size: 0.74rem; } }

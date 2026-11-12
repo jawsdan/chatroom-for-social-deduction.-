@@ -1090,6 +1090,8 @@ $('aiToggle').onclick = () => {
   focusComposer();
 };
 function renderComposer() {
+  // Speech-bubble mode (main chat hidden): 100 characters at most.
+  $('msgInput').maxLength = channel === 'lobby' && state?.display?.lobby === false ? 100 : 500;
   const showToggle = channel === 'mod' && !amMod();
   $('aiToggle').classList.toggle('hidden', !showToggle);
   $('aiToggle').classList.toggle('on', aiMode);

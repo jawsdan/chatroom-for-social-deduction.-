@@ -1216,6 +1216,8 @@ io.on('connection', (socket) => {
     if (mutedNames.has(key(u.name))) {
       return socket.emit('notice', 'You are muted. You can only talk to the moderator until the chat is wiped.');
     }
+    // With the main chat hidden, messages are speech bubbles: at most 100 characters.
+    if (!display.lobby && t.length > 100) return socket.emit('notice', 'With the chat hidden, you can say at most 100 characters at once.');
     const m = msg(u.name, t, { moderator: isMod(socket) });
     push(lobby, m);
     io.emit('lobby:message', m);

@@ -263,7 +263,12 @@ window.SCENE_HD = (function () {
     const el = ringEls.get(name);
     if (!el || !text) return;
     const b = el.querySelector('.fk-say');
-    b.textContent = text.length > 70 ? text.slice(0, 68) + '…' : text;
+    const t = text.length > 100 ? text.slice(0, 99) + '…' : text;
+    b.textContent = t;
+    // Longer messages get a wider bubble (and a little smaller text once they get long).
+    const phone = innerWidth < 600;
+    b.style.maxWidth = Math.round(Math.min(phone ? 240 : 340, 120 + t.length * (phone ? 1.8 : 2.6))) + 'px';
+    b.classList.toggle('long', t.length > 60);
     b.classList.add('on');
     // Keep the bubble on screen: slide it sideways if it would stick out.
     b.style.marginLeft = '0px';
@@ -275,8 +280,11 @@ window.SCENE_HD = (function () {
       else if (r.right > innerWidth - pad) dx = innerWidth - pad - r.right;
       b.style.marginLeft = dx + 'px';
     });
+    // How long it stays: enough time to read it, a bit more when several people are talking at once.
+    const others = [...ringEls.values()].filter((o) => o !== el && o.querySelector('.fk-say.on')).length;
+    const ms = Math.min(14000, 2800 + t.length * 70 + others * 1500);
     clearTimeout(el._say);
-    el._say = setTimeout(() => b.classList.remove('on'), 4500);
+    el._say = setTimeout(() => b.classList.remove('on'), ms);
   };
   function setRing(list, newPhase, info) {
     root = document.getElementById('scene');
