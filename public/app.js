@@ -35,7 +35,7 @@ const ROLE = {
   mother: { label: 'Mother', icon: '👩', color: '#b83b7a', desc: 'You are part of the family, on the village side. If your Son dies, grief turns you into the Joker and you join the wolves.' },
   father: { label: 'Father', icon: '👨', color: '#2f5ea8', desc: 'You are part of the family, on the village side. If your Son dies, you become the Vigilante.' },
   son: { label: 'Son', icon: '👦', color: '#4d7c0f', desc: 'You are part of the family, on the village side. If both your parents die, you become Batman.' },
-  joker: { label: 'Joker', icon: '🃏', color: '#7e22ce', desc: 'Your Son is gone. You now hunt with the wolves: join the wolf den and pick a victim with the pack at night.' },
+  joker: { label: 'Joker', icon: '🃏', color: '#7e22ce', desc: 'Your Son is gone, and grief has turned you into the Joker. You now hunt with the wolves: join the wolf den and pick a victim with the pack at night.' },
   vigilante: { label: 'Vigilante', icon: '🎯', color: '#c2410c', desc: 'You are still on the village side, but each night you may kill one player. You can also choose to kill nobody.' },
   batman: { label: 'Batman', icon: '🦇', color: '#eab308', desc: 'Your parents are gone. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
   // Game mode "The Dark Knight": the villains.
@@ -62,6 +62,8 @@ const FAM_SKIN = {
   batman: { label: 'Punisher', img: 'punisher', icon: '💀', desc: 'Your parents are gone, and you want revenge. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
   // The Father keeps his name, but gets the picture that matches the Maniac and the Punisher.
   vigilante: { img: 'vigilante2' },
+  mother: { desc: 'You are part of the family, on the village side. If your Son dies, grief turns you into the Maniac and you join the wolves.' },
+  son: { desc: 'You are part of the family, on the village side. If both your parents die, you become the Punisher.' },
 };
 let famSkinOff = false;
 const FAM_BASE = {};
@@ -72,9 +74,9 @@ function applyBatmanFilter(on) {
   for (const [k, skin] of Object.entries(FAM_SKIN)) {
     FAM_BASE[k] ||= { role: { ...ROLE[k] }, img: ROLE_IMG[k], art: ART[k] };
     const base = FAM_BASE[k];
-    ROLE[k] = off ? { ...base.role, ...(skin.label ? { label: skin.label, desc: skin.desc, icon: skin.icon } : {}) } : { ...base.role };
-    ROLE_IMG[k] = off ? ROLE_IMG[skin.img] : base.img;
-    ART[k] = off ? ART[skin.img] : base.art;
+    ROLE[k] = off ? { ...base.role, ...(skin.label ? { label: skin.label, icon: skin.icon } : {}), ...(skin.desc ? { desc: skin.desc } : {}) } : { ...base.role };
+    ROLE_IMG[k] = off && skin.img ? ROLE_IMG[skin.img] : base.img;
+    ART[k] = off && skin.img ? ART[skin.img] : base.art;
   }
   document.querySelectorAll('[data-sig]').forEach((e) => (e.dataset.sig = ''));
   fxRole = undefined;

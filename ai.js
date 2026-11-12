@@ -69,7 +69,7 @@ const ROLE_INFO = {
     'Father (village side, part of the family with the Mother and the Son). You have no night ability. If your Son dies, you become the Vigilante.',
   son: 'Son (village side, part of the family with the Mother and the Father). You have no night ability. If both your parents die, you become Batman.',
   joker:
-    'Joker (wolf side). Your Son died, so you now hunt with the wolves: you join the wolf den and pick a victim with the pack at night. The Detective sees you as a Wolf.',
+    'Joker (wolf side). Your Son died, and grief has turned you into the Joker. You now hunt with the wolves: you join the wolf den and pick a victim with the pack at night. The Detective sees you as a Wolf.',
   vigilante:
     'Vigilante (village side). Your Son died. Each night you may kill one player with the Kill button, or choose to kill nobody. Be careful not to shoot a villager.',
   batman:
