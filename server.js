@@ -220,6 +220,8 @@ function broadcastState() {
       abilityLog: abilityLog.get(key(u.name)) || [],
       role: id === moderatorId ? null : myRole,
       wolfAccess: hasWolfAccess(id),
+      // The family (Mother, Father, Son) know each other. On Hard they only see the family roles, not what anyone turned into.
+      family: familyFor(u.name, id),
       // Civilians who are alive can vote for a mayor until one is elected (secret: only the counts are shown).
       mayorVote: gameState === 'running' && !mayor && id !== moderatorId && isCivilianVoter(key(u.name)) ? { ...mayorTally(), my: mayorVotes.get(key(u.name)) || null, candidates: mayorCandidates() } : null,
       wolfmates: isWolfRole(myRole) ? wolfNames() : [],
@@ -883,6 +885,14 @@ function revealDeath({ victim, card, announce = true, together }) {
 // Remember who the family members are (their role changes later).
 let family = {};
 let familyFlags = {};
+function familyFor(name, id) {
+  if (id === moderatorId || gameState !== 'running') return null;
+  const mine = Object.entries(family).find(([, k]) => k === key(name));
+  if (!mine) return null;
+  return Object.entries(family)
+    .filter(([, k]) => k !== key(name))
+    .map(([orig, k]) => ({ name: userByName(k)?.name || k, role: hardMode() ? orig : displayRole(k) || orig }));
+}
 function syncFamily() {
   for (const [k, r] of roles) if (FAMILY.includes(r)) family[r] = k;
 }

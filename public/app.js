@@ -130,6 +130,8 @@ function knownRole(name) {
   if (state.modView) return state.modView.roles[k] || null;
   if (k === key(me)) return state.me.role || null;
   if (state.me.wolfmates?.some((n) => key(n) === k)) return state.me.packRoles?.[k] || 'werewolf';
+  const fam = state.me.family?.find((f) => key(f.name) === k);
+  if (fam) return fam.role;
   return null;
 }
 // Small round role picture to use next to text.
@@ -1710,6 +1712,7 @@ function renderPanel() {
     if (mv) role = mv.roles[key(u.name)];
     else if (isMe) role = state.me.role;
     else if (state.me.wolfmates?.some((n) => key(n) === key(u.name))) role = state.me.packRoles?.[key(u.name)] || 'werewolf';
+    else if (state.me.family?.some((f) => key(f.name) === key(u.name))) role = state.me.family.find((f) => key(f.name) === key(u.name)).role;
     if (role && ROLE[role]) {
       const rt = roleLabel('role-tag', role, ROLE[role].label);
       rt.style.setProperty('--rc', ROLE[role].color);
