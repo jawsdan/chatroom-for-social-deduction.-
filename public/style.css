@@ -2263,3 +2263,5 @@ body.lobby-quiet[data-channel="lobby"] #messages > * { display: none; }
 .fk-say { font-size: 0.85rem; padding: 7px 12px; }
 .fk-say.long { text-align: left; }
 @media (max-width: 760px) { .fk-say { font-size: 0.74rem; } }
+/* Long words without spaces wrap inside the bubble instead of running out of it */
+.fk-say { overflow-wrap: anywhere; word-break: break-word; box-sizing: border-box; }
