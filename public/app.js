@@ -3809,7 +3809,7 @@ socket.on('batman:rise', ({ you, name, secret }) => {
     openModal((card) => {
       const who = famSkinOff ? 'the Private Investigator' : 'Batman';
       const Who = famSkinOff ? 'The Private Investigator' : 'Batman';
-      card.append(el('div', 'note-icon', famSkinOff ? '💀' : '🦇'));
+      card.append(el('div', 'note-icon', famSkinOff ? '🕵️' : '🦇'));
       card.append(el('h2', '', you ? `You have become ${who}` : name ? `${name} has become ${who}` : `${Who} has risen`));
       if (!famSkinOff) card.append(killVideo('batman'));
       card.append(el('p', 'hint', you ? 'Your parents are gone. Every morning you get a clue about the night.' : secret ? `Hard mode: only you (the moderator) and ${who} see this.` : name ? 'Other players see this without the name.' : `The Son has become ${who}. Nobody knows who he is.`));
