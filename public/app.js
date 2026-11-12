@@ -36,7 +36,7 @@ const ROLE = {
   father: { label: 'Father', icon: '👨', color: '#2f5ea8', desc: 'You are part of the family, on the village side. If your Son dies, you become the Vigilante.' },
   son: { label: 'Son', icon: '👦', color: '#4d7c0f', desc: 'You are part of the family, on the village side. If both your parents die, you become Batman.' },
   joker: { label: 'Joker', icon: '🃏', color: '#7e22ce', desc: 'Your Son is gone, and grief has turned you into the Joker. You now hunt with the wolves: join the wolf den and pick a victim with the pack at night.' },
-  vigilante: { label: 'Vigilante', icon: '🎯', color: '#c2410c', desc: 'You are still on the village side, but each night you may kill one player. You can also choose to kill nobody.' },
+  vigilante: { label: 'Vigilante', icon: '🎯', color: '#c2410c', desc: 'Your Son is gone, and you want revenge. You are still on the village side, but each night you may kill one player. You can also choose to kill nobody.' },
   batman: { label: 'Batman', icon: '🦇', color: '#eab308', desc: 'Your parents are gone. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
   // Game mode "The Dark Knight": the villains.
   dkjoker: { label: 'The Joker', icon: '🃏', color: '#7e22ce', desc: "Why so serious? Gotham is your playground, and every night you decide who gets the punchline. Pick a victim with Kill (or let them sweat one more night). Scheme with your crew at Amusement Mile, and never let Gotham see who is behind the smile." },
@@ -59,7 +59,7 @@ const dkMode = () => skinMode === 'darkknight';
 // Batman filter off (Original mode): the Mother's Joker becomes the Maniac, the Son's Batman the Punisher.
 const FAM_SKIN = {
   joker: { label: 'Maniac', img: 'maniac', icon: '🪓', desc: 'Your Son is gone, and grief has broken your mind. You now hunt with the wolves: join the wolf den and pick a victim with the pack at night.' },
-  batman: { label: 'Punisher', img: 'punisher', icon: '💀', desc: 'Your parents are gone, and you want revenge. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
+  batman: { label: 'Punisher', img: 'punisher', icon: '💀', desc: 'Your parents are gone, and you want justice. Every morning you get a clue: someone who used an ability, or someone an ability was used on.' },
   // The Father keeps his name, but gets the picture that matches the Maniac and the Punisher.
   vigilante: { img: 'vigilante2' },
   mother: { desc: 'You are part of the family, on the village side. If your Son dies, grief turns you into the Maniac and you join the wolves.' },

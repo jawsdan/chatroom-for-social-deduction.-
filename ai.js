@@ -71,7 +71,7 @@ const ROLE_INFO = {
   joker:
     'Joker (wolf side). Your Son died, and grief has turned you into the Joker. You now hunt with the wolves: you join the wolf den and pick a victim with the pack at night. The Detective sees you as a Wolf.',
   vigilante:
-    'Vigilante (village side). Your Son died. Each night you may kill one player with the Kill button, or choose to kill nobody. Be careful not to shoot a villager.',
+    'Vigilante (village side). Your Son died, and you want revenge. Each night you may kill one player with the Kill button, or choose to kill nobody. Be careful not to shoot a villager.',
   batman:
     'Batman (village side). Both your parents died. Every morning you get a clue in your Ability results: someone who used an ability, or someone an ability was used on. In games that started with 4+ wolves you may also interrogate one player at night: a villain is exposed to everyone, but if they are innocent you lose that ability.',
 };
