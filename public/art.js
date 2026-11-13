@@ -36,7 +36,7 @@ new Image().src = 'img/trial.webp';
 // Role pictures (round badges in public/img/roles). Bump the version when a picture changes.
 window.ROLE_IMG_VERSION = 6;
 window.ROLE_IMG = {};
-for (const r of ['maniac', 'punisher', 'vigilante2', 'civilian', 'prostitute', 'prophet', 'demon', 'werewolf', 'serialkiller', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman', 'dkjoker', 'harley', 'ivy', 'clayface', 'citizen', 'thomaswayne', 'dkbatman', 'gordon']) {
+for (const r of ['maniac', 'punisher', 'vigilante2', 'civilian', 'prostitute', 'prophet', 'demon', 'cupid', 'werewolf', 'serialkiller', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman', 'dkjoker', 'harley', 'ivy', 'clayface', 'citizen', 'thomaswayne', 'dkbatman', 'gordon']) {
   window.ROLE_IMG[r] = `img/roles/${r}.webp?v=${window.ROLE_IMG_VERSION}`;
   window.ART[r] = `<img class="role-img" src="${window.ROLE_IMG[r]}" alt="" draggable="false">`;
   new Image().src = window.ROLE_IMG[r]; // preload so pop-ups show instantly

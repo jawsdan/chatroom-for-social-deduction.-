@@ -12,6 +12,7 @@ const ROLE_LABEL = {
   prostitute: 'Prostitute',
   prophet: 'Prophet',
   demon: 'Demon',
+  cupid: 'Cupid',
   werewolf: 'Werewolf',
   serialkiller: 'Serial Killer',
   doctor: 'Doctor',
@@ -51,6 +52,8 @@ const labelIn = (mode, r) => (mode === 'darkknight' && DK_LABEL[r]) || (mode ===
 const infoIn = (mode, r) => (mode === 'darkknight' && DK_ROLE_INFO[r]) || (mode === 'nobat' && NOBAT_INFO[r]) || ROLE_INFO[r];
 
 const ROLE_INFO = {
+  cupid:
+    'Cupid (village side). Once, on the first day or the first night, use the Connect button to pick two players (you may pick yourself). They become lovers and learn who the other one is. If one of them dies, the other dies of a broken heart.',
   demon:
     "Demon (wolf side). You don't kill. Each night pick one player with the Possess button. As long as you are attached to them (until you possess someone else, or you or they die), they look evil to the Detective and the Private Investigator. You can talk with the wolves in the wolf den.",
   prophet:

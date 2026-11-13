@@ -15,7 +15,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const MAX_MSG = 500;
 const MAX_HISTORY = 300;
-const ROLES = ['civilian', 'prostitute', 'prophet', 'demon', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman', 'dkjoker', 'harley', 'ivy', 'clayface'];
+const ROLES = ['civilian', 'prostitute', 'prophet', 'demon', 'cupid', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman', 'dkjoker', 'harley', 'ivy', 'clayface'];
 // Game mode "The Dark Knight": Citizen, Thomas Wayne (doctor), The Batman (detective), Commissioner Gordon (officer)
 // against The Joker (the only killer), Harley Quinn (sidekick), Poison Ivy (poisons) and Clayface (disguise).
 let gameMode = 'classic'; // 'classic' | 'darkknight'
@@ -26,7 +26,7 @@ const famName = (r) => (display.batman ? { joker: 'Joker', batman: 'Batman' } : 
 const dk = () => gameMode === 'darkknight';
 const DK_VILLAINS = ['dkjoker', 'harley', 'ivy', 'clayface'];
 const DK_ROLES = ['civilian', 'doctor', 'detective', 'officer', ...DK_VILLAINS];
-const CLASSIC_ROLES = ['civilian', 'prostitute', 'prophet', 'demon', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman'];
+const CLASSIC_ROLES = ['civilian', 'prostitute', 'prophet', 'demon', 'cupid', 'werewolf', 'doctor', 'detective', 'officer', 'mother', 'father', 'son', 'joker', 'vigilante', 'batman'];
 const DK_LABEL = { civilian: 'Citizen', doctor: 'Thomas Wayne', detective: 'The Batman', officer: 'Commissioner Gordon', dkjoker: 'The Joker', harley: 'Harley Quinn', ivy: 'Poison Ivy', clayface: 'Clayface' };
 const CLAY_OPTIONS = ['civilian', 'doctor', 'officer', 'dkjoker', 'harley', 'ivy']; // every role except Batman
 let disguises = new Map(); // Clayface's key -> the role Batman sees
@@ -54,7 +54,7 @@ let wipeVotes = new Set(); // socket ids of players who voted to wipe everything
 // family: 'auto' = the Mother/Father/Son trio is dealt when 20+ players joined; 'on' / 'off' to force it.
 // difficulty: 'normal' announces family changes and shows the werewolf death animation; 'hard' reveals nothing on death.
 // interrogate: Batman's Interrogate ability (only in games that started with 4+ wolves).
-const roleConfig = { werewolf: 2, doctor: 1, detective: 1, officer: 0, prostitute: 0, prophet: 0, demon: 0, family: 'auto', difficulty: 'normal', interrogate: true, harley: true, ivy: true, clayface: true }; // the rest are civilians
+const roleConfig = { werewolf: 2, doctor: 1, detective: 1, officer: 0, prostitute: 0, prophet: 0, demon: 0, cupid: 0, family: 'auto', difficulty: 'normal', interrogate: true, harley: true, ivy: true, clayface: true }; // the rest are civilians
 let nextMsgId = 1;
 let nextBotId = 1;
 // The Officer's arrest: made by day; the arrested player can't vote that day
@@ -84,6 +84,9 @@ let pendingReveals = []; // deaths at night, revealed when day starts
 // The Prophet: the first time he dies he rises again on the third day (counting the day he died as the first).
 // On Hard only a death by trial counts. prophetRise: key -> the day he comes back. prophetUsed: his second life is spent.
 let prophetRise = new Map();
+// Cupid: once, on the first day or night, he connects two players. If one dies, the other dies of a broken heart.
+let lovers = null; // { a, b, by } (keys)
+const cupidCanLink = (k) => roles.get(k) === 'cupid' && !lovers && gameState === 'running' && nightNumber <= 1 && !isDeadKey(k);
 // The Demon: demon key -> the player he is attached to. They look evil to anyone who investigates them.
 let possessed = new Map();
 let prophetUsed = new Set();
@@ -240,6 +243,8 @@ function broadcastState() {
       // Civilians who are alive can vote for a mayor until one is elected (secret: only the counts are shown).
       mayorVote: gameState === 'running' && !mayor && id !== moderatorId && isCivilianVoter(key(u.name)) ? { ...mayorTally(), my: mayorVotes.get(key(u.name)) || null, candidates: mayorCandidates() } : null,
       wolfmates: isWolfRole(myRole) ? wolfNames() : [],
+      cupid: id !== moderatorId && myRole === 'cupid' && gameState === 'running' ? { can: cupidCanLink(key(u.name)), lovers: lovers ? [lovers.a, lovers.b].map((k) => userByName(k)?.name || k) : null, candidates: mayorCandidates() } : null,
+      lover: lovers && (lovers.a === key(u.name) || lovers.b === key(u.name)) ? userByName(lovers.a === key(u.name) ? lovers.b : lovers.a)?.name || (lovers.a === key(u.name) ? lovers.b : lovers.a) : null,
       packRoles: isWolfRole(myRole) ? Object.fromEntries(wolfNames().map((n) => [key(n), displayRole(n)])) : {},
       disguise: myRole === 'clayface' ? { role: disguises.get(key(u.name)) || 'civilian', options: CLAY_OPTIONS } : null,
       ai: { enabled: aiHelper.enabled, left: aiHelper.questionsLeft(key(u.name)), max: aiHelper.maxPerGame, busy: aiHelper.isBusy(key(u.name)) },
@@ -280,6 +285,7 @@ function broadcastState() {
         detectiveMode,
         disguises: Object.fromEntries(disguises),
         possessed: [...possessedNow().values()].map((k) => userByName(k)?.name || k),
+        lovers: lovers ? [lovers.a, lovers.b].map((k) => userByName(k)?.name || k) : null,
         notes: Object.fromEntries([...roles.keys()].map((k) => [k, { manifesto: manifestos.get(k) || '', card: callingCards.get(k) || '' }])),
       };
     }
@@ -400,6 +406,7 @@ function wipeEverything(reason) {
   prophetRise = new Map();
   prophetUsed = new Set();
   possessed = new Map();
+  lovers = null;
   trial = null;
   phase = 'day';
   phaseStartedAt = Date.now();
@@ -948,6 +955,37 @@ function revealDeath({ victim, card, announce = true, together }) {
   const manifesto = manifestos.get(key(victim));
   if (manifesto) addClue('manifesto', victim, manifesto);
   checkFamily();
+  checkLovers();
+}
+// Cupid connects two players.
+function cupidLink(cupidName, aName, bName) {
+  const k = key(cupidName);
+  if (!cupidCanLink(k)) return lovers ? 'You already connected two players.' : 'You can only connect players on the first day or night.';
+  const pool = mayorCandidates();
+  const a = pool.find((n) => key(n) === key(aName || ''));
+  const b = pool.find((n) => key(n) === key(bName || ''));
+  if (!a || !b || key(a) === key(b)) return 'Pick two different living players.';
+  lovers = { a: key(a), b: key(b), by: k };
+  sendAbilityResult(k, { kind: 'love', text: `You connected ${a} and ${b}. If one of them dies, the other dies of a broken heart.`, tone: 'neutral' });
+  for (const [me, other] of [[a, b], [b, a]]) sendAbilityResult(key(me), { kind: 'love', text: `Cupid's arrow hit you: you are in love with ${other}. If one of you dies, the other dies of a broken heart.`, tone: 'good', target: other });
+  if (moderatorId) io.to(moderatorId).emit('notice', `💘 Cupid connected ${a} and ${b}.`);
+  return null;
+}
+// A lover died: the other one dies of a broken heart (once).
+function checkLovers() {
+  if (!lovers || lovers.broken || gameState !== 'running') return;
+  const { a, b } = lovers;
+  const dead = isDeadKey(a) ? a : isDeadKey(b) ? b : null;
+  if (!dead) return;
+  const other = dead === a ? b : a;
+  lovers.broken = true;
+  if (isDeadKey(other)) return;
+  killPlayer(userByName(other)?.name || other);
+  const name = userByName(other)?.name || other;
+  const lost = userByName(dead)?.name || dead;
+  systemLobby(hardMode() ? `☠️ ${name} has died.` : `💔 ${name} could not live without ${lost}, and died of a broken heart.`);
+  io.emit('death:shown', { victim: name, heartbreak: hardMode() ? null : lost });
+  revealDeath({ victim: name, card: null, announce: false });
 }
 
 // ---- The family: Mother, Father and Son ----
@@ -1065,10 +1103,11 @@ function randomizeRoles(quiet = false) {
   const pros = dk() ? 0 : roleConfig.prostitute || 0;
   const prophets = dk() ? 0 : roleConfig.prophet || 0;
   const demons = dk() ? 0 : roleConfig.demon || 0;
-  const special = villains.length + roleConfig.doctor + roleConfig.detective + roleConfig.officer + pros + prophets + demons + (withFamily ? 3 : 0);
+  const cupids = dk() ? 0 : roleConfig.cupid || 0;
+  const special = villains.length + roleConfig.doctor + roleConfig.detective + roleConfig.officer + pros + prophets + demons + cupids + (withFamily ? 3 : 0);
   if (players.length === 0) return 'There are no players to give roles to.';
   if (special > players.length) return `Not enough players: you picked ${special} special roles but there are only ${players.length} players.`;
-  const deck = [...villains, ...Array(pros).fill('prostitute'), ...Array(prophets).fill('prophet'), ...Array(demons).fill('demon'), ...Array(roleConfig.doctor).fill('doctor'), ...Array(roleConfig.detective).fill('detective'), ...Array(roleConfig.officer).fill('officer'), ...(withFamily ? FAMILY : [])];
+  const deck = [...villains, ...Array(pros).fill('prostitute'), ...Array(prophets).fill('prophet'), ...Array(demons).fill('demon'), ...Array(cupids).fill('cupid'), ...Array(roleConfig.doctor).fill('doctor'), ...Array(roleConfig.detective).fill('detective'), ...Array(roleConfig.officer).fill('officer'), ...(withFamily ? FAMILY : [])];
   while (deck.length < players.length) deck.push('civilian');
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -1080,6 +1119,7 @@ function randomizeRoles(quiet = false) {
   prophetRise = new Map();
   prophetUsed = new Set();
   possessed = new Map();
+  lovers = null;
   family = {};
   familyFlags = {};
   batmanSeen = new Set();
@@ -1435,7 +1475,7 @@ io.on('connection', (socket) => {
 
   socket.on('roles:config', (cfg = {}) => {
     if (!isMod(socket)) return;
-    for (const r of ['werewolf', 'doctor', 'detective', 'officer', 'prostitute', 'prophet', 'demon']) {
+    for (const r of ['werewolf', 'doctor', 'detective', 'officer', 'prostitute', 'prophet', 'demon', 'cupid']) {
       const n = Number(cfg[r]);
       if (Number.isInteger(n) && n >= 0 && n <= 20) roleConfig[r] = n;
     }
@@ -1680,6 +1720,13 @@ io.on('connection', (socket) => {
       autoProtected.clear();
       protectedNames = new Set();
       scheduleBotActions();
+      for (const bc of bots()) {
+        if (!cupidCanLink(key(bc.name))) continue;
+        setTimeout(() => {
+          const pool = mayorCandidates().sort(() => Math.random() - 0.5);
+          if (pool.length >= 2 && !cupidLink(bc.name, pool[0], pool[1])) broadcastState();
+        }, 2500);
+      }
     }
     io.emit('phase:changed', { phase });
     systemLobby(p === 'night' ? (dk() ? 'Night falls over Gotham.' : 'Night falls over the village.') : dk() ? 'The sun rises over Gotham. It is day.' : 'The sun rises. It is day.');
@@ -1790,6 +1837,15 @@ io.on('connection', (socket) => {
     } else if (wipeVotes.has(socket.id)) wipeVotes.delete(socket.id);
     else wipeVotes.add(socket.id);
     checkWipe();
+    broadcastState();
+  });
+
+  // ---- Cupid ----
+  socket.on('cupid:link', ({ a, b } = {}) => {
+    const u = me();
+    if (!u) return;
+    const err = cupidLink(u.name, String(a || ''), String(b || ''));
+    if (err) return socket.emit('notice', err);
     broadcastState();
   });
 
