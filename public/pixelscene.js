@@ -1093,8 +1093,10 @@
     drawBackParticles(dt);
     drawFront(dt);
   }
+  // Paused while something covers the whole screen (the main menu, the character select): nothing to draw.
+  let paused = false;
   function start() {
-    if (running) return;
+    if (running || paused) return;
     running = true;
     lastT = 0;
     requestAnimationFrame(frame);
@@ -1199,6 +1201,13 @@
       return exec;
     },
     personSprite,
+    setPaused(on) {
+      on = !!on;
+      if (on === paused) return;
+      paused = on;
+      if (on) stop();
+      else if (back && !back.classList.contains('hidden') && !document.hidden) start();
+    },
     setEnabled(on) {
       enabled = !!on;
     },

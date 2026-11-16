@@ -2088,7 +2088,7 @@ body.is-mod .mm-tab.mm-main .mm-tab-icon { background: rgba(255, 255, 255, 0.2);
 .mm-card {
   position: relative; overflow-x: hidden;
   background: color-mix(in srgb, var(--surface) 82%, transparent);
-  -webkit-backdrop-filter: blur(22px) saturate(1.3); backdrop-filter: blur(22px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3); backdrop-filter: blur(12px) saturate(1.3);
   border: 1px solid color-mix(in srgb, var(--border) 50%, rgba(255, 255, 255, 0.5));
   box-shadow: 0 40px 100px rgba(5, 8, 25, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35);
   border-radius: 28px;
@@ -2099,7 +2099,7 @@ body.is-mod .mm-tab.mm-main .mm-tab-icon { background: rgba(255, 255, 255, 0.2);
   background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 45%, transparent), transparent); opacity: 0.55; filter: blur(10px);
 }
 .mm-head { position: relative; gap: 6px; margin-bottom: 22px; }
-.mm-logo { width: 78px; height: 78px; border-radius: 24px; box-shadow: 0 12px 30px rgba(10, 12, 40, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.12); animation: mmFloat 6s ease-in-out infinite; }
+.mm-logo { width: 78px; height: 78px; border-radius: 24px; box-shadow: 0 12px 30px rgba(10, 12, 40, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
 @keyframes mmFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 .mm-head h1 { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; margin-top: 6px; }
 .mm-tagline { font-size: 0.86rem; color: var(--muted); letter-spacing: 0.02em; }
@@ -2109,11 +2109,12 @@ body.is-mod .mm-tab.mm-main .mm-tab-icon { background: rgba(255, 255, 255, 0.2);
   background: color-mix(in srgb, var(--surface-2) 70%, transparent);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 4px 14px rgba(10, 12, 30, 0.06);
   transition: transform 0.18s var(--ease), box-shadow 0.18s, border-color 0.18s, background-color 0.18s;
-  animation: mmIn 0.45s var(--ease) both;
 }
-.mm-page > :nth-child(2) { animation-delay: 0.04s; } .mm-page > :nth-child(3) { animation-delay: 0.08s; }
-.mm-page > :nth-child(4) { animation-delay: 0.12s; } .mm-page > :nth-child(5) { animation-delay: 0.16s; }
-.mm-page > :nth-child(6) { animation-delay: 0.2s; } .mm-page > :nth-child(7) { animation-delay: 0.24s; } .mm-page > :nth-child(8) { animation-delay: 0.28s; }
+/* The buttons slide in once, quickly, when the menu opens. Clicks and updates redraw instantly. */
+.mm-card.mm-anim .mm-tab { animation: mmIn 0.22s var(--ease) both; }
+.mm-card.mm-anim .mm-page > :nth-child(2) { animation-delay: 0.02s; } .mm-card.mm-anim .mm-page > :nth-child(3) { animation-delay: 0.04s; }
+.mm-card.mm-anim .mm-page > :nth-child(4) { animation-delay: 0.06s; } .mm-card.mm-anim .mm-page > :nth-child(5) { animation-delay: 0.08s; }
+.mm-card.mm-anim .mm-page > :nth-child(n+6) { animation-delay: 0.1s; }
 @keyframes mmIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .mm-tab:not(:disabled):hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 10px 24px rgba(10, 12, 30, 0.14); }
 .mm-tab:not(:disabled):hover .mm-tab-arrow { transform: translateX(3px); color: var(--accent); }

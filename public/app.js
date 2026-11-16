@@ -2282,6 +2282,11 @@ function confirmKick(name) {
 }
 
 // ---------- Night actions ----------
+// Show a pick at once, before the server answers (the next update from the server redraws it properly).
+function instantPick(list, b, wasOn, kind) {
+  for (const x of list.querySelectorAll('.on')) x.classList.remove('on', kind);
+  if (!wasOn) b.classList.add('on', kind);
+}
 const ACTION_TEXT = {
   kill: { verb: 'kill', noun: 'Kill', title: 'Choose your victim', btn: 'btn-danger' },
   possess: { verb: 'possess', noun: 'Possess', title: 'Choose who to possess', btn: 'btn-danger' },
@@ -2333,7 +2338,10 @@ function renderActionCard() {
     b.type = 'button';
     b.append(avatar(name, 'sm'), el('span', 'tname', name + (key(name) === key(me) ? ' (you)' : '')));
     if (a.target === name) b.append(el('span', 'tag picked', '✓ ' + t.verb));
-    b.onclick = () => socket.emit('night:choose', a.target === name ? null : name);
+    b.onclick = () => {
+      instantPick(list, b, a.target === name, a.kind);
+      socket.emit('night:choose', a.target === name ? null : name);
+    };
     list.append(b);
   }
   // Detective: players already investigated are shown but can't be picked again.
@@ -2354,7 +2362,10 @@ function renderActionCard() {
     nb.type = 'button';
     nb.append(el('span', 'nobody-icon', '🚫'), el('span', 'tname', 'Kill nobody tonight'));
     if (a.skip) nb.append(el('span', 'tag picked', '✓ chosen'));
-    nb.onclick = () => socket.emit('night:choose', a.skip ? null : '__nobody__');
+    nb.onclick = () => {
+      instantPick(list, nb, a.skip, 'kill');
+      socket.emit('night:choose', a.skip ? null : '__nobody__');
+    };
     list.append(nb);
   }
   card.append(list);
@@ -2933,6 +2944,15 @@ function renderMainMenu() {
   menuWasWaiting = waiting;
   const show = !!me && (waiting ? !menuClosed : menuInGame);
   setMenuMusic(show || !$('charSelect').classList.contains('hidden'));
+  // The menu covers the village: stop drawing it until the menu closes.
+  window.PixelScene?.setPaused?.(show || !$('charSelect').classList.contains('hidden'));
+  // The entrance animation only plays when the menu opens, not on every redraw.
+  if (show && menu.classList.contains('hidden')) {
+    const mc = $('mmCard');
+    mc.classList.add('mm-anim');
+    clearTimeout(mc._anim);
+    mc._anim = setTimeout(() => mc.classList.remove('mm-anim'), 450);
+  }
   menu.classList.toggle('hidden', !show);
   document.body.classList.toggle('menu-open', show);
   if (!show) {
@@ -3595,6 +3615,7 @@ function openCharSelect() {
   $('charError').textContent = '';
   $('charSelect').classList.remove('hidden');
   setMenuMusic(true);
+  window.PixelScene?.setPaused?.(true);
   renderCharGrid();
 }
 // On phones the screen shows one character at a time; arrows (or a swipe) browse.
@@ -3693,6 +3714,7 @@ function renderCharGrid() {
 function closeCharSelect() {
   $('charSelect').classList.add('hidden');
   setMenuMusic(!$('mainMenu').classList.contains('hidden'));
+  window.PixelScene?.setPaused?.(!$('mainMenu').classList.contains('hidden'));
   charIdx = null;
   charBrowsed = false;
   focusComposer();
@@ -4035,7 +4057,10 @@ function renderActionPop() {
     b.append(avatar(name, 'sm'), nm);
     if (packSize && voters.length) b.append(voteTag(voters));
     else if (on) b.append(el('span', 'ap-pick-tick', '✓'));
-    b.onclick = () => socket.emit('night:choose', on ? null : name);
+    b.onclick = () => {
+      instantPick(list, b, on, a.kind);
+      socket.emit('night:choose', on ? null : name);
+    };
     list.append(b);
   }
   for (const x of a.investigated || []) {
@@ -4051,7 +4076,10 @@ function renderActionPop() {
     const nv = votersFor(null);
     if (packSize && nv.length) nb.append(voteTag(nv));
     else if (a.skip) nb.append(el('span', 'ap-pick-tick', '✓'));
-    nb.onclick = () => socket.emit('night:choose', a.skip ? null : '__nobody__');
+    nb.onclick = () => {
+      instantPick(list, nb, a.skip, 'kill');
+      socket.emit('night:choose', a.skip ? null : '__nobody__');
+    };
     list.append(nb);
   }
   pop.append(list);
