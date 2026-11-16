@@ -298,6 +298,20 @@ window.SCENE_HD = (function () {
       root.dataset.ringInit = '1';
       window.addEventListener('resize', ringLayout);
       new ResizeObserver(ringLayout).observe(root);
+      // Phones: the keyboard opening and closing moves the message box without resizing the window.
+      const chatEl = document.querySelector('.chat');
+      if (chatEl) new ResizeObserver(ringLayout).observe(chatEl);
+      const comp = document.getElementById('composer');
+      let lastTop = -1;
+      const check = () => {
+        const t = comp ? Math.round(comp.getBoundingClientRect().top) : 0;
+        if (t !== lastTop) {
+          lastTop = t;
+          ringLayout();
+        }
+      };
+      window.visualViewport?.addEventListener('resize', () => setTimeout(check, 60));
+      setInterval(check, 1000);
     }
     // Hide the side-view characters while the ring is up.
     for (const el of els.values()) el.remove();

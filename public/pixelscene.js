@@ -233,6 +233,165 @@
     hs.chimney = { x: cx, y: y - roofH - 16 };
     hs.door = { x, y: y + wallH + 6 };
   }
+  // A house seen from above at an angle, turned any way round: walls that face us, a pitched roof
+  // with two slopes, a chimney, door and windows. hs: { x, y (middle of the floor), w (length), d (depth), ang }.
+  function drawHouse3D(c, r, hs, lights) {
+    const { x, y, w: L, d: D, ang } = hs;
+    const k = clamp(plaza.ry / plaza.rx, 0.4, 0.75); // how flat the ground looks
+    const kz = 0.82;
+    const co = Math.cos(ang);
+    const si = Math.sin(ang);
+    const P = (u, v, z = 0) => [x + u * co - v * si, y + (u * si + v * co) * k - z * kz];
+    const hW = D * 0.5;
+    const rh = D * 0.5;
+    const style = hs.style || 'tile';
+    const roof = style === 'thatch' ? ['#d8a94c', '#c99a3e', '#e0b65c'][Math.floor(r() * 3)] : style === 'slate' ? ['#76828f', '#66717f', '#8a8f96'][Math.floor(r() * 3)] : ['#c65b3a', '#b5502f', '#d06a3f', '#a84a35', '#c9713f'][Math.floor(r() * 5)];
+    const wall = WALLS[Math.floor(r() * WALLS.length)];
+    const lerp2 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    const line = (a, b) => {
+      c.beginPath();
+      c.moveTo(a[0], a[1]);
+      c.lineTo(b[0], b[1]);
+      c.stroke();
+    };
+    // shadow on the ground
+    poly(c, [P(-L / 2, -D / 2), P(L / 2, -D / 2), P(L / 2, D / 2), P(-L / 2, D / 2)].map(([px, py]) => [px + D * 0.16, py + D * 0.12]), 'rgba(0,0,0,0.22)', null);
+    // the walls that face us
+    const h2 = L / 2;
+    const d2 = D / 2;
+    const sides = [
+      { a: [-h2, d2], b: [h2, d2], ny: co, nx: -si, gable: false },
+      { a: [h2, -d2], b: [-h2, -d2], ny: -co, nx: si, gable: false },
+      { a: [h2, d2], b: [h2, -d2], ny: si, nx: co, gable: true },
+      { a: [-h2, -d2], b: [-h2, d2], ny: -si, nx: -co, gable: true },
+    ].filter((sd) => sd.ny > 0.05);
+    sides.sort((m, n) => m.ny - n.ny);
+    let doorDone = false;
+    for (const sd of sides) {
+      const W3 = (t, z) => P(sd.a[0] + (sd.b[0] - sd.a[0]) * t, sd.a[1] + (sd.b[1] - sd.a[1]) * t, z);
+      const tone = 0.82 + 0.18 * sd.ny - 0.1 * sd.nx;
+      const pts = [W3(0, 0), W3(1, 0), W3(1, hW)];
+      if (sd.gable) pts.push(W3(0.5, hW + rh));
+      pts.push(W3(0, hW));
+      poly(c, pts, shade(wall, tone), INK, 2);
+      // stone footing
+      poly(c, [W3(0, 0), W3(1, 0), W3(1, hW * 0.14), W3(0, hW * 0.14)], shade('#9a9288', tone), INK, 1.2);
+      // timber frame
+      c.strokeStyle = '#6b4a2e';
+      c.lineWidth = Math.max(2, D * 0.03);
+      for (const t of sd.gable ? [0.5] : [0.33, 0.67]) line(W3(t, hW * 0.14), W3(t, hW));
+      if (hs.timber) {
+        line(W3(0.02, hW * 0.56), W3(0.98, hW * 0.56));
+        line(W3(0.02, hW * 0.56), W3(sd.gable ? 0.5 : 0.33, hW));
+        line(W3(0.98, hW * 0.56), W3(sd.gable ? 0.5 : 0.67, hW));
+      }
+      if (sd.gable) line(W3(0, hW), W3(1, hW));
+      const quad = (t0, t1, z0, z1) => [W3(t0, z0), W3(t1, z0), W3(t1, z1), W3(t0, z1)];
+      const win = (t0, t1, z0, z1) => {
+        const qd = quad(t0, t1, z0, z1);
+        poly(c, qd, '#8fc4e0', INK, 1.6);
+        c.strokeStyle = INK;
+        c.lineWidth = 1;
+        line(W3((t0 + t1) / 2, z0), W3((t0 + t1) / 2, z1));
+        if (r() < 0.8) lights.push({ kind: 'quad', pts: qd });
+      };
+      const wide = Math.hypot(W3(1, 0)[0] - W3(0, 0)[0], W3(1, 0)[1] - W3(0, 0)[1]);
+      if (wide < D * 0.35) continue; // seen almost edge-on: no room for details
+      if (!sd.gable) {
+        if (!doorDone) {
+          doorDone = true;
+          poly(c, quad(0.43, 0.57, 0, hW * 0.66), '#7a4a28', INK, 1.8);
+          const kn = W3(0.545, hW * 0.33);
+          ell(c, kn[0], kn[1], 1.8, 1.8, '#f2c94c');
+        } else win(0.42, 0.58, hW * 0.3, hW * 0.72);
+        win(0.1, 0.26, hW * 0.3, hW * 0.72);
+        win(0.74, 0.9, hW * 0.3, hW * 0.72);
+      } else {
+        if (!doorDone && sides.length === 1) {
+          doorDone = true;
+          poly(c, quad(0.38, 0.62, 0, hW * 0.66), '#7a4a28', INK, 1.8);
+        } else win(0.34, 0.66, hW * 0.3, hW * 0.72);
+        win(0.42, 0.58, hW * 1.05, hW * 1.05 + rh * 0.3);
+      }
+    }
+    // the roof: two slopes that meet at the ridge, hanging a little over the walls
+    const o = 1.1;
+    const ez = hW - rh * 0.1;
+    const rA = P(-h2 * o, 0, hW + rh);
+    const rB = P(h2 * o, 0, hW + rh);
+    const slopes = [
+      { e0: P(-h2 * o, d2 * o, ez), e1: P(h2 * o, d2 * o, ez), ny: co, nx: -si },
+      { e0: P(-h2 * o, -d2 * o, ez), e1: P(h2 * o, -d2 * o, ez), ny: -co, nx: si },
+    ].sort((m, n) => m.ny - n.ny);
+    for (const sl of slopes) {
+      const tone = 0.95 + 0.2 * sl.ny - 0.12 * sl.nx;
+      const pts = [sl.e0, sl.e1, rB, rA];
+      poly(c, pts, shade(roof, tone), null);
+      c.save();
+      c.beginPath();
+      pts.forEach(([px, py], i) => (i ? c.lineTo(px, py) : c.moveTo(px, py)));
+      c.closePath();
+      c.clip();
+      const rows = Math.max(4, Math.round(D / 14));
+      const cols = Math.max(6, Math.round(L / (style === 'slate' ? 9 : 13)));
+      if (style === 'thatch') {
+        c.strokeStyle = shade(roof, tone * 0.72);
+        c.lineWidth = 1.3;
+        for (let i = 0; i < L * 1.4; i++) {
+          const t = r();
+          const q0 = r() * 0.85;
+          line(lerp2(lerp2(sl.e0, sl.e1, t), lerp2(rA, rB, t), 1 - q0), lerp2(lerp2(sl.e0, sl.e1, t), lerp2(rA, rB, t), 1 - q0 - 0.14));
+        }
+        c.strokeStyle = shade(roof, tone * 1.18);
+        for (let j = 1; j < rows; j += 2) line(lerp2(sl.e0, rA, j / rows), lerp2(sl.e1, rB, j / rows));
+      } else {
+        c.strokeStyle = shade(roof, tone * 0.68);
+        c.lineWidth = 1.2;
+        for (let j = 1; j < rows; j++) {
+          const a0 = lerp2(sl.e0, rA, j / rows);
+          const a1 = lerp2(sl.e1, rB, j / rows);
+          line(a0, a1);
+          const b0 = lerp2(sl.e0, rA, (j - 1) / rows);
+          const b1 = lerp2(sl.e1, rB, (j - 1) / rows);
+          for (let i = 0; i <= cols; i++) {
+            const t = (i + (j % 2 ? 0.5 : 0)) / cols;
+            line(lerp2(a0, a1, t), lerp2(b0, b1, t));
+          }
+        }
+      }
+      c.restore();
+      poly(c, pts, null, INK, 2.2);
+      if (style === 'thatch') {
+        c.strokeStyle = INK;
+        c.lineWidth = 6;
+        c.lineCap = 'round';
+        line(sl.e0, sl.e1);
+        c.strokeStyle = shade(roof, tone * 0.85);
+        c.lineWidth = 3.4;
+        line(sl.e0, sl.e1);
+      }
+    }
+    // the ridge
+    c.lineCap = 'round';
+    c.strokeStyle = INK;
+    c.lineWidth = 5;
+    line(rA, rB);
+    c.strokeStyle = shade(roof, 1.3);
+    c.lineWidth = 2.4;
+    line(rA, rB);
+    // chimney
+    const ct = (r() < 0.5 ? -1 : 1) * (0.2 + r() * 0.15);
+    const cb = P(L * ct, 0, hW + rh * 0.9);
+    const cs = clamp(D * 0.14, 9, 20);
+    rrect(c, cb[0] - cs / 2, cb[1] - cs * 1.3, cs, cs * 1.5, 2, '#9a8d86', INK, 2);
+    rrect(c, cb[0] - cs * 0.65, cb[1] - cs * 1.55, cs * 1.3, cs * 0.38, 2, '#7d726c', INK, 2);
+    hs.chimney = { x: cb[0], y: cb[1] - cs * 1.6 };
+    // where players go in at night: the side that faces the square
+    const dx = plaza.cx - x;
+    const dy = (plaza.cy - y) / k;
+    const dl = Math.hypot(dx, dy) || 1;
+    hs.door = { x: x + (dx / dl) * D * 0.62, y: y + (dy / dl) * D * 0.62 * k };
+  }
   function drawBlock(c, r, hs, lights) {
     // Gotham: a brick block with a flat roof.
     const { x, y, w } = hs;
@@ -363,7 +522,7 @@
     const spokeAngle = (k) => (k / SPOKES) * Math.PI * 2 + Math.PI / SPOKES;
     for (const [lw, col] of dk ? [[40, '#4a4c58'], [34, '#8d8f9c']] : [[42, '#9c8059'], [35, '#e3d0a6']]) {
       x.strokeStyle = col;
-      x.lineWidth = lw * clamp(rx / 300, 0.6, 1);
+      x.lineWidth = lw * clamp(rx / 300, 0.6, 1) * (dk ? 1 : 1.5);
       x.lineCap = 'round';
       for (let k = 0; k < SPOKES; k++) {
         const a = spokeAngle(k);
@@ -503,19 +662,33 @@
         tryPlace(cx + Math.cos(a) * (rx + w * 0.95), cy + Math.sin(a) * (ry + w * 1.05) - w * 0.1, w);
       }
     } else {
-      // the inner ring: houses evenly spaced between the roads, all facing the square
-      const perRing = [[1.0, 2, 0.95], [1.95, 2, 0.85]];
-      for (const [dist, per, size] of perRing) {
-        for (let k = 0; k < SPOKES; k++) {
-          for (let j = 0; j < per; j++) {
-            const a = spokeAngle(k) + ((j + 1) / (per + 1)) * ((Math.PI * 2) / SPOKES);
-            const w = hw * size;
-            dress(tryPlace(cx + Math.cos(a) * (rx + w * 0.98) * dist, cy + Math.sin(a) * (ry + w * 1.0) * dist - w * 0.12, w));
-          }
+      // Close-up: big houses packed around the square, turned to face it; more rows behind, cut off by the screen edges.
+      const k = clamp(ry / rx, 0.4, 0.75);
+      const big = clamp(rx * 0.72, 100, 240);
+      const put = (a, dist, size, turn, inner) => {
+        const L = big * size * (1 + r() * 0.25);
+        const D = big * size * 0.72;
+        const hx = cx + Math.cos(a) * dist;
+        const hy = cy + Math.sin(a) * dist * k + Math.max(0, Math.sin(a)) * D * 0.95 - Math.max(0, -Math.sin(a)) * D * 0.1;
+        if (hx < -L || hx > W + L || hy < -L || hy > H + L * 1.2) return;
+        if (houses.some((o) => Math.hypot(o.x - hx, (o.y - hy) / k) < (o.w + L) * (inner ? 0.4 : 0.56) || (!inner && Math.abs(o.x - hx) < (o.w + L) * 0.42 && Math.abs(o.y - hy) < (o.d + D) * 0.8))) return;
+        const hs = { x: hx, y: hy, w: L, d: D, ang: a + Math.PI / 2 + (r() - 0.5) * 0.5 + (r() < turn ? Math.PI / 2 : 0), house3d: true };
+        dress(hs);
+        houses.push(hs);
+      };
+      for (let kk = 0; kk < SPOKES; kk++) put((kk / SPOKES) * Math.PI * 2, rx + big * 0.62, 1, 0.25, true);
+      for (let ring = 1; ring <= 4; ring++) {
+        const n = SPOKES * (ring + 1);
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2 + (r() - 0.5) * 0.08;
+          let onPath = false;
+          for (let kk = 0; kk < SPOKES; kk++) if (Math.abs(((a - spokeAngle(kk) + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.2 / (ring * 0.6 + 0.6)) onPath = true;
+          if (onPath) continue;
+          put(a, rx + big * (0.62 + ring * 1.45), 0.9, 0.4);
         }
       }
     }
-    for (let i = 0; i < (dk ? 160 : 60); i++) {
+    for (let i = 0; i < (dk ? 160 : 0); i++) {
       const a = r() * Math.PI * 2;
       const d = 1.2 + r() * 2.2;
       const w = hw * (0.75 + r() * 0.3);
@@ -536,16 +709,16 @@
       const ex = (px - cx) / (rx + 46);
       const ey = (py - cy) / (ry + 50);
       if (ex * ex + ey * ey < 1) continue;
-      if (houses.some((o) => Math.abs(o.x - px) < o.w * 0.75 && py > o.y - o.w * 0.8 && py < o.y + o.w * 0.75)) continue;
+      if (houses.some((o) => Math.abs(o.x - px) < o.w * 0.75 && py > o.y - o.w * (o.house3d ? 1.0 : 0.8) && py < o.y + o.w * 0.75)) continue;
       const a = Math.atan2((py - cy) / ry, (px - cx) / rx);
       let onPath = false;
       for (let k = 0; k < SPOKES; k++) if (Math.abs(((a - spokeAngle(k) + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.13) onPath = true;
       if (onPath) continue;
       deco.push({ x: px, y: py, kind: r(), near: Math.hypot((px - cx) / (rx * 1.9), (py - cy) / (ry * 2.2)) < 1 });
     }
-    const all = [...houses.map((h) => ({ y: h.y + h.w * 0.4, h })), ...deco.map((d) => ({ y: d.y, d }))].sort((a, b) => a.y - b.y);
+    const all = [...houses.map((h) => ({ y: h.house3d ? h.y : h.y + h.w * 0.4, h })), ...deco.map((d) => ({ y: d.y, d }))].sort((a, b) => a.y - b.y);
     for (const it of all) {
-      if (it.h) (dk ? drawBlock : drawHouse)(x, r, it.h, lights);
+      if (it.h) (dk ? drawBlock : it.h.house3d ? drawHouse3D : drawHouse)(x, r, it.h, lights);
       else if (dk) {
         if (it.d.kind < 0.35) drawLamp(x, it.d.x, it.d.y, lights, true);
         else if (it.d.kind < 0.5) {
@@ -555,6 +728,11 @@
       } else if (it.d.near) {
         // close to the square: barrels, crates, hay bales and bits of fence instead of trees
         const { x: px, y: py, kind: k } = it.d;
+        const ps = clamp(rx / 170, 1, 1.8);
+        x.save();
+        x.translate(px, py);
+        x.scale(ps, ps);
+        x.translate(-px, -py);
         if (k < 0.25) {
           ell(x, px + 2, py + 3, 11, 4, 'rgba(0,0,0,0.2)');
           rrect(x, px - 8, py - 18, 16, 20, 5, '#8a5a32', INK, 2);
@@ -598,7 +776,8 @@
             x.stroke();
           }
         }
-      } else if (it.d.kind < 0.55) drawTree(x, r, it.d.x, it.d.y, 34 + it.d.kind * 50);
+        x.restore();
+      } else if (it.d.kind < 0.55) drawTree(x, r, it.d.x, it.d.y, (34 + it.d.kind * 50) * (dk ? 1 : clamp(rx / 190, 1, 1.7)));
       else if (it.d.kind < 0.8) {
         ell(x, it.d.x + 2, it.d.y + 5, 15, 5, 'rgba(0,0,0,0.18)'); // bush
         ell(x, it.d.x, it.d.y, 13, 10, '#4a9c4a', '#1f4f29', 2);
@@ -617,7 +796,10 @@
     }
     // the night lights, drawn once
     for (const l of lights) {
-      if (l.kind === 'win') {
+      if (l.kind === 'quad') {
+        poly(lx, l.pts, 'rgba(255,214,120,0.95)', null);
+        glow(lx, (l.pts[0][0] + l.pts[2][0]) / 2, (l.pts[0][1] + l.pts[2][1]) / 2, 40, '255,200,110', 0.35);
+      } else if (l.kind === 'win') {
         lx.fillStyle = 'rgba(255,214,120,0.95)';
         lx.fillRect(l.x, l.y, l.w, l.h);
         glow(lx, l.x + l.w / 2, l.y + l.h / 2, 34, '255,200,110', 0.35);
