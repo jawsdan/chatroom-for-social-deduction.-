@@ -31,7 +31,7 @@ const ROLE = {
   doctor: { label: 'Doctor', icon: '🩺', color: '#0ea5e9', desc: 'Each night, choose one player to Protect. If the killers come for them, they survive. You can protect yourself, but not two nights in a row.' },
   cupid: { label: 'Cupid', icon: '💘', color: '#db2777', desc: 'At the start of the game, connect two players. If one of them dies, the other dies too.' },
   demon: { label: 'Demon', icon: '😈', color: '#b91c1c', desc: "You are on the wolves' side, but you don't kill. Each night, possess one player. As long as you are attached to them, they look evil to anyone who investigates them." },
-  prophet: { label: 'Prophet', icon: '✝️', color: '#b45309', desc: 'You have a second life. Die, and you come back on the third day.' },
+  prophet: { label: 'Prophet', icon: '✝️', color: '#b45309', desc: 'You have a second life. Die, and you come back on the third day after your death.' },
   prostitute: { label: 'Prostitute', icon: '🌹', color: '#be185d', desc: "Each night, choose whose house you spend the night at, or stay at your own. Away from home, the wolves can't find you if they come for you. But if they come for the person you're with, you both die." },
   officer: { label: 'Officer', icon: '🚔', color: '#1d4ed8', desc: 'Each day you may arrest one player. They cannot vote that day and cannot use their ability the night after.' },
   detective: { label: 'Detective', icon: '👮', color: '#3b82f6', desc: 'Each night, choose one player to Investigate. In the morning you learn whether they are good or one of the killers.' },
@@ -2503,7 +2503,7 @@ socket.on('prophet:risen', ({ name }) => {
       art.innerHTML = ART.prophet;
       card.append(art);
       card.append(el('h2', '', mine ? 'You have risen!' : `${name} has risen!`));
-      card.append(el('p', '', mine ? 'On the third day you came back from the dead. You can speak, vote and play again. This was your second life: if you die again, it is for good.' : `On the third day, ${name} came back from the dead. ${name} is the Prophet, and walks among the living again.`));
+      card.append(el('p', '', mine ? 'On the third day after your death you came back from the dead. You can speak, vote and play again. This was your second life: if you die again, it is for good.' : `On the third day after their death, ${name} came back from the dead. ${name} is the Prophet, and walks among the living again.`));
       const actions = el('div', 'actions');
       actions.append(btn('btn-primary', 'Close', closeModal));
       card.append(actions);

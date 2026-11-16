@@ -57,7 +57,7 @@ const ROLE_INFO = {
   demon:
     "Demon (wolf side). You don't kill. Each night pick one player with the Possess button. As long as you are attached to them (until you possess someone else, or you or they die), they look evil to the Detective and the Private Investigator. You can talk with the wolves in the wolf den.",
   prophet:
-    'Prophet (village side). You have no night ability, but you have a second life: the first time you die, you rise again on the third day (the day you die counts as the first; for example killed on day 2, back at sunrise on day 4) and can talk, vote and play again. It only works once. On Hard, only a death by trial (being voted guilty) brings you back; a night kill is for good.',
+    'Prophet (village side). You have no night ability, but you have a second life: the first time you die, you rise again on the third day after your death (the day you die does not count; for example killed on day 2, back at sunrise on day 5) and can talk, vote and play again. It only works once. On Hard, only a death by trial (being voted guilty) brings you back; a night kill is for good.',
   prostitute:
     "Prostitute (village side). Each night choose whose house you spend the night at with the Stay with button, or pick yourself to stay home. If the wolves come for you while you are away, they find nobody and you survive. But if they come for the person you are staying with, you both die. At home, you can be attacked as normal.",
   civilian:

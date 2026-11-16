@@ -81,7 +81,7 @@ let nightNumber = 0;
 // 'auto': the Detective learns good/bad at sunrise by themselves. 'manual': the moderator answers.
 let detectiveMode = 'auto';
 let pendingReveals = []; // deaths at night, revealed when day starts
-// The Prophet: the first time he dies he rises again on the third day (counting the day he died as the first).
+// The Prophet: the first time he dies he rises again on the third day after his death (the day he died doesn't count).
 // On Hard only a death by trial counts. prophetRise: key -> the day he comes back. prophetUsed: his second life is spent.
 let prophetRise = new Map();
 // Cupid: once, on the first day or night, he connects two players. If one dies, the other dies of a broken heart.
@@ -787,8 +787,8 @@ function prophetDied(k, cause, day) {
   if (roles.get(k) !== 'prophet' || prophetUsed.has(k) || gameState !== 'running') return;
   if (hardMode() && cause !== 'trial') return;
   prophetUsed.add(k);
-  prophetRise.set(k, day + 2);
-  if (moderatorId) io.to(moderatorId).emit('notice', `✝️ ${userByName(k)?.name || k} is the Prophet and will rise again on day ${day + 2}.`);
+  prophetRise.set(k, day + 3);
+  if (moderatorId) io.to(moderatorId).emit('notice', `✝️ ${userByName(k)?.name || k} is the Prophet and will rise again on day ${day + 3}.`);
 }
 // At sunrise: a Prophet whose third day has come is alive again.
 function raiseProphets() {
@@ -801,9 +801,9 @@ function raiseProphets() {
     mutedNames.delete(k);
     deathAt.delete(k);
     const name = userByName(k)?.name || k;
-    systemLobby(`✝️ On the third day, ${name} has risen from the dead! ${name} is the Prophet, and walks among the living again.`);
+    systemLobby(`✝️ On the third day after their death, ${name} has risen from the dead! ${name} is the Prophet, and walks among the living again.`);
     io.emit('prophet:risen', { name });
-    sendAbilityResult(k, { kind: 'rise', text: 'On the third day you rose from the dead. This was your second life: if you die again, it is for good.', tone: 'good' });
+    sendAbilityResult(k, { kind: 'rise', text: 'On the third day after your death you rose from the dead. This was your second life: if you die again, it is for good.', tone: 'good' });
   }
 }
 
