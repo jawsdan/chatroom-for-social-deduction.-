@@ -121,7 +121,9 @@
     const wallH = w * 0.4;
     const roofH = w * 0.5;
     const L = x - w / 2;
-    const roof = ROOFS[Math.floor(r() * ROOFS.length)];
+    // Roof style: clay tiles, straw thatch or slate (hs.style picks one; otherwise tiles).
+    const style = hs.style || 'tile';
+    const roof = style === 'thatch' ? ['#d8a94c', '#c99a3e', '#e0b65c'][Math.floor(r() * 3)] : style === 'slate' ? ['#6f7c8c', '#5f6b7a', '#7a7f86'][Math.floor(r() * 3)] : ROOFS[Math.floor(r() * ROOFS.length)];
     const wall = WALLS[Math.floor(r() * WALLS.length)];
     ell(c, x + 6, y + wallH + 3, w * 0.62, w * 0.14, 'rgba(0,0,0,0.22)');
     // wall
@@ -129,13 +131,21 @@
     wg.addColorStop(0, shade(wall, 0.86));
     wg.addColorStop(1, wall);
     rrect(c, L, y - 2, w, wallH + 2, 3, wg, INK, 2);
-    // timber beams
+    // timber beams (half-timbered houses also get crossed braces)
     c.strokeStyle = '#6b4a2e';
     c.lineWidth = 3;
     c.beginPath();
     for (const fx of [0.3, 0.7]) {
       c.moveTo(L + w * fx, y);
       c.lineTo(L + w * fx, y + wallH);
+    }
+    if (hs.timber) {
+      c.moveTo(L + 2, y + wallH * 0.5);
+      c.lineTo(L + w - 2, y + wallH * 0.5);
+      for (const [a, b] of [[0.02, 0.3], [0.7, 0.98]]) {
+        c.moveTo(L + w * a, y);
+        c.lineTo(L + w * b, y + wallH * 0.5);
+      }
     }
     c.stroke();
     // door
@@ -171,22 +181,45 @@
     pts.forEach(([px, py], i) => (i ? c.lineTo(px, py) : c.moveTo(px, py)));
     c.closePath();
     c.clip();
+    if (style === 'thatch') {
+      // straw: lots of short strokes down the slope, and a thick rounded edge
+      c.strokeStyle = shade(roof, 0.72);
+      c.lineWidth = 1.3;
+      for (let i = 0; i < w * 1.6; i++) {
+        const tx = L - w * 0.08 + r() * w * 1.16;
+        const ty = y - roofH + r() * (roofH + 2);
+        c.beginPath();
+        c.moveTo(tx, ty);
+        c.lineTo(tx + (tx - x) * 0.04, ty + 5 + r() * 6);
+        c.stroke();
+      }
+      c.strokeStyle = shade(roof, 1.2);
+      for (let ty = y - roofH + 10; ty < y; ty += 11) {
+        c.beginPath();
+        c.moveTo(L - w * 0.1, ty);
+        c.lineTo(L + w * 1.1, ty);
+        c.stroke();
+      }
+    } else {
+    const tile = style === 'slate' ? 6 : 8;
     c.strokeStyle = shade(roof, 0.66);
     c.lineWidth = 1.2;
-    for (let ty = y - roofH + 8, row = 0; ty < y + 2; ty += 8, row++) {
+    for (let ty = y - roofH + tile, row = 0; ty < y + 2; ty += tile, row++) {
       c.beginPath();
       c.moveTo(L - w * 0.1, ty);
       c.lineTo(L + w * 1.1, ty);
       c.stroke();
-      for (let tx = L - w * 0.1 + (row % 2 ? 6 : 0); tx < L + w * 1.1; tx += 12) {
+      for (let tx = L - w * 0.1 + (row % 2 ? tile * 0.75 : 0); tx < L + w * 1.1; tx += tile * 1.5) {
         c.beginPath();
-        c.moveTo(tx, ty - 8);
+        c.moveTo(tx, ty - tile);
         c.lineTo(tx, ty);
         c.stroke();
       }
     }
+    }
     c.restore();
     poly(c, pts, null, INK, 2);
+    if (style === 'thatch') rrect(c, L - w * 0.09, y - 4, w * 1.18, 8, 4, shade(roof, 0.85), INK, 2);
     c.strokeStyle = shade(roof, 1.4);
     c.lineWidth = 2;
     c.beginPath();
@@ -278,8 +311,10 @@
       gg.addColorStop(0, '#7e8090');
       gg.addColorStop(1, '#5a5c6a');
     } else {
-      gg.addColorStop(0, '#7cc45c');
-      gg.addColorStop(1, '#4f9a44');
+      // warm, dusty village earth, greener towards the edges
+      gg.addColorStop(0, '#dcc79c');
+      gg.addColorStop(0.55, '#ccb07c');
+      gg.addColorStop(1, '#8fa35c');
     }
     x.fillStyle = gg;
     x.fillRect(0, 0, W, H);
@@ -302,23 +337,31 @@
         x.stroke();
       }
     } else {
-      // tufts of grass and flowers
+      // worn patches of soil, small pebbles, and grass that gets thicker away from the square
+      for (let i = 0; i < area / 6000; i++) ell(x, r() * W, r() * H, 18 + r() * 46, 8 + r() * 18, r() < 0.5 ? 'rgba(150,115,70,0.16)' : 'rgba(255,240,205,0.16)');
+      for (let i = 0; i < area / 1800; i++) ell(x, r() * W, r() * H, 1.5 + r() * 1.5, 1 + r(), 'rgba(110,90,65,0.45)');
       for (let i = 0; i < area / 260; i++) {
         const px = r() * W;
         const py = r() * H;
-        x.strokeStyle = r() < 0.5 ? 'rgba(46,110,52,0.5)' : 'rgba(150,215,110,0.5)';
+        const far = Math.hypot((px - cx) / (rx * 2.2), (py - cy) / (ry * 2.6));
+        if (r() > far * far) continue;
+        x.strokeStyle = r() < 0.5 ? 'rgba(70,110,45,0.55)' : 'rgba(150,180,90,0.55)';
         x.lineWidth = 1.2;
         x.beginPath();
         x.moveTo(px, py);
         x.lineTo(px + (r() - 0.5) * 3, py - 3 - r() * 4);
         x.stroke();
       }
-      for (let i = 0; i < area / 7000; i++) ell(x, r() * W, r() * H, 12 + r() * 30, 6 + r() * 12, 'rgba(60,130,60,0.18)');
+      for (let i = 0; i < area / 7000; i++) {
+        const px = r() * W;
+        const py = r() * H;
+        if (Math.hypot((px - cx) / (rx * 2), (py - cy) / (ry * 2.4)) > 1) ell(x, px, py, 12 + r() * 30, 6 + r() * 12, 'rgba(80,130,60,0.2)');
+      }
     }
     // paths from the plaza outward, like spokes
     const SPOKES = 8;
     const spokeAngle = (k) => (k / SPOKES) * Math.PI * 2 + Math.PI / SPOKES;
-    for (const [lw, col] of dk ? [[40, '#4a4c58'], [34, '#8d8f9c']] : [[40, '#a98f63'], [33, '#d9c08f']]) {
+    for (const [lw, col] of dk ? [[40, '#4a4c58'], [34, '#8d8f9c']] : [[42, '#9c8059'], [35, '#e3d0a6']]) {
       x.strokeStyle = col;
       x.lineWidth = lw * clamp(rx / 300, 0.6, 1);
       x.lineCap = 'round';
@@ -368,6 +411,18 @@
       }
     }
     x.setLineDash([]);
+    if (!dk) {
+      // flagstones laid in spokes from the fire to the rim
+      x.strokeStyle = 'rgba(70,60,50,0.28)';
+      x.lineWidth = 2;
+      for (let k = 0; k < 24; k++) {
+        const a = (k / 24) * Math.PI * 2;
+        x.beginPath();
+        x.moveTo(cx + Math.cos(a) * rx * 0.2, cy + Math.sin(a) * ry * 0.2);
+        x.lineTo(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry);
+        x.stroke();
+      }
+    }
     // a soft light in the middle and shade towards the rim
     const pg = x.createRadialGradient(cx, cy, 0, cx, cy, rx);
     pg.addColorStop(0, 'rgba(255,240,200,0.16)');
@@ -376,6 +431,19 @@
     x.fillStyle = pg;
     x.fillRect(cx - rx, cy - ry, rx * 2, ry * 2);
     x.restore();
+    if (!dk) {
+      // a border of square stones around the square
+      for (let k = 0; k < 64; k++) {
+        const a = (k / 64) * Math.PI * 2;
+        const bx2 = cx + Math.cos(a) * (rx + 5);
+        const by2 = cy + Math.sin(a) * (ry + 3.5);
+        x.save();
+        x.translate(bx2, by2);
+        x.rotate(a + Math.PI / 2);
+        rrect(x, -rx * 0.05, -4, rx * 0.1, 8, 2, k % 2 ? '#a99a86' : '#bdae98', '#5a4e40', 1.2);
+        x.restore();
+      }
+    }
     // the fire place in the middle
     const fr = clamp(rx * 0.11, 20, 38);
     ell(x, cx, cy, fr * 1.5, fr * 0.85, dk ? '#3a3c47' : '#5f5142', dk ? '#1b1c22' : '#3a3026', 2);
@@ -422,12 +490,32 @@
       houses.push(hs);
       return hs;
     };
-    for (let k = 0; k < SPOKES; k++) {
-      const a = (k / SPOKES) * Math.PI * 2;
-      const w = hw * (0.9 + r() * 0.2);
-      tryPlace(cx + Math.cos(a) * (rx + w * 0.95), cy + Math.sin(a) * (ry + w * 1.05) - w * 0.1, w);
+    const STYLES = ['tile', 'tile', 'thatch', 'slate'];
+    const dress = (h) => {
+      if (!h) return;
+      h.style = STYLES[Math.floor(r() * STYLES.length)];
+      h.timber = r() < 0.4;
+    };
+    if (dk) {
+      for (let k = 0; k < SPOKES; k++) {
+        const a = (k / SPOKES) * Math.PI * 2;
+        const w = hw * (0.9 + r() * 0.2);
+        tryPlace(cx + Math.cos(a) * (rx + w * 0.95), cy + Math.sin(a) * (ry + w * 1.05) - w * 0.1, w);
+      }
+    } else {
+      // the inner ring: houses evenly spaced between the roads, all facing the square
+      const perRing = [[1.0, 2, 0.95], [1.95, 2, 0.85]];
+      for (const [dist, per, size] of perRing) {
+        for (let k = 0; k < SPOKES; k++) {
+          for (let j = 0; j < per; j++) {
+            const a = spokeAngle(k) + ((j + 1) / (per + 1)) * ((Math.PI * 2) / SPOKES);
+            const w = hw * size;
+            dress(tryPlace(cx + Math.cos(a) * (rx + w * 0.98) * dist, cy + Math.sin(a) * (ry + w * 1.0) * dist - w * 0.12, w));
+          }
+        }
+      }
     }
-    for (let i = 0; i < 160; i++) {
+    for (let i = 0; i < (dk ? 160 : 60); i++) {
       const a = r() * Math.PI * 2;
       const d = 1.2 + r() * 2.2;
       const w = hw * (0.75 + r() * 0.3);
@@ -438,7 +526,7 @@
         if (da < 0.2) onPath = true;
       }
       if (onPath) continue;
-      tryPlace(cx + Math.cos(a) * (rx + w) * d, cy + Math.sin(a) * (ry + w) * d, w);
+      dress(tryPlace(cx + Math.cos(a) * (rx + w) * (dk ? d : d + 0.9), cy + Math.sin(a) * (ry + w) * (dk ? d : d + 0.9), w));
     }
     // trees, bushes and rocks in the gaps (Gotham: street lamps and hydrants)
     const deco = [];
@@ -453,7 +541,7 @@
       let onPath = false;
       for (let k = 0; k < SPOKES; k++) if (Math.abs(((a - spokeAngle(k) + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.13) onPath = true;
       if (onPath) continue;
-      deco.push({ x: px, y: py, kind: r() });
+      deco.push({ x: px, y: py, kind: r(), near: Math.hypot((px - cx) / (rx * 1.9), (py - cy) / (ry * 2.2)) < 1 });
     }
     const all = [...houses.map((h) => ({ y: h.y + h.w * 0.4, h })), ...deco.map((d) => ({ y: d.y, d }))].sort((a, b) => a.y - b.y);
     for (const it of all) {
@@ -464,6 +552,52 @@
           rrect(x, it.d.x - 4, it.d.y - 12, 8, 13, 3, '#c0392b', '#15161c', 1.5); // hydrant
           ell(x, it.d.x, it.d.y - 13, 4, 3, '#d9483b', '#15161c', 1.5);
         } else ell(x, it.d.x, it.d.y, 16 + it.d.kind * 22, 5 + it.d.kind * 6, 'rgba(120,140,175,0.5)', 'rgba(200,215,240,0.35)', 1.5); // puddle
+      } else if (it.d.near) {
+        // close to the square: barrels, crates, hay bales and bits of fence instead of trees
+        const { x: px, y: py, kind: k } = it.d;
+        if (k < 0.25) {
+          ell(x, px + 2, py + 3, 11, 4, 'rgba(0,0,0,0.2)');
+          rrect(x, px - 8, py - 18, 16, 20, 5, '#8a5a32', INK, 2);
+          for (const f of [0.25, 0.75]) rrect(x, px - 8, py - 18 + 20 * f - 1.5, 16, 3, 1, '#4a4e57', null);
+        } else if (k < 0.5) {
+          ell(x, px + 2, py + 3, 13, 4, 'rgba(0,0,0,0.2)');
+          rrect(x, px - 11, py - 16, 22, 17, 2, '#b98a52', INK, 2);
+          x.strokeStyle = '#7a5530';
+          x.lineWidth = 1.5;
+          x.beginPath();
+          x.moveTo(px - 11, py - 16);
+          x.lineTo(px + 11, py + 1);
+          x.moveTo(px + 11, py - 16);
+          x.lineTo(px - 11, py + 1);
+          x.stroke();
+        } else if (k < 0.72) {
+          ell(x, px + 2, py + 3, 16, 5, 'rgba(0,0,0,0.2)');
+          rrect(x, px - 15, py - 14, 30, 16, 6, '#e0b85a', INK, 2);
+          x.strokeStyle = '#b48a34';
+          x.lineWidth = 1.5;
+          for (const f of [-5, 5]) {
+            x.beginPath();
+            x.moveTo(px + f, py - 13);
+            x.lineTo(px + f, py + 1);
+            x.stroke();
+          }
+        } else {
+          // a short fence
+          for (const [lw, col] of [[4, INK], [2.4, '#9a6b3e']]) {
+            x.strokeStyle = col;
+            x.lineWidth = lw;
+            x.beginPath();
+            for (let f = 0; f < 4; f++) {
+              x.moveTo(px - 18 + f * 12, py);
+              x.lineTo(px - 18 + f * 12, py - 14);
+            }
+            x.moveTo(px - 20, py - 10);
+            x.lineTo(px + 20, py - 10);
+            x.moveTo(px - 20, py - 4);
+            x.lineTo(px + 20, py - 4);
+            x.stroke();
+          }
+        }
       } else if (it.d.kind < 0.55) drawTree(x, r, it.d.x, it.d.y, 34 + it.d.kind * 50);
       else if (it.d.kind < 0.8) {
         ell(x, it.d.x + 2, it.d.y + 5, 15, 5, 'rgba(0,0,0,0.18)'); // bush
