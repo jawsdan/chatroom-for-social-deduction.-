@@ -380,7 +380,7 @@
     c.lineWidth = 2.4;
     line(rA, rB);
     // chimney
-    const ct = (r() < 0.5 ? -1 : 1) * (0.2 + r() * 0.15);
+    const ct = (co > 0 ? 1 : -1) * (0.2 + r() * 0.15);
     const cb = P(L * ct, 0, hW + rh * 0.9);
     const cs = clamp(D * 0.14, 9, 20);
     rrect(c, cb[0] - cs / 2, cb[1] - cs * 1.3, cs, cs * 1.5, 2, '#9a8d86', INK, 2);
@@ -666,21 +666,23 @@
       const k = clamp(ry / rx, 0.4, 0.75);
       const big = clamp(rx * 0.72, 100, 240);
       const put = (a, dist, size, turn, inner) => {
-        const L = big * size * (1 + r() * 0.25);
+        const L = big * size * 1.12;
         const D = big * size * 0.72;
-        const hx = cx + Math.cos(a) * dist;
+        const hx = cx + Math.cos(a) * (dist + Math.pow(Math.abs(Math.cos(a)), 6) * big * 0.38); // the side houses stand end-on, so they need a little more room
         const hy = cy + Math.sin(a) * dist * k + Math.max(0, Math.sin(a)) * D * 0.95 - Math.max(0, -Math.sin(a)) * D * 0.1;
         if (hx < -L || hx > W + L || hy < -L || hy > H + L * 1.2) return;
         if (houses.some((o) => Math.hypot(o.x - hx, (o.y - hy) / k) < (o.w + L) * (inner ? 0.4 : 0.56) || (!inner && Math.abs(o.x - hx) < (o.w + L) * 0.42 && Math.abs(o.y - hy) < (o.d + D) * 0.8))) return;
-        const hs = { x: hx, y: hy, w: L, d: D, ang: a + Math.PI / 2 + (r() - 0.5) * 0.5 + (r() < turn ? Math.PI / 2 : 0), house3d: true };
-        dress(hs);
+        // Every house faces the middle of the square exactly. Houses mirrored left and right look the same.
+        const seed = Math.round(Math.abs(Math.cos(a)) * 1000) * 31 + Math.round(Math.sin(a) * 1000) * 7 + Math.round(dist);
+        const pr = rng(seed);
+        const hs = { x: hx, y: hy, w: L, d: D, ang: a + Math.PI / 2, house3d: true, seed, style: STYLES[Math.floor(pr() * STYLES.length)], timber: pr() < 0.4 };
         houses.push(hs);
       };
       for (let kk = 0; kk < SPOKES; kk++) put((kk / SPOKES) * Math.PI * 2, rx + big * 0.62, 1, 0.25, true);
       for (let ring = 1; ring <= 4; ring++) {
         const n = SPOKES * (ring + 1);
         for (let i = 0; i < n; i++) {
-          const a = (i / n) * Math.PI * 2 + (r() - 0.5) * 0.08;
+          const a = (i / n) * Math.PI * 2;
           let onPath = false;
           for (let kk = 0; kk < SPOKES; kk++) if (Math.abs(((a - spokeAngle(kk) + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.2 / (ring * 0.6 + 0.6)) onPath = true;
           if (onPath) continue;
@@ -718,7 +720,7 @@
     }
     const all = [...houses.map((h) => ({ y: h.house3d ? h.y : h.y + h.w * 0.4, h })), ...deco.map((d) => ({ y: d.y, d }))].sort((a, b) => a.y - b.y);
     for (const it of all) {
-      if (it.h) (dk ? drawBlock : it.h.house3d ? drawHouse3D : drawHouse)(x, r, it.h, lights);
+      if (it.h) (dk ? drawBlock : it.h.house3d ? drawHouse3D : drawHouse)(x, it.h.house3d ? rng(it.h.seed + 99) : r, it.h, lights);
       else if (dk) {
         if (it.d.kind < 0.35) drawLamp(x, it.d.x, it.d.y, lights, true);
         else if (it.d.kind < 0.5) {
